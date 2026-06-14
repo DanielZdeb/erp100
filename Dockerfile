@@ -10,7 +10,10 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 COPY package.json package-lock.json* ./
 # `npm ci` jest deterministyczny — używa dokładnie lockfile, szybciej niż install.
-RUN npm ci --no-audit --no-fund
+# `--legacy-peer-deps` omija strict peer-dep checking npm v7+ — repo ma drobny
+# conflict tiptap (extension-table@3.26.1 chce core@3.26.1, starter-kit@3.26.0
+# wciąga core@3.26.0). Lokalnie też tego używasz, działa.
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
 # ─── Stage 2: builder ──────────────────────────────────────
 FROM node:22-alpine AS builder
