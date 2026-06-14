@@ -56,9 +56,11 @@ RUN mkdir -p /app/public/uploads && chown -R nextjs:nodejs /app/public/uploads
 USER nextjs
 EXPOSE 3000
 
-# Healthcheck: /api/auth/session zawsze odpowiada 200 (publiczny endpoint Auth.js),
-# bez potrzeby zalogowanej sesji. Coolify używa tego do liveness probe.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/auth/session || exit 1
+# Healthcheck: /api/auth/session zwraca pustą sesję (GET) bez potrzeby DB.
+# UWAGA: Auth.js v5 obsługuje TYLKO GET i POST — nie używać `wget --spider`
+# (HEAD), bo wtedy zwraca UnknownAction error i healthcheck failuje.
+# `-O /dev/null` = pełny GET, ale odrzucamy body (tylko exit code nas interesuje).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget -q --tries=1 -O /dev/null http://localhost:3000/api/auth/session || exit 1
 
 CMD ["node", "server.js"]
