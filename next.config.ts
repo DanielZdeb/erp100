@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "acro4f.com" },
       { protocol: "https", hostname: "*.acro4f.com" },
     ],
+    // Next.js 16 wymaga jawnej whitelisty quality. Domyślnie pozwala tylko 75
+    // i 100. My używamy q=70 dla mniejszych miniaturek (np. lista produktów),
+    // q=75 jako default, q=100 dla pełnego detalu.
+    qualities: [50, 65, 70, 75, 80, 90, 100],
+    // Whitelist dla lokalnych ścieżek serwowanych z public/ — uploads
+    // mogą siedzieć w głębokich katalogach (products/<id>/images/<file>).
+    localPatterns: [{ pathname: "/uploads/**" }],
   },
 };
 
