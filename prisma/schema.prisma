@@ -1,0 +1,1759 @@
+// ERP firmy — schemat bazy
+// Moduły: User/Auth, Katalog produktów, Zamówienia importowe, Kurierzy
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// AUTH / USERS
+// ─────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  PRACOWNIK
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// MULTI-TENANT: firmy
+// ─────────────────────────────────────────────────────────────────────
+
+/// Firma = tenant systemu. Każdy User, Product, Category, ImportOrder,
+/// ShippingBox, Courier i Warehouse należy do dokładnie jednej firmy.
+/// Dane są izolowane na poziomie queryów (filtrowane po companyId).
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  nip         String?
+  krs         String?
+  /// Adres — pełny tekstowy (legacy, zostaje dla istniejących danych).
+  address     String?
+  /// Pola adresu rozbite na komponenty — używane na PDF zamówień i fakturach.
+  street      String?
+  postalCode  String?
+  city        String?
+  /// Osoba reprezentująca firmę (np. CEO / prokurent) — wyświetlana w PDF.
+  representativeName String?
+  /// Adres dostawy (magazyn / odbiór) — pokazywany na PDF zamówień obok
+  /// danych zamawiającego. Wielowierszowy tekst (newliny zachowywane).
+  deliveryAddress    String?
+  /// Domyślna stawka KROJENIA za sztukę (PLN). Auto-wypełniana w polu
+  /// „Krojenie" w Płatnościach nowego zamówienia PL.
+  defaultKrojeniePerSztPln Float?
+  /// Domyślna stawka SZWALNIA za sztukę (PLN). Auto-wypełniana w polu
+  /// „Szwalnia" w Płatnościach nowego zamówienia PL.
+  defaultSzwalniaPerSztPln Float?
+  /// Adres strony internetowej firmy (np. acro4f.com). Używany w nagłówkach
+  /// dokumentów + dostępny jako placeholder w instrukcjach (np. cover footer).
+  websiteUrl  String?
+  /// Logo firmy w kolorze (głównej wersji). URL do uploadowanego pliku.
+  /// Auto-wstawiany jako `logoImageUrl` w nowo tworzonych instrukcjach.
+  logoColorUrl       String?
+  /// Logo BW — wersja na ciemne tło (czarne tło, białe napisy/grafika).
+  logoBwOnBlackUrl   String?
+  /// Logo BW — wersja na jasne tło (białe tło, czarne napisy/grafika).
+  logoBwOnWhiteUrl   String?
+  /// Flaga aktywności (możliwość zawieszenia firmy bez kasowania danych).
+  active      Boolean  @default(true)
+  /// Funkcja „Komponenty" (produkty KOMPONENTOWY z slotami wariantów). Wyłączona =
+  /// ukrywamy przycisk „Nowy komponent" + UI typu KOMPONENTOWY. Zestawy
+  /// (compositionMode=ZESTAW, grupowanie istniejących produktów) są zawsze dostępne
+  /// niezależnie od tej flagi. Domyślnie włączone dla wstecznej kompatybilności.
+  componentsEnabled Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users          User[]
+  products       Product[]
+  categories     Category[]
+  shippingBoxes  ShippingBox[]
+  couriers       Courier[]
+  importOrders   ImportOrder[]
+  warehouses     Warehouse[]
+  systemConfig   SystemConfig[]
+  brokerCommissionTiers BrokerCommissionTier[]
+  productManuals ProductManual[]
+  photoTemplates ProductPhotoTemplate[]
+  photoBatches   ProductPhotoBatch[]
+  orderTemplateSections OrderTemplateSection[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role     @default(PRACOWNIK)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  /// Firma do której należy użytkownik. Każdy User widzi tylko dane swojej firmy.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdOrders ImportOrder[]        @relation("OrderCreator")
+  assignedTasks OrderTask[]
+  statusChanges OrderStatusHistory[]
+  uploadedFiles OrderFile[]
+
+  @@index([companyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// KATALOG PRODUKTÓW
+// ─────────────────────────────────────────────────────────────────────
+
+model Category {
+  id        String     @id @default(cuid())
+  /// Multi-tenant: firma do której należy kategoria.
+  companyId String?
+  company   Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  /// Slug unikalny w obrębie firmy (nie globalnie).
+  slug      String
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  // Poziom hierarchii: 1 = Kategoria główna, 2 = Podkategoria, 3 = Typ produktu
+  // Wymusza max 3 poziomy + validację parent ↔ child level.
+  level     Int        @default(1)
+  sortOrder Int        @default(0)
+
+  // Reguły komponentów: który komponent ma być auto-dopinany do produktów w tej kategorii
+  componentRules ComponentCategoryRule[]
+  // Reguły pudełek: które pudełka mają być auto-pinowane do produktów w tej kategorii
+  shippingBoxRules ShippingBoxCategoryRule[]
+  // Sloty bundli z tą kategorią w puli wariantów (M2M).
+  bundleSlotPoolCategories ProductComponent[] @relation("BundleSlotPoolCategories")
+
+  /// Stawka cła importowego dla produktów w tej kategorii (0..1, np. 0.085 = 8.5%).
+  /// Produkty mogą nadpisać własną wartością. Cło auto-doliczane do kosztów zamówienia.
+  customsDutyPct Float?
+
+  /// Stawka prowizji platformy sprzedaży dla produktów tej kategorii (0..1, np. 0.045 = 4.5%).
+  /// Allegro: prowizja od sprzedaży. Sklep: prowizja kanału sprzedaży (np. bramka płatności).
+  /// Items pobierają z kategorii (z fallback do parent.parent). Quick-edit z items-tab
+  /// kaskaduje na całą kategorię — wszystkie produkty w niej dziedziczą zmianę.
+  commissionPctAllegro Float?
+  commissionPctSklep   Float?
+
+  /// Koszt pozyskania klienta (KPK) per sztuka, w PLN NETTO.
+  /// Allegro: opłaty promocyjne, programy lojalnościowe. Sklep: kampanie Google/FB.
+  /// Mapowanie: kpkPlnAllegro → otherCostPln, kpkPlnSklep → adCostPln (dla zachowania
+  /// dotychczasowych kolumn 'Inne' / 'Reklama').
+  kpkPlnAllegro Float?
+  kpkPlnSklep   Float?
+
+  /// Wysyłka pokrywana przez klienta — REVENUE doliczany do marży.
+  /// Domyślne wartości per kanał. Mapowanie 1:1 → ItemSaleChannel.customerShippingPln.
+  /// Kategoria > Ustawienia ogólne firmy (kategoria zawsze wygrywa).
+  customerShippingPlnAllegro Float?
+  customerShippingPlnSklep   Float?
+
+  /// Instrukcje przypisane do tej kategorii (m2m z `includeDescendants`).
+  manualAssignments ProductManualCategory[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+}
+
+enum ProductStatus {
+  PLANOWANY // do zamówienia / koncept
+  IMPORTOWANY // aktualnie w trakcie importu z Chin
+  AKTYWNY // w sprzedaży, na stanie
+}
+
+enum ImportMode {
+  KARTON // sprowadzane w kartonach (CBM/szt liczone z wymiarów kartonu)
+  LUZEM // sprowadzane luzem (CBM/szt liczone z pojemności kontenera / szt)
+}
+
+enum CompositionMode {
+  CALOSCIOWY // sprowadzany całościowo, jako jedna sztuka
+  KOMPONENTOWY // sprowadzany w komponentach (które są też produktami)
+  ZESTAW // wirtualny produkt-zestaw złożony z istniejących produktów (nie importowany)
+}
+
+/// Szablon PDF instrukcji obsługi. Wpływa na cover page, układ stron i branding.
+///   CLEAN     — minimal, sama treść + footer z numerem strony
+///   TECHNICAL — z automatycznym spisem treści + page numbers X/Y + header z SKU
+///   BRANDED   — cover page z dużym zdjęciem produktu + nazwa + EAN/SKU, header brandowy
+enum ManualTemplate {
+  CLEAN
+  TECHNICAL
+  BRANDED
+}
+
+/// Format strony PDF instrukcji obsługi.
+///   A4 — 210×297 mm (standardowy dokument)
+///   A5 — 148×210 mm (małe książeczki / wkładki do paczki)
+///   A6 — 105×148 mm (ulotka / pocztówka)
+enum ManualPageSize {
+  A4
+  A5
+  A6
+}
+
+/// Typ instrukcji — różny układ stron, ten sam zestaw ustawień stylu.
+///   STANDARD — wielostronicowa: cover + TOC + body[] + Wyrównanie + Ostatnia.
+///   LEAFLET  — 1-stronna: cover + body (po 1 stronie per język, bez TOC, Wyr.,
+///              Ostatniej). „Ulotka" dwustronna / wkładka do paczki.
+enum ManualKind {
+  STANDARD
+  LEAFLET
+}
+
+enum BundleShippingMode {
+  INDIVIDUAL_PACKAGING // każdy składnik wysyłany w swoim opakowaniu (suma)
+  SINGLE_CARTON // cały zestaw w jednym kartonie wysyłkowym (z biblioteki)
+}
+
+enum CostCurrency {
+  PLN
+  USD
+  EUR
+  CNY
+}
+
+enum GoodsTranchePhase {
+  PRE_PRODUCTION // przed produkcją (zwykle 30% zaliczka)
+  POST_PRODUCTION // po produkcji / QC (zwykle 40%)
+  IN_PORT // w porcie / przed odbiorem (zwykle 30%)
+}
+
+enum ProductStage {
+  PRODUKCJA // 1. Wytyczne produkcyjne (metka, standardy)
+  IMPORT // 2. Wytyczne importowe (jak pakować, zabezpieczać)
+  DOKUMENTACJA // 3. GTIN/EAN, Code 128, instrukcje (pliki)
+  WYSYLKA // 4. Wysyłka do konsumenta (pudło, koszt)
+  OPIS // 5. Opis do sklepu (wymiary, waga, kolor)
+  GRAFIKI // 6. Grafiki produktowe
+}
+
+enum ContainerType {
+  TWENTY_FT // 20' kontener ~ 28 m³
+  FORTY_FT // 40' kontener ~ 68 m³
+  CUSTOM // niestandardowy
+}
+
+model Product {
+  id              String          @id @default(cuid())
+  /// Multi-tenant: firma do której należy produkt.
+  companyId       String?
+  company         Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  categoryId      String?
+  category        Category?       @relation(fields: [categoryId], references: [id])
+  status          ProductStatus   @default(PLANOWANY)
+  compositionMode CompositionMode @default(CALOSCIOWY)
+
+  /// Wymagana liczba komponentów (sztuk łącznie) potrzebnych do skompletowania
+  /// jednego egzemplarza tego produktu. Dotyczy tylko produktów KOMPONENTOWYCH.
+  /// Używane do śledzenia postępu kompletacji (ile komponentów zostało
+  /// "dołożonych" względem wymaganych).
+  requiredComponentsTotal Int?
+
+  // Czy to "komponent" (część sprzedawana wewnątrz produktów złożonych) czy
+  // pełen produkt do sprzedaży. Komponenty mają osobną listę i nie są
+  // zamawiane jako samodzielne pozycje (zwykle).
+  isComponent Boolean @default(false)
+
+  name        String
+  /// SKU unikalny w obrębie firmy.
+  productCode String
+  /// EAN unikalny w obrębie firmy (różne firmy mogą używać tego samego EAN).
+  eanCode     String?
+  /// Code 128 — kod kreskowy (alfanumeryczny). Niezależny od EAN.
+  code128     String?
+  color       String?
+
+  // ── Integracja z IAI Shop / sklepu zewnętrznym ──────────────────────
+  /// ID produktu w zewnętrznym systemie sklepu (IAI Shop). Używane przy
+  /// re-imporcie / aktualizacji z eksportu IOF.
+  iaiId       String?
+  /// ID grupy wariantów w IAI (rodzina produktów z tymi samymi parametrami
+  /// poza Kształtem / Kolorem). Wiele produktów może mieć ten sam.
+  iaiGroupId  String?
+  /// URL karty produktu w sklepie zewnętrznym (do podglądu / weryfikacji).
+  storeUrl    String?
+
+  // ── Cechy produktu (rozszerzenie ze sklepu) ─────────────────────────
+  /// Jednostka miary — szt, para, mb. Default "szt".
+  unit             String? @default("szt")
+  /// Producent / marka (np. "ZDĘBU").
+  producer         String?
+  /// Krótki opis (do listy / podsumowania).
+  shortDescription String?
+  /// Stawka VAT w % (np. 23.0). Default 23.
+  vatRatePct       Float?  @default(23.0)
+  /// Gwarancja: nazwa, długość w miesiącach, typ (producer / seller).
+  warrantyName     String?
+  warrantyMonths   Int?
+  warrantyType     String?
+  /// Udźwig (kg) — istotny dla mebli typu nogi/stoły.
+  loadCapacityKg   Int?
+  /// Wymiar profilu (np. "6x3 cm" — dla metalowych nóg).
+  profileSize      String?
+  /// Kształt / wariant geometrii (np. "V1", "V2").
+  shape            String?
+  /// Kształt podstawy (jeśli inny od ogólnego kształtu).
+  baseShape        String?
+  /// Przeznaczenie produktu (np. "Stolik kawowy").
+  purposeText      String?
+
+  // wymiary produktu (cm, kg)
+  widthCm  Float?
+  heightCm Float?
+  depthCm  Float?
+  weightKg Float?
+
+  // ── Import z Chin ──────────────────────────────────────────────────
+  importMode ImportMode @default(KARTON)
+
+  // Tryb KARTON: wymiary kartonu importowego (poziom INNER = pierwsze pudełko
+  // bezpośrednio okrywające produkt). Może być spakowany w większy MASTER karton.
+  boxWidthCm  Float?
+  boxHeightCm Float?
+  boxDepthCm  Float?
+  boxWeightKg Float?
+  unitsPerBox Int? // sztuk w kartonie importowym (INNER)
+
+  // ── Hierarchia kartonów: MASTER karton (zewnętrzny) ───────────────
+  // Master karton mieści N inner kartonów. Używany do liczenia CBM/szt
+  // na podstawie zewnętrznego pudełka oraz w awizacji (warehouse widzi
+  // ile master kartonów przyjedzie + ile inner w każdym).
+  // Optional — jeśli null, importujemy tylko inner kartonami.
+  masterBoxWidthCm    Float?
+  masterBoxHeightCm   Float?
+  masterBoxDepthCm    Float?
+  masterBoxWeightKg   Float?
+  innerBoxesPerMaster Int? // ile inner kartonów mieści się w 1 master
+
+  // Tryb LUZEM: ile sztuk wchodzi do referencyjnego kontenera
+  unitsPerContainer    Int?
+  referenceContainerM3 Float? // m³ referencyjnego kontenera (28 lub 68)
+
+  // ── Wysyłka do klienta (pudło) ─────────────────────────────────────
+  shippingBoxWidthCm  Float?
+  shippingBoxHeightCm Float?
+  shippingBoxDepthCm  Float?
+  shippingBoxWeightKg Float?
+  unitsPerShippingBox Int? // sztuk w jednym pudle wysyłkowym
+
+  // ── ZESTAW (compositionMode=ZESTAW) ────────────────────────────────
+  // Wybór trybu pakowania zestawu:
+  //   INDIVIDUAL_PACKAGING — każdy składnik trafia w swoim kartonie (kalkulacja
+  //     bierze pakowanie ze składowych Product.shippingBox*).
+  //   SINGLE_CARTON — cały zestaw w jednym dedykowanym kartonie z biblioteki.
+  // Null dla nie-zestawów.
+  bundleShippingMode    BundleShippingMode?
+  // Karton wysyłkowy z biblioteki dla trybu SINGLE_CARTON
+  bundleShippingBoxId   String?
+  bundleShippingBox     ShippingBox?         @relation("BundleShippingBox", fields: [bundleShippingBoxId], references: [id])
+
+  // ── Fulfillment / magazyn ──────────────────────────────────────────
+  // Ile sztuk wchodzi na 1 paletę w magazynie (do liczenia kosztu magazynowania)
+  unitsPerPallet Int?
+
+  // kubatura w m³ na sztukę — używana w kalkulacjach kontenera.
+  // KARTON: auto = box*box*box/1e6/unitsPerBox
+  // LUZEM: auto = referenceContainerM3/unitsPerContainer
+  // Można nadpisać ręcznie.
+  cbmPerUnit Float?
+
+  /// Stawka cła importowego per-produkt (0..1, np. 0.085 = 8.5%).
+  /// Null = użyj wartości z kategorii. Cło auto-doliczane do kosztów zamówienia.
+  customsDutyPct Float?
+
+  // Domyślne ceny i koszty — auto-uzupełniają się przy dodawaniu do zamówienia.
+  // Można je nadpisać per-zamówienie, ale od czegoś warto zacząć.
+  defaultUnitPriceUsd        Float? // domyślna cena zakupu USD/szt (import z Chin)
+  defaultUnitPriceCny        Float? // domyślna cena zakupu CNY/szt (import z Chin)
+  defaultUnitPricePln        Float? // domyślna cena zakupu PLN/szt (produkcja w PL)
+  /// Materiały sprzedawane na metry — cena za 1 metr (PLN). Kombinowana
+  /// z `lengthM` daje `defaultUnitPricePln` = pricePerMeter × lengthM.
+  defaultPricePerMeterPln    Float?
+  /// Długość produktu w metrach (gdy cena podana za metr). Pokazywana w UI
+  /// jako informacja „ten produkt ma X m".
+  lengthM                    Float?
+  defaultSalePriceAllegroPln Float? // domyślna cena sprzedaży Allegro (netto PLN)
+  defaultSalePriceSklepPln   Float? // domyślna cena sprzedaży Sklep (netto PLN)
+  defaultAllegroCommissionPct Float? // 0..1, np. 0.12
+  defaultSklepCommissionPct   Float? // 0..1, np. 0.05 (np. opłata bramki płatności)
+  defaultAllegroOtherCostPln  Float? // „Inne" koszty / szt na Allegro (netto PLN)
+  defaultSklepOtherCostPln    Float? // „Inne" koszty / szt w Sklepie (netto PLN)
+  // Wysyłka pokrywana przez klienta — REVENUE per szt (dodawane do marży).
+  defaultAllegroCustomerShippingPln Float?
+  defaultSklepCustomerShippingPln   Float?
+  // Koszt pozyskania klienta (marketing / reklama / SEO) per szt w Sklepie.
+  defaultSklepAdCostPln Float?
+
+  // opisy
+  importGuidelines     String? // wytyczne importowe (logistyka, opakowania)
+  productionGuidelines String? // wytyczne produkcji (jakość, materiały)
+  userManual           String? // [DEPRECATED] legacy plain-text instrukcja — używaj productManualJson
+  /// Instrukcja obsługi w formacie TipTap (ProseMirror) JSON.
+  /// Bogata treść: nagłówki, listy, obrazki, page-breaki, callouty.
+  /// Renderowana do PDF przez @react-pdf/renderer w jednym z 3 szablonów.
+  productManualJson    Json?
+  /// Szablon PDF dla instrukcji — wpływa na cover page, numerowanie stron, branding.
+  manualTemplate       ManualTemplate @default(CLEAN)
+  /// Format strony PDF instrukcji. A4 = standardowa instrukcja, A5 = małe książeczki
+  /// do paczki, A6 = ulotka / kompaktowa wkładka.
+  manualPageSize       ManualPageSize @default(A4)
+  /// Strukturalne sekcje instrukcji (header / footer) — renderowane na każdej
+  /// stronie PDF jako fixed. Header: język + tytuł. Footer: dowolny tekst
+  /// + auto numer strony. Body to productManualJson.
+  /// Legacy single header — fallback gdy `manualHeaderRanges` jest puste/null.
+  manualHeaderLang     String?
+  manualHeaderTitle    String?
+  /// Zakresy nagłówków per zakres stron. JSON array:
+  /// `[{ id, fromPage, toPage, lang, title }]`. Pozwala mieć inny nagłówek
+  /// na stronach 1-3 (np. „Mocowanie"), inny na 4-5 („Konserwacja").
+  /// Gdy null/empty — używamy legacy `manualHeaderLang/Title` dla całości.
+  manualHeaderRanges   Json?
+  manualFooterCustom   String?
+  shopDescription      String? // gotowy opis do wklejenia w sklepie
+  internalNotes        String?
+
+  images       ProductImage[]
+  files        ProductFile[]
+  priceHistory ProductPriceHistory[]
+  orderItems   ImportOrderItem[]
+
+  courierRecommendations CourierRecommendation[]
+
+  // ── Komponenty (gdy KOMPONENTOWY) ────────────────────────────────────
+  // Komponenty tego produktu — relacja "ten produkt SKŁADA SIĘ Z X komponentów"
+  components ProductComponent[] @relation("HasComponents")
+  // Ten produkt jako komponent w innych — "ten produkt jest UŻYWANY W X produktach"
+  asComponentIn ProductComponent[] @relation("AsComponent")
+  // Ten produkt jako WYBRANY WARIANT w linii zamówienia bundla
+  asVariantInOrders OrderItemVariantSplit[] @relation("BundleVariantChoice")
+  // Ten produkt w puli wariantów konkretnego slotu bundla (M2M)
+  inBundleSlotPools ProductComponent[]     @relation("BundleSlotPoolProducts")
+
+  // Reguły kategorii: jeżeli ten produkt jest komponentem przypisanym do
+  // jakichś kategorii, to każdy nowy produkt z tych kategorii automatycznie
+  // dostaje ten komponent.
+  componentRules ComponentCategoryRule[]
+
+  // ── Pudełka wysyłkowe (m2m z capacity) ──────────────────────────────
+  shippingBoxes        ProductShippingBox[]
+  // Reguły auto-przypisania pudełka skierowane bezpośrednio na ten produkt
+  shippingBoxRules     ShippingBoxProductRule[]
+  // ── Stany magazynowe ────────────────────────────────────────────────
+  stocks               Stock[]
+
+  // ── Pudełko z fabryki (China) ───────────────────────────────────────
+  // Gdy produkt przychodzi z Chin we własnym pudełku detalicznym (display
+  // box / retail box) — nie trzeba pakować w karton wysyłkowy przed
+  // sprzedażą. Trzymamy jeden referencyjny obrazek pudełka i jeden plik
+  // designu (np. PDF z print-readymi grafikami logo na karton).
+  factoryBoxIncluded       Boolean       @default(false)
+  factoryPackagingType     PackagingType @default(BOX)
+  // Akceptacja = "lock" wymiarów + meta. Po akceptacji UI wyświetla
+  // statyczny widok read-only; trzeba odblokować edycję żeby zmienić.
+  factoryPackagingAccepted Boolean       @default(false)
+  factoryBoxNotes          String?
+  factoryBoxImageUrl       String?
+  factoryBoxImageAlt       String?
+  factoryBoxDesignUrl      String?
+  factoryBoxDesignName     String?
+  // Wymiary i waga pudełka detalicznego z Chin (z produktem w środku).
+  // Dla typu POLY_BAG depthCm ignorowane (foliopak nie ma głębokości).
+  factoryBoxWidthCm        Float?
+  factoryBoxHeightCm       Float?
+  factoryBoxDepthCm        Float?
+  factoryBoxWeightKg       Float?
+
+  // ── Wytyczne (produkcyjne / importowe / instrukcja klienta) ─────────
+  guidelinePoints ProductGuidelinePoint[]
+  guidelineImages ProductGuidelineImage[]
+
+  // ── Preferowane usługi kurierskie ───────────────────────────────────
+  // Lista kodów usług z silnika wyceny (np. "INPOST_PACZKOMAT_C",
+  // "DHL_PARCEL_POLSKA") oznaczonych przez usera jako domyślne dla
+  // tego produktu. ShippingQuote pokazuje gwiazdkę i banner "Twoja
+  // preferencja" gdy taka usługa jest applicable dla aktualnej paczki.
+  preferredShippingServices String[] @default([])
+
+  /// Wykluczone usługi kurierskie — silnik pomija te kody w wycenie
+  /// (filtruje przed wyborem najtańszej). Pusta lista = wszystkie aktywne.
+  /// Używane gdy produkt nie powinien być wysyłany konkretnym kurierem
+  /// (np. mebel duży → wyłącz Paczkomat; brak umowy z DHL → wyłącz całość).
+  excludedShippingServices String[] @default([])
+
+  /// Wykluczone CAŁE marki kurierskie — np. ["INPOST"] wyłącza wszystkie
+  /// usługi InPost (Paczkomat A/B/C, Kurier). Wygodniejsze niż markowanie
+  /// każdej usługi osobno gdy nie masz umowy z danym przewoźnikiem.
+  /// Działa równolegle do `excludedShippingServices`: usługa jest pominięta
+  /// jeśli kod jest w `excludedShippingServices` LUB marka jest w tej liście.
+  excludedShippingBrands String[] @default([])
+
+  // ── Etapy wdrożenia ─────────────────────────────────────────────────
+  stageCompletions    ProductStageCompletion[]
+  stageChecklistItems StageChecklistItem[]
+
+  /// Instrukcje przypisane bezpośrednio do tego produktu (m2m).
+  /// Dodatkowo produkt może dziedziczyć instrukcje z przypisań kategorii.
+  manualAssignments ProductManualProduct[]
+
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, productCode])
+  @@unique([companyId, eanCode])
+  @@unique([companyId, iaiId])
+  @@index([companyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// INSTRUKCJE — niezależne dokumenty z przypisaniami do produktów/kategorii
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Niezależny dokument instrukcji (PDF). Można go przypisać do dowolnej liczby
+ * produktów lub kategorii (z opcjonalnym `includeDescendants`). Produkt
+ * dziedziczy instrukcje z przypisań kategoryjnych (z całej ścieżki kategorii).
+ *
+ * Multi-tenant: scope per `companyId`. Pola treści (manualJson, template,
+ * pageSize, headers, footer) odpowiadają polom które wcześniej były na Product.
+ */
+model ProductManual {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Robocza nazwa instrukcji (np. "Instrukcja mocowania szarf akrobatycznych").
+  name      String
+
+  // ── Treść instrukcji ────────────────────────────────────────────────
+  /// Dokument TipTap w formacie `{ pages: [{ id, content }] }`.
+  manualJson    Json?
+  /// Szablon PDF — wpływa na cover, TOC, branding.
+  template      ManualTemplate @default(CLEAN)
+  /// Format strony PDF (A4/A5/A6).
+  pageSize      ManualPageSize @default(A4)
+  /// Typ instrukcji — STANDARD (wielostronicowa) lub LEAFLET (cover + 1 strona
+  /// treści per język). Wpływa na to czy generowane są TOC, Wyrównanie i Ostatnia.
+  kind          ManualKind     @default(STANDARD)
+  /// Legacy single header — fallback gdy headerRanges puste.
+  headerLang    String?
+  headerTitle   String?
+  /// Tablica zakresów nagłówków per zakres stron.
+  headerRanges  Json?
+  /// Tekst stopki + auto numer strony.
+  footerCustom  String?
+
+  // ── Styl typograficzny (sztywne ustawienia per instrukcja) ──────────
+  /// Nazwa rodziny czcionek (np. "Manrope", "Roboto", "DM Sans"). Stosowana
+  /// do wszystkich tekstów w instrukcji — można nadpisywać per-fragment przez
+  /// font-family mark, ale baseline jest tu.
+  fontFamily   String?
+  /// Rozmiary fontu (pt) — overrides per typ tekstu. Gdy null, używamy
+  /// domyślnych z PAGE_PROFILES (zależne od formatu A4/A5/A6).
+  bodyFontSize Int?
+  h1FontSize   Int?
+  h2FontSize   Int?
+  h3FontSize   Int?
+  /// Globalny logo URL dla instrukcji. Renderowany w prawym górnym rogu KAŻDEJ
+  /// strony PDF + dodatkowo wycentrowany na 1. stronie (mały preview brandowy).
+  /// Format JPG/PNG/SVG/WEBP. Lokalny /uploads → resolver konwertuje na data URI.
+  logoImageUrl String?
+  /// Wysokość loga na okładce w punktach PDF (1pt ≈ 0.353mm). Default 120pt.
+  /// Edytowalne sliderem na cover page. Zakres 40-280pt.
+  logoHeightPt Int?
+  /// Edytowalny tekst pod logiem na okładce (np. nazwa produktu, podtytuł).
+  /// Renderowany wycentrowany pod logiem na 1. stronie PDF.
+  coverSubtitle String?
+
+  // ── Wersje językowe ────────────────────────────────────────────────
+  /// Lista aktywnych języków instrukcji trzymana w `manualJson.activeLanguages`
+  /// (JSON field) — bez osobnej kolumny żeby uniknąć migracji DB.
+  /// Każda strona w `manualJson.pages` dostaje atrybut `lang`.
+  /// PDF generuje sekwencyjnie wg `pages[]` order (PL → EN → SK → ...).
+
+  // ── Przypisania ────────────────────────────────────────────────────
+  productAssignments  ProductManualProduct[]
+  categoryAssignments ProductManualCategory[]
+
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// Przypisanie instrukcji do konkretnego produktu.
+model ProductManualProduct {
+  id        String        @id @default(cuid())
+  manualId  String
+  manual    ProductManual @relation(fields: [manualId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([manualId, productId])
+  @@index([productId])
+}
+
+/// Przypisanie instrukcji do kategorii. Z `includeDescendants=true` instrukcja
+/// stosuje się też do wszystkich podkategorii (rekurencyjnie).
+model ProductManualCategory {
+  id                 String        @id @default(cuid())
+  manualId           String
+  manual             ProductManual @relation(fields: [manualId], references: [id], onDelete: Cascade)
+  categoryId         String
+  category           Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  includeDescendants Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+
+  @@unique([manualId, categoryId])
+  @@index([categoryId])
+}
+
+model ProductComponent {
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation("HasComponents", fields: [productId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Product @relation("AsComponent", fields: [componentId], references: [id])
+
+  quantity  Int     @default(1) // ile sztuk tego komponentu na 1 sztukę produktu
+  sortOrder Int     @default(0)
+  notes     String?
+
+  /// Pula wariantów dla tego slotu — wielokrotny wybór:
+  ///  - `poolCategories`: każda kategoria + wszystkie potomki (rekurencyjnie)
+  ///  - `poolProducts`: konkretne produkty dodane do puli (poza kategoriami)
+  /// Gdy obie puste, pula dziedziczy się z `component.categoryId` + descendants.
+  poolCategories Category[] @relation("BundleSlotPoolCategories")
+  poolProducts   Product[]  @relation("BundleSlotPoolProducts")
+
+  /// Czy slot dopuszcza podmianę na warianty. Gdy false, tylko domyślny
+  /// komponent jest dozwolony — żadne splity wariantów nie mogą zostać zapisane.
+  allowVariants Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  /// Splity per slot z zamówień importowych (pool wariantów dla tego slotu).
+  variantSplits OrderItemVariantSplit[]
+
+  @@unique([productId, componentId])
+}
+
+// Trwała reguła: "ten komponent ma być w każdym produkcie z tej kategorii".
+// Stosowane przy tworzeniu nowego produktu — system sprawdza reguły dla
+// kategorii produktu (i wszystkich kategorii nadrzędnych) i auto-dopina
+// brakujące komponenty.
+model ComponentCategoryRule {
+  id          String   @id @default(cuid())
+  componentId String
+  component   Product  @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  quantity Int @default(1) // ile sztuk komponentu na 1 sztukę produktu
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([componentId, categoryId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PUDEŁKA WYSYŁKOWE
+// ─────────────────────────────────────────────────────────────────────
+
+model ShippingBox {
+  id           String        @id @default(cuid())
+  /// Multi-tenant: firma do której należy pudełko.
+  companyId    String?
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String // np. "Pudełko M (40×30×20)" lub "Foliopak L (35×25)"
+  /// internalCode unikalny w obrębie firmy.
+  internalCode String?
+  packagingType PackagingType @default(BOX)
+  // Skąd pochodzi pudełko: produkowane lokalnie (PL) vs standardowe z Chin.
+  origin       BoxOrigin     @default(POLAND)
+  /// Czy to pudełko zbiorcze (master karton zawierający N inner kartonów)
+  /// czy pojedyncze (wysyłkowe/importowe per produkt). Razem z `origin` daje
+  /// 4 kategorie: PL wysyłkowe, PL zbiorcze, CHN importowe, CHN zbiorcze.
+  isCollective Boolean       @default(false)
+
+  // wymiary zewnętrzne (cm) i waga pustego opakowania (kg).
+  // Dla POLY_BAG (foliopak) depthCm to grubość — kurier i tak liczy gabaryt 3D.
+  widthCm  Float
+  heightCm Float
+  depthCm  Float
+  weightKg Float?
+
+  // Liczba warstw kartonu (3 = single wall, 5 = double wall, 7 = triple wall).
+  // Tylko dla typu BOX. Dla POLY_BAG zawsze null.
+  cardboardLayers Int?
+
+  // cena zakupu samego pudełka (PLN) — używana do liczenia kosztu opakowania
+  // per szt produktu w „Koszty produkcji / Wysyłka → Karton" na liście.
+  purchasePricePln Float?
+
+  /// Plik z nadrukiem (PDF/grafika). Opcjonalny — projekt drukarski tego pudełka.
+  printFileUrl     String?
+  printFileName    String?
+  printContentType String?
+
+  /// Wolny tekst opisujący przeznaczenie pudełka — np. "Stoliki M",
+  /// "Akcesoria mocujące", "Krzesła JX". Opcjonalny, wpisywany przy
+  /// tworzeniu/edycji pudełka.
+  purposeText String?
+
+  /// Tylko dla kartonów zbiorczych (isCollective=true, origin=CHINA_STANDARD):
+  /// inner box (pojedyncze CN wysyłkowe / inner karton) który ten master zawiera
+  /// + ile sztuk takiego pudełka mieści się w masterze. Stąd liczymy ile master
+  /// produktu (przez factoryBox -> innerBox -> master).
+  innerBoxId           String?
+  innerBox             ShippingBox?  @relation("BoxMasterInner", fields: [innerBoxId], references: [id], onDelete: SetNull)
+  innerBoxesPerMaster  Int?
+  /// Master kartony, które zawierają TEN box jako inner (reverse).
+  masterBoxesContainingThis ShippingBox[] @relation("BoxMasterInner")
+
+  notes    String?
+  archived Boolean @default(false)
+
+  // m2m z produktami — z capacity per pudełko per produkt
+  productBoxes ProductShippingBox[]
+
+  // Auto-przypisania: reguły kategoryjne i produktowe.
+  // Reguła kategoryjna powoduje auto-pin do wszystkich produktów w danej
+  // kategorii (i jej podkategorii) — teraz i dla nowo tworzonych produktów.
+  categoryRules ShippingBoxCategoryRule[]
+  productRules  ShippingBoxProductRule[]
+
+  // Zestawy używające tego pudełka jako bundleShippingBox (tryb SINGLE_CARTON)
+  bundlesAsShippingBox Product[] @relation("BundleShippingBox")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, internalCode])
+  @@index([companyId])
+}
+
+enum BoxPurpose {
+  SHIPPING // pudełko wysyłkowe — do dostawy do klienta
+  FACTORY  // pudełko z chin — produkt już w nim przychodzi
+}
+
+enum BoxOrigin {
+  POLAND          // produkowane lokalnie (custom, np. na potrzeby konkretnego produktu)
+  CHINA_STANDARD  // standardowe pudełko z Chin (z cennika fulfillment / własne)
+}
+
+model ProductShippingBox {
+  id        String      @id @default(cuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  boxId     String
+  box       ShippingBox @relation(fields: [boxId], references: [id], onDelete: Cascade)
+
+  // Cel: wysyłkowe (do klienta) vs fabryczne (przychodzi z Chin)
+  purpose   BoxPurpose @default(SHIPPING)
+
+  // ile sztuk produktu wchodzi do tego pudełka
+  unitsPerBox Int
+
+  // czy to "domyślne" pudełko dla tego produktu (do auto-kalkulacji wysyłki kurierem)
+  isPrimary Boolean @default(false)
+
+  // Per-pin grafiki: dla pudełka z Chin to zdjęcie pudełka + plik design.
+  // Dla wysyłkowego można dołożyć np. zdjęcie etykiety wysyłkowej.
+  imageUrl    String?
+  imageAlt    String?
+  designUrl   String?
+  designName  String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  // Czy pin został utworzony przez regułę auto-przypisania (do listowania
+  // "skąd to się wzięło" w UI). Manualnie utworzone piny zostają, gdy reguła
+  // jest usuwana; auto-piny mogą być wtedy też usunięte (opcja w UI).
+  autoFromRule Boolean @default(false)
+
+  @@unique([productId, boxId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// AUTO-PRZYPISANIA pudełek do kategorii / produktów
+// ─────────────────────────────────────────────────────────────────────
+
+/// Reguła „pudełko X jest auto-pinowane do produktów w kategorii Y".
+/// Obejmuje również podkategorie (cascade): reguła na kategorii głównej
+/// dziedziczy do wszystkich poziomów niżej.
+model ShippingBoxCategoryRule {
+  id         String      @id @default(cuid())
+  boxId      String
+  box        ShippingBox @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  purpose     BoxPurpose @default(SHIPPING)
+  unitsPerBox Int        @default(1)
+  isPrimary   Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([boxId, categoryId, purpose])
+  @@index([categoryId])
+}
+
+/// Reguła „pudełko X jest auto-pinowane do konkretnego produktu Y".
+/// W praktyce odpowiada manualnemu pinowaniu, ale przechowuje intencję
+/// w jednym miejscu, żeby UI auto-przypisań pokazywało wszystkie cele
+/// (kategorie + pojedyncze produkty) razem.
+model ShippingBoxProductRule {
+  id        String      @id @default(cuid())
+  boxId     String
+  box       ShippingBox @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  purpose     BoxPurpose @default(SHIPPING)
+  unitsPerBox Int        @default(1)
+  isPrimary   Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([boxId, productId, purpose])
+  @@index([productId])
+}
+
+model ProductStageCompletion {
+  id          String       @id @default(cuid())
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stage       ProductStage
+  completedAt DateTime     @default(now())
+  notes       String?
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([productId, stage])
+}
+
+model ProductImage {
+  id        String        @id @default(cuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  // Etap z którym powiązana grafika (null = ogólne grafiki produktowe)
+  stage     ProductStage?
+  sortOrder Int           @default(0)
+  isPrimary Boolean       @default(false)
+  createdAt DateTime      @default(now())
+}
+
+enum ProductFileKind {
+  GUIDELINES
+  SPEC
+  CERTIFICATE
+  OTHER
+}
+
+model ProductFile {
+  id          String          @id @default(cuid())
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String
+  filename    String
+  contentType String?
+  sizeBytes   Int?
+  kind        ProductFileKind @default(OTHER)
+  // Etap z którym powiązany plik (null = ogólne pliki produktu)
+  stage       ProductStage?
+  createdAt   DateTime        @default(now())
+}
+
+// Punkty checklisty per etap (np. "Metka z logo umieszczona w prawym dolnym rogu")
+model StageChecklistItem {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stage     ProductStage
+  title     String
+  done      Boolean      @default(false)
+  doneAt    DateTime?
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+// Historia cen — kluczowa dla porównania
+// "po ile fabryka go wyprodukowała" vs "po ile po kosztach transportowych"
+model ProductPriceHistory {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  importOrderId String?
+  importOrder   ImportOrder? @relation(fields: [importOrderId], references: [id])
+
+  // koszt fabryczny
+  factoryPriceUsd Float?
+  factoryPriceCny Float?
+  factoryPricePln Float?
+
+  // koszt znormalizowany (z transportem/cłem/prowizją alokowanymi po CBM)
+  landedCostPln Float?
+
+  /// Rozbicie landed cost per szt (netto) — używane przez listę produktów
+  /// żeby pokazać formułę "cena + prowizja + cło + log = suma" bez liczenia
+  /// `kalkulujKontener` przy każdym request'cie. Wartości zapisywane przy
+  /// przejściu zamówienia w status W_MAGAZYNIE (snapshotOrderPricesToHistory).
+  prowizjaPerUnitPln   Float?
+  cloPerUnitPln        Float?
+  logisticsPerUnitPln  Float?
+
+  cbmPerUnit Float?
+
+  notes      String?
+  recordedAt DateTime @default(now())
+
+  // Hot path: historyByProduct → ostatnie 10 wpisów per produkt.
+  @@index([productId, recordedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ZAMÓWIENIA IMPORTOWE — serce systemu
+// ─────────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PLANOWANE // 1. planujemy zamówienie
+  DOGADYWANE // 2. dogadywane z producentem (oferty, korekty)
+  PRODUKOWANE // 3. w produkcji
+  WYPRODUKOWANE // 4. wyprodukowane, w trakcie QC poprodukcyjnego
+  WYSLANE // 5. transport (morski, lądowy, port, odprawa)
+  ODEBRANE // 6. w porcie (kontener dotarł do portu)
+  W_MAGAZYNIE // 7. w magazynie, zamknięte
+}
+
+/// Kraj produkcji zamówienia.
+///  CHINA — standardowy import morski: cło, prowizja pośrednika, kontener, transport morski.
+///  POLAND — produkcja w PL: brak cła i prowizji, koszty cięcia / krojenia per szt.
+enum OrderCountry {
+  CHINA
+  POLAND
+}
+
+/// Rodzaj zamówienia PL — wpływa na zestaw szablonów wytycznych i moduł UI.
+/// Na razie wspierany tylko MATERIAL_SZARFY (rolety/szarfy: belki, krojenie,
+/// szwalnia). Kolejne moduły będą dochodzić w przyszłości.
+enum PolandOrderKind {
+  MATERIAL_SZARFY
+}
+
+/// Docelowy PDF dla sekcji wytycznych — fabryka (producent materiału) lub
+/// krajalnia/szwalnia (wewnętrzny obieg). Pozwala mieć osobne zestawy
+/// sekcji w jednym zamówieniu / szablonie.
+enum PdfSectionTarget {
+  FABRYKA
+  KRAJALNIA
+}
+
+model ImportOrder {
+  id          String      @id @default(cuid())
+  /// Multi-tenant: firma do której należy zamówienie.
+  companyId   String?
+  company     Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// orderNumber unikalny w obrębie firmy.
+  orderNumber String
+  name        String?
+  status      OrderStatus  @default(PLANOWANE)
+  country     OrderCountry @default(CHINA)
+
+  createdById String
+  createdBy   User   @relation("OrderCreator", fields: [createdById], references: [id])
+
+  // kursy walut zamrożone na moment zamówienia
+  cnyToPlnRate Float?
+  usdToPlnRate Float?
+  eurToPlnRate Float?
+  vatRate      Float? @default(0.23)
+
+  // typ + pojemność kontenera (m³); pojemność jest zsynchronizowana z typem
+  // (TWENTY_FT=28, FORTY_FT=68), CUSTOM pozwala podać dowolną wartość.
+  containerType   ContainerType @default(TWENTY_FT)
+  containerSizeM3 Float?        @default(28)
+
+  // daty etapów
+  orderedAt          DateTime?
+  productionStartAt  DateTime?
+  productionEndAt    DateTime?
+  shippedAt          DateTime?
+  arrivedPortAt      DateTime?
+  arrivedWarehouseAt DateTime?
+  closedAt           DateTime?
+
+  estimatedProductionDays Int?
+
+  // Link do śledzenia kontenera (np. tracking armatora) — nie wyświetlamy URL,
+  // tylko zaznaczamy czy jest uzupełniony.
+  trackingUrl String?
+
+  // ── Awizacja dostawy do magazynu ──
+  driverName       String?
+  driverPhone      String?
+  driverIdNumber   String? // dowód osobisty / paszport
+  vehiclePlate     String? // numer rejestracyjny pojazdu
+  vehicleType      String? // typ pojazdu (np. „TIR", „Bus 3.5t")
+  deliveryDate     DateTime? // planowana data dostawy
+  awizacjaNotes    String?
+  awizacjaPrintedAt DateTime? // ostatni timestamp wygenerowania awizacji
+
+  notes String?
+  /// Opis zamówienia — pokazywany na pierwszej stronie PDF (z danymi zamawiającego).
+  pdfDescription String?
+
+  items         ImportOrderItem[]
+  costs         ImportOrderCost[]
+  goodsTranches OrderGoodsTranche[]
+  tasks         OrderTask[]
+  payments      ImportOrderPayment[]
+  files         OrderFile[]
+  statusHistory OrderStatusHistory[]
+  priceHistory  ProductPriceHistory[]
+  pdfSections   ImportOrderPdfSection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId])
+}
+
+/// Sekcje „Wytyczne i składanie zamówienia" — dowolne tytułowane bloki
+/// tekstu + grafik, które renderują się jako kolejne strony PDF zamówienia
+/// (między okładką a listą pozycji). Każda sekcja = jedna strona PDF.
+model ImportOrderPdfSection {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sortOrder Int         @default(0)
+  title     String
+  /// Treść tekstowa — plain text z zachowanymi newline. PDF zawija akapity.
+  content   String?
+  /// Docelowy PDF — fabryka albo krajalnia/szwalnia.
+  target    PdfSectionTarget @default(KRAJALNIA)
+  images    ImportOrderPdfSectionImage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([orderId, target, sortOrder])
+}
+
+/// Obrazek w sekcji PDF zamówienia. URL względny (np. /uploads/order-pdf/...).
+model ImportOrderPdfSectionImage {
+  id        String                 @id @default(cuid())
+  sectionId String
+  section   ImportOrderPdfSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int                    @default(0)
+  createdAt DateTime               @default(now())
+
+  @@index([sectionId, sortOrder])
+}
+
+/// Szablon sekcji wytycznych — per-firma, per-rodzaj zamówienia (kind).
+/// Przy tworzeniu nowego zamówienia z danego rodzaju szablony klonują się
+/// jako konkretne `ImportOrderPdfSection` (treść + skopiowane obrazki).
+/// Edycja szablonu NIE wpływa na już utworzone zamówienia — kopiujemy raz.
+model OrderTemplateSection {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind      PolandOrderKind
+  /// Docelowy PDF — fabryka albo krajalnia/szwalnia.
+  target    PdfSectionTarget @default(KRAJALNIA)
+  sortOrder Int             @default(0)
+  title     String
+  content   String?
+  images    OrderTemplateSectionImage[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([companyId, kind, target, sortOrder])
+}
+
+/// Obrazek w szablonie sekcji. URL względny (np. /uploads/order-templates/...).
+model OrderTemplateSectionImage {
+  id        String               @id @default(cuid())
+  sectionId String
+  section   OrderTemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int                  @default(0)
+  createdAt DateTime             @default(now())
+
+  @@index([sectionId, sortOrder])
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(cuid())
+  orderId     String
+  order       ImportOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  changedAt   DateTime     @default(now())
+  changedById String?
+  changedBy   User?        @relation(fields: [changedById], references: [id])
+  note        String?
+}
+
+model ImportOrderItem {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+
+  quantity Int
+
+  // ceny zakupu zamrożone dla tego zamówienia
+  unitPriceUsd Float?
+  unitPriceCny Float?
+  // Cena PLN/szt — używana dla zamówień z PL (bez kursu walut).
+  unitPricePln Float?
+  // Kursy waluty per pozycja (nadpisują kurs z nagłówka zamówienia).
+  // Pozwala mieć różne kursy na różnych pozycjach (różne transze, różne wpłaty).
+  cnyToPlnRate Float?
+  usdToPlnRate Float?
+  // Czy cena zakupu (USD/CNY) już zawiera VAT (brutto). Default false = netto.
+  unitPriceIsBrutto Boolean @default(false)
+
+  // CBM/sztuka — może nadpisać Product.cbmPerUnit dla tego zamówienia
+  cbmPerUnit Float?
+
+  // przewidywana sprzedaż miesięczna (do liczenia czasu sprzedaży)
+  expectedMonthlySales Int?
+
+  saleChannels ItemSaleChannel[]
+
+  notes     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Rozbicie wariantów dla bundla — gdy produkt ma compositionMode=KOMPONENTOWY,
+  /// user może w slocie wybrać inne warianty (X szt wariantu A, Y szt wariantu B).
+  /// Brak wpisów = wszystkie sztuki używają domyślnego komponentu slotu.
+  variantSplits OrderItemVariantSplit[]
+
+  // Indeksy: główny use case to "wszystkie pozycje produktu posortowane
+  // po dacie" (historia cen) + "wszystkie pozycje zamówienia" (kalkulator).
+  @@index([productId, createdAt])
+  @@index([orderId])
+}
+
+/// Rozbicie wybranych wariantów per slot dla pojedynczej linii bundla.
+///
+/// Przykład: BUNDLE-323 × 100 ma slot "Blat 140×80" z domyślnym wariantem
+/// "Blat dąb craft". User chce kupić 60 z dąbem craft, 30 z sonomą, 10 z antracytem.
+/// W tabeli powstają 3 wpisy z tym samym `orderItemId` + `productComponentId`,
+/// różnymi `variantProductId` i `units` sumującymi się do `orderItem.quantity`.
+///
+/// Walidacja w server action: suma `units` per (orderItem, slot) == bundle quantity.
+/// Wariant musi mieć tę samą kategorię co komponent domyślny slotu (pool wariantów).
+model OrderItemVariantSplit {
+  id                 String          @id @default(cuid())
+  orderItemId        String
+  orderItem          ImportOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  productComponentId String
+  productComponent   ProductComponent @relation(fields: [productComponentId], references: [id], onDelete: Cascade)
+  variantProductId   String
+  variantProduct     Product         @relation("BundleVariantChoice", fields: [variantProductId], references: [id])
+
+  units     Int      @default(1)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([orderItemId, productComponentId, variantProductId])
+  @@index([orderItemId])
+  @@index([variantProductId])
+}
+
+// Kanały sprzedaży per pozycja: Allegro vs Sklep vs Amazon itp.
+model ItemSaleChannel {
+  id     String          @id @default(cuid())
+  itemId String
+  item   ImportOrderItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  channel      String // "Allegro" | "Sklep" | "Amazon" | custom
+  salePricePln Float // brutto za sztukę
+
+  // prowizja: kwotowo lub procentowo (oba opcjonalne, używamy jednego z nich)
+  commissionPct  Float?
+  commissionFlat Float?
+
+  // koszty per sztuka
+  shippingCostPln  Float?
+  fulfillmentPln   Float?
+  packagingCostPln Float? // koszt kartonu wysyłkowego na sztukę
+  adCostPln        Float? // koszt reklamy / promocji na sztukę
+  otherCostPln     Float? // inne koszty per sztuka (np. opłaty platformy)
+  // REVENUE: wysyłka pokrywana przez klienta — dodawana do marży.
+  customerShippingPln Float?
+
+  // jaki % ilości idzie na ten kanał (0..1)
+  shareOfQty Float?
+
+  // Hot path: items.include.saleChannels (kalkulator zamówienia).
+  @@index([itemId])
+}
+
+enum CostType {
+  KONTROLA_JAKOSCI
+  ODPRAWA
+  KOSZTY_TERMINALOWE
+  TRANSPORT_LADOWY
+  TRANSPORT_MORSKI
+  CLO
+  PROWIZJA_POSREDNIKA
+  VAT
+  /// PL: koszt cięcia materiału (legacy — zachowane dla starych zamówień).
+  CIECIE
+  /// PL: koszt krojenia (np. wzór, lekala) — dzielony proporcjonalnie do qty.
+  KROJENIE
+  /// PL: koszt szycia w szwalni — dzielony proporcjonalnie do qty pozycji.
+  SZWALNIA
+  INNE
+}
+
+model ImportOrderCost {
+  id      String      @id @default(cuid())
+  orderId String
+  order   ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  type      CostType
+  name      String? // wymagana dla INNE
+  amountPln Float // cached PLN brutto (po przeliczeniu z waluty i VAT)
+
+  // Wsparcie wielu walut + netto/brutto
+  currency     CostCurrency @default(PLN)
+  amount       Float? // oryginalna kwota w wybranej walucie (null = stara dana, użyj amountPln)
+  isNetto      Boolean      @default(false) // czy kwota podana jako netto (jeśli tak — dodaj VAT)
+  vatRate      Float? // % VAT do przeliczenia netto→brutto (default 23%)
+  exchangeRate Float? // kurs walutowy użyty (1 dla PLN)
+
+  paid  Boolean @default(false)
+  notes String?
+
+  createdAt DateTime @default(now())
+}
+
+model OrderGoodsTranche {
+  id          String            @id @default(cuid())
+  orderId     String
+  order       ImportOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  phase       GoodsTranchePhase
+  percentage  Float             @default(0)
+  paid        Boolean           @default(false)
+  paidAt      DateTime?
+  notes       String?
+
+  // Jak została opłacona — waluta i kurs po którym wpłaciliśmy
+  paidCurrency     CostCurrency? // null = PLN (domyślnie)
+  paidExchangeRate Float? // kurs po którym wpłaciliśmy (PLN za 1 jednostkę waluty)
+  // Faktycznie wpłacona kwota w walucie `paidCurrency`. Gdy ustawione,
+  // PLN = paidAmountOriginal * paidExchangeRate i nadpisuje wartość liczoną
+  // z percentage * goodsTotal (różne kursy na różnych transzach!).
+  paidAmountOriginal Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orderId, phase])
+}
+
+model OrderTask {
+  id      String      @id @default(cuid())
+  orderId String
+  order   ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // do którego etapu odnosi się to zadanie (null = ogólne)
+  status OrderStatus?
+
+  // Klucz fixed template'u dla zadań ze sztywnej listy etapu.
+  // null = zadanie własne (user-added). Unikalny per (orderId, templateKey).
+  templateKey String?
+
+  title       String
+  description String?
+
+  assignedToId String?
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  done   Boolean   @default(false)
+  doneAt DateTime?
+  dueAt  DateTime?
+
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ImportOrderPayment {
+  id      String      @id @default(cuid())
+  orderId String
+  order   ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // na jakim etapie zapłacone
+  status OrderStatus?
+
+  amountPln Float
+  paidAt    DateTime?
+
+  description String?
+  reference   String? // np. nr faktury / przelewu
+
+  createdAt DateTime @default(now())
+}
+
+model OrderFile {
+  id      String      @id @default(cuid())
+  orderId String
+  order   ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // przy jakim etapie wgrane (legacy)
+  status OrderStatus?
+
+  // slot dokumentu — np. BOL, PROFORMA, COMMERCIAL_INVOICE, CUSTOM_ORDER
+  slot String?
+
+  // Nazwa wyświetlana (głównie dla dokumentów własnych w slotach CUSTOM_*).
+  // Gdy null, używamy `filename` jako etykiety.
+  label String?
+
+  url         String
+  filename    String
+  contentType String?
+  sizeBytes   Int?
+
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id])
+
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// KURIERZY
+// ─────────────────────────────────────────────────────────────────────
+
+model Courier {
+  id        String   @id @default(cuid())
+  /// Multi-tenant: firma do której należy kurier.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  active    Boolean  @default(true)
+  notes     String?
+
+  contracts       CourierContract[]
+  rates           CourierRate[]
+  recommendations CourierRecommendation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model CourierContract {
+  id        String  @id @default(cuid())
+  courierId String
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  startsAt DateTime
+  endsAt   DateTime?
+
+  fileUrl  String?
+  filename String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model CourierRate {
+  id        String  @id @default(cuid())
+  courierId String
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  serviceType String // "Standard", "Paczkomat 24/7", "Kurier48" itp.
+
+  // limity wymiarowe
+  maxWeightKg  Float?
+  maxLengthCm  Float?
+  maxWidthCm   Float?
+  maxHeightCm  Float?
+  maxSumDimsCm Float?
+  isPaczkomat  Boolean @default(false)
+
+  pricePln Float
+
+  validFrom DateTime?
+  validTo   DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model CourierRecommendation {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  courierId String
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  priority Int     @default(0) // 0 = preferowany
+  notes    String?
+
+  @@unique([productId, courierId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// USTAWIENIA SYSTEMU (key-value)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Klucze:
+//   default_container_type   — "TWENTY_FT" | "FORTY_FT"
+//
+model SystemConfig {
+  id        String   @id @default(cuid())
+  /// Multi-tenant: firma do której należy konfiguracja.
+  /// Null = globalne ustawienie (system-wide), unikatowe wcześniej po `key`.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key])
+  @@index([companyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PROWIZJA POŚREDNIKA — tabela widełek (np. Fullbax)
+// ─────────────────────────────────────────────────────────────────────
+// Wzór z umowy ramowej:
+//   - 0–25k USD → 6000 PLN ryczałt
+//   - 25k–50k → 5.5%
+//   - 50k–100k → 5%
+//   - 100k–200k → 4.5%
+//   - 200k–300k → 4%
+//   - 300k–400k → 3.5%
+//   - 400k–500k → 3%
+//   - 500k–1M → 2.5%
+//   - >1M → indywidualnie
+// Auto-doliczane do kosztu zamówienia jako PROWIZJA_POSREDNIKA na podstawie
+// sumy wartości towaru w USD × kurs USD→PLN.
+model BrokerCommissionTier {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Nazwa pośrednika (np. "Fullbax"). Wiele firm = wiele tabelek.
+  brokerName String   @default("Fullbax")
+
+  /// Próg minimalny wartości w USD netto (włącznie).
+  minValueUsd Float    @default(0)
+  /// Próg maksymalny w USD netto (wyłącznie). Null = brak limitu.
+  maxValueUsd Float?
+
+  /// Stawka prowizji 0..1 (np. 0.055 = 5.5%). Null = ryczałt (użyj flatPln).
+  ratePct Float?
+  /// Ryczałtowa kwota w PLN (np. 6000 PLN). Null = procentowa.
+  flatPln Float?
+
+  /// Indywidualne — przedział bez automatycznego liczenia (info).
+  individual Boolean @default(false)
+
+  sortOrder Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, brokerName])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// WYTYCZNE PRODUKCYJNE / IMPORTOWE / INSTRUKCJA KLIENTA — punkty + grafiki
+// ─────────────────────────────────────────────────────────────────────
+//
+// Trzy rodzaje wytycznych (PRODUCTION/IMPORT/USER_MANUAL) mają:
+//   - tekst wprowadzający (Product.productionGuidelines etc. — istniejące pola)
+//   - listę punktów (ProductGuidelinePoint) — każdy z własną treścią i grafikami
+//   - grafiki sekcji (ProductGuidelineImage z pointId=null)
+//
+enum GuidelineKind {
+  PRODUCTION  // dla fabryki — materiały, jakość, znakowanie
+  IMPORT      // dla logistyki — pakowanie, etykiety, dokumenty
+  USER_MANUAL // dla klienta — montaż, użytkowanie
+}
+
+model ProductGuidelinePoint {
+  id        String        @id @default(cuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind      GuidelineKind
+  text      String
+  sortOrder Int           @default(0)
+  images    ProductGuidelineImage[]
+  createdAt DateTime      @default(now())
+
+  @@index([productId, kind, sortOrder])
+}
+
+model ProductGuidelineImage {
+  id        String        @id @default(cuid())
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // null = grafika dla całej sekcji wytycznych danego kind; ustawione = grafika konkretnego punktu
+  pointId   String?
+  point     ProductGuidelinePoint? @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  // Zawsze wymagany — gdy pointId=null, kind mówi do której sekcji obrazek należy
+  kind      GuidelineKind
+  url       String
+  alt       String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+
+  @@index([productId, kind, pointId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Typ opakowania (pudełko vs foliopak)
+// ─────────────────────────────────────────────────────────────────────
+//
+// BOX      — sztywne pudełko (karton) — wymiary: szer × wys × głęb
+// POLY_BAG — foliopak — wymiary płaskie: szer × wys (głęb = 0)
+//
+enum PackagingType {
+  BOX
+  POLY_BAG
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// MAGAZYNY i STANY MAGAZYNOWE
+// ─────────────────────────────────────────────────────────────────────
+
+/// Magazyn fizyczny / logiczny. `externalId` to ID z systemu zewnętrznego
+/// (IAI Shop) — używane przy synchronizacji.
+model Warehouse {
+  id         String   @id @default(cuid())
+  /// Multi-tenant: firma do której należy magazyn.
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// externalId unikalny w obrębie firmy.
+  externalId String?
+  name       String
+  notes      String?
+  sortOrder  Int      @default(0)
+  archived   Boolean  @default(false)
+
+  stocks Stock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, externalId])
+  @@index([companyId])
+}
+
+/// Stan magazynowy produktu w konkretnym magazynie. Re-importowany ze
+/// sklepu na podstawie SKU + externalId magazynu.
+model Stock {
+  id                String   @id @default(cuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId       String
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  /// Stan ewidencyjny (ilość książkowa).
+  quantity          Float    @default(0)
+  /// Stan dostępny (rezerwacje odjęte).
+  availableQuantity Float    @default(0)
+  /// Kod dostępności z IAI (np. "1", "4") — semantyka per platforma.
+  availabilityCode  String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// GENERATOR GRAFIK PRODUKTOWYCH (Nano Banana / Imagen)
+// ─────────────────────────────────────────────────────────────────────
+
+/// Jakość generowanego zdjęcia — wpływa na model i cenę API.
+///   STANDARD — Imagen Fast, 1024px, ~$0.03/szt
+///   HIGH     — Imagen Generate, 2048px, ~$0.12/szt
+///   ULTRA    — Imagen Ultra, max szczegółów, ~$0.30/szt
+enum PhotoQuality {
+  STANDARD
+  HIGH
+  ULTRA
+}
+
+enum PhotoBatchStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum PhotoImageStatus {
+  PENDING
+  RUNNING
+  OK
+  FAILED
+  SKIPPED
+}
+
+/// Schemat generowania grafik — definiuje globalny styl + zestaw rzutów.
+/// Raz zdefiniowany, używany do wielu kampanii (batch).
+model ProductPhotoTemplate {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  /// Główny opis stylu wszystkich zdjęć — tło, oświetlenie, mood.
+  /// Wstawiany do każdego promptu jako baza.
+  globalPrompt      String
+  /// Opis gdzie umieszczać logo produktu (po polsku lub po angielsku).
+  /// Brane pod uwagę gdy produkt ma logo (oddzielne pole na produkcie).
+  logoPlacementRule String?
+  /// URLs zdjęć referencyjnych — utrzymanie stylu między batchami.
+  /// Wysyłane do API jako reference images przy każdym wywołaniu.
+  referenceImages   String[]
+  /// Proporcje obrazu — 1:1 (kwadrat), 4:3 (sklep), 16:9 (banner), 9:16 (story)
+  aspectRatio       String           @default("1:1")
+  /// Domyślna jakość dla batchów (user może override per-batch)
+  defaultQuality    PhotoQuality     @default(STANDARD)
+  archived          Boolean          @default(false)
+  shots             ProductPhotoShot[]
+  batches           ProductPhotoBatch[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([companyId])
+}
+
+/// Pojedynczy "rzut" — np. Front, Bok, W użyciu z osobą. Należy do template'u.
+/// User wybiera tikami które rzuty wygenerować dla wybranych produktów.
+model ProductPhotoShot {
+  id         String   @id @default(cuid())
+  templateId String
+  template   ProductPhotoTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name       String
+  /// Nazwa ikony Lucide do wyświetlenia w UI (np. "Square", "User").
+  iconName   String?
+  /// Prompt specyficzny dla tego rzutu — angle, pose, framing.
+  shotPrompt String
+  /// Opcjonalna referencja-perspektywa — zdjęcie z którego AI ma zaczerpnąć
+  /// kąt kamery, kompozycję i framing. Wysyłane do Imagen jako extra reference
+  /// przy generowaniu KAŻDEGO obrazu tego rzutu.
+  referenceImageUrl String?
+  sortOrder  Int      @default(0)
+  /// Preset = z gotowej listy, custom = dodany przez usera.
+  isPreset   Boolean  @default(false)
+  images     ProductPhotoImage[]
+  createdAt  DateTime @default(now())
+
+  @@index([templateId, sortOrder])
+}
+
+/// Kampania generowania — wybrane produkty × wybrane rzuty = N zdjęć.
+/// Status track-uje progres batcha (PENDING → RUNNING → COMPLETED / PARTIAL / FAILED).
+model ProductPhotoBatch {
+  id         String   @id @default(cuid())
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  templateId String
+  template   ProductPhotoTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  name       String
+  status     PhotoBatchStatus  @default(PENDING)
+  /// Wybrane produkty (snapshot przy tworzeniu batcha).
+  productIds String[]
+  /// Wybrane rzuty z template'u.
+  shotIds    String[]
+  /// Jakość — override względem template.defaultQuality.
+  quality    PhotoQuality      @default(STANDARD)
+  /// Seed używany dla WSZYSTKICH zdjęć w batchu — gwarantuje spójność stylu.
+  /// Jeśli null, używamy losowego seed'a wygenerowanego przy starcie.
+  seed       BigInt?
+  totalImages     Int           @default(0)
+  generatedImages Int           @default(0)
+  failedImages    Int           @default(0)
+  /// Sumaryczny koszt API w USD (sumowany z `images.costUsd`).
+  estimatedCostUsd Float?
+  errorMessage     String?
+  images           ProductPhotoImage[]
+  createdAt        DateTime     @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+
+  @@index([companyId, status])
+  @@index([templateId])
+}
+
+/// Pojedyncze wygenerowane zdjęcie — produkt × rzut w ramach batcha.
+/// Trzyma URL pliku, finalny prompt, status, retry, koszt.
+model ProductPhotoImage {
+  id        String   @id @default(cuid())
+  batchId   String
+  batch     ProductPhotoBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  /// FK do Product — bez relacji bo nie chcemy cascade delete (zachowuje zdjęcie
+  /// nawet jeśli produkt usunięty).
+  productId String
+  shotId    String
+  shot      ProductPhotoShot @relation(fields: [shotId], references: [id], onDelete: Restrict)
+  /// URL zapisanego pliku (Vercel Blob lub /uploads/).
+  storageUrl   String?
+  thumbnailUrl String?
+  /// Pełny prompt wysłany do API — do debugowania + regeneracji.
+  finalPrompt    String?
+  /// Custom override usera dla tego konkretnego zdjęcia.
+  /// (np. "ciemniejszy", "z białym tłem zamiast szarego")
+  customOverride String?
+  /// Reference images konkretnie dla tego zdjęcia — np. realne foto produktu
+  /// żeby AI zaciągnęło prawdziwy kolor / kształt.
+  productReferences String[]
+  status        PhotoImageStatus @default(PENDING)
+  retryCount    Int      @default(0)
+  errorMessage  String?
+  /// Seed (kopia z batch.seed dla niezmienności mimo przyszłej zmiany batcha).
+  seed          BigInt?
+  /// Koszt tego konkretnego wywołania w USD.
+  costUsd       Float?
+  generatedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([batchId])
+  @@index([productId])
+  @@index([shotId])
+}

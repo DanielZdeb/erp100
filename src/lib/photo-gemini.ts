@@ -1,0 +1,290 @@
+/**
+ * Gemini / Imagen integration dla generatora grafik produktowych.
+ *
+ * Strategy:
+ *  - Gdy `GEMINI_API_KEY` ustawione → real call do Imagen API
+ *  - Bez klucza → mock: zwraca placeholder PNG (z napisem "MOCK" + parametrami)
+ *    żeby user mógł testować flow batchy bez płacenia za API.
+ *
+ * Klucz dostajesz na: https://aistudio.google.com/apikey
+ */
+
+import { QUALITY_SPEC } from "./photo-shots-presets";
+
+export type GenerateImageInput = {
+  prompt: string;
+  quality: "STANDARD" | "HIGH" | "ULTRA";
+  aspectRatio: string;
+  /** Seed dla spójności — wszystkie zdjęcia w batchu używają tego samego. */
+  seed?: bigint | null;
+  /** Reference images (URLs) — dla utrzymania stylu + koloru. Konwertowane
+   *  do base64 przed wysłaniem do API. Imagen przyjmuje max ~3 referencje. */
+  referenceImageUrls?: string[];
+};
+
+export type GenerateImageResult =
+  | {
+      ok: true;
+      /** Wygenerowany obraz jako Buffer (PNG/JPG). */
+      imageBuffer: Buffer;
+      contentType: string;
+      /** Pełny prompt który poszedł do API (z efektywnym aspect ratio + seed). */
+      finalPrompt: string;
+      /** Faktyczny koszt w USD. */
+      costUsd: number;
+      /** Czy użyto mock'a zamiast prawdziwego API. */
+      isMock: boolean;
+    }
+  | {
+      ok: false;
+      error: string;
+      isMock: boolean;
+    };
+
+/**
+ * Generuje 1 obraz przez Imagen API (lub mock).
+ */
+export async function generateProductPhoto(
+  input: GenerateImageInput,
+): Promise<GenerateImageResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return generateMockPhoto(input);
+  }
+
+  const spec = QUALITY_SPEC[input.quality];
+  try {
+    // Pobierz reference images jako base64 (max 3)
+    const referenceImages: Array<{ mimeType: string; data: string }> = [];
+    if (input.referenceImageUrls && input.referenceImageUrls.length > 0) {
+      for (const url of input.referenceImageUrls.slice(0, 3)) {
+        const ref = await fetchImageAsBase64(url);
+        if (ref) referenceImages.push(ref);
+      }
+    }
+
+    // Imagen API request body — REST endpoint:
+    // https://generativelanguage.googleapis.com/v1beta/models/{model}:predict
+    const body = {
+      instances: [
+        {
+          prompt: input.prompt,
+          // Reference images są przekazywane jako image conditioning gdy istnieją.
+          // Imagen 4 nie wszystkie warianty wspierają — Fast może odrzucić.
+          ...(referenceImages.length > 0 && {
+            referenceImages: referenceImages.map((img, i) => ({
+              referenceType: "REFERENCE_TYPE_DEFAULT",
+              referenceId: i,
+              referenceImage: {
+                bytesBase64Encoded: img.data,
+              },
+            })),
+          }),
+        },
+      ],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: input.aspectRatio,
+        ...(input.seed != null && { seed: Number(input.seed) }),
+        // Bez safety override — domyślne
+      },
+    };
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:predict?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return {
+        ok: false,
+        error: `Imagen API ${res.status}: ${errText.slice(0, 500)}`,
+        isMock: false,
+      };
+    }
+
+    const data = (await res.json()) as {
+      predictions?: Array<{
+        bytesBase64Encoded?: string;
+        mimeType?: string;
+      }>;
+    };
+    const pred = data.predictions?.[0];
+    if (!pred?.bytesBase64Encoded) {
+      return {
+        ok: false,
+        error: "Imagen API: brak zdjęcia w odpowiedzi",
+        isMock: false,
+      };
+    }
+
+    return {
+      ok: true,
+      imageBuffer: Buffer.from(pred.bytesBase64Encoded, "base64"),
+      contentType: pred.mimeType ?? "image/png",
+      finalPrompt: input.prompt,
+      costUsd: spec.costPerImage,
+      isMock: false,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Unknown error",
+      isMock: false,
+    };
+  }
+}
+
+/**
+ * Mock — generuje prosty placeholder PNG z napisem informującym, że nie ma
+ * klucza API. Działa offline, deterministycznie (seed → ten sam obraz).
+ *
+ * Używamy minimal SVG renderowanego do PNG przez Canvas... ale na Node nie ma
+ * Canvas. Zwracamy zatem czysty PNG bytes z prostym wzorem opartym o hash promptu.
+ */
+async function generateMockPhoto(
+  input: GenerateImageInput,
+): Promise<GenerateImageResult> {
+  // Symulujemy 1-2s opóźnienie
+  await new Promise((r) => setTimeout(r, 800 + Math.random() * 800));
+
+  // Generujemy minimalistyczny PNG 512×512 (1×1 pixel scaled up wizualnie nie zadziała,
+  // więc tworzymy faktyczny 512×512 z gradientem zależnym od hash promptu).
+  const hash = simpleHash(input.prompt + String(input.seed ?? 0));
+  const png = buildMockPng(hash);
+
+  return {
+    ok: true,
+    imageBuffer: png,
+    contentType: "image/png",
+    finalPrompt: input.prompt,
+    costUsd: 0,
+    isMock: true,
+  };
+}
+
+function simpleHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+/**
+ * Buduje minimalistyczny PNG 512×512 z gradientem RGB zależnym od hash.
+ * Bez canvas dep — manualne stworzenie PNG przez pure Node Buffer.
+ * Używamy zlib do compress IDAT chunka.
+ */
+function buildMockPng(hash: number): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const zlib = require("node:zlib") as typeof import("node:zlib");
+  const W = 512;
+  const H = 512;
+  const r1 = (hash & 0xff);
+  const g1 = ((hash >> 8) & 0xff);
+  const b1 = ((hash >> 16) & 0xff);
+  const r2 = 255 - r1;
+  const g2 = 255 - g1;
+  const b2 = 255 - b1;
+
+  // Raw pixel data — 3 bajty per pixel + 1 filter byte per row
+  const rowLength = 1 + W * 3;
+  const raw = Buffer.alloc(rowLength * H);
+  for (let y = 0; y < H; y++) {
+    raw[y * rowLength] = 0; // filter: None
+    const t = y / H;
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    for (let x = 0; x < W; x++) {
+      const idx = y * rowLength + 1 + x * 3;
+      raw[idx] = r;
+      raw[idx + 1] = g;
+      raw[idx + 2] = b;
+    }
+  }
+  const idatData = zlib.deflateSync(raw);
+
+  // PNG signature
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  // IHDR chunk
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0);
+  ihdr.writeUInt32BE(H, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // color type RGB
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+  const ihdrChunk = makePngChunk("IHDR", ihdr);
+  const idatChunk = makePngChunk("IDAT", idatData);
+  const iendChunk = makePngChunk("IEND", Buffer.alloc(0));
+
+  return Buffer.concat([sig, ihdrChunk, idatChunk, iendChunk]);
+}
+
+// CRC32 — inline implementacja (bez deps), z table-driven approach dla speed.
+const CRC32_TABLE: number[] = (() => {
+  const t: number[] = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c = CRC32_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function makePngChunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, "ascii");
+  const crcInput = Buffer.concat([typeBuf, data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(crcInput), 0);
+  return Buffer.concat([len, typeBuf, data, crc]);
+}
+
+/** Pobiera obraz z URL'a i zwraca jako base64 + mimeType. */
+async function fetchImageAsBase64(
+  url: string,
+): Promise<{ mimeType: string; data: string } | null> {
+  try {
+    // Relative URLs (lokalne /uploads) — read direct from filesystem
+    if (url.startsWith("/uploads/")) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require("node:fs/promises") as typeof import("node:fs/promises");
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require("node:path") as typeof import("node:path");
+      const filePath = path.join(process.cwd(), "public", url);
+      const buf = await fs.readFile(filePath);
+      const ext = path.extname(url).toLowerCase();
+      const mime =
+        ext === ".jpg" || ext === ".jpeg"
+          ? "image/jpeg"
+          : ext === ".webp"
+            ? "image/webp"
+            : "image/png";
+      return { mimeType: mime, data: buf.toString("base64") };
+    }
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const mime = res.headers.get("content-type") ?? "image/png";
+    return { mimeType: mime, data: buf.toString("base64") };
+  } catch {
+    return null;
+  }
+}

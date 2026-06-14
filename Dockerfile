@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# Multi-stage build dla Next.js 16 z `output: 'standalone'`.
+# Końcowy obraz: ~150 MB (vs 1.5+ GB z node_modules bez standalone).
+# Build wykona Coolify / docker build na Hetznerze.
+
+# ─── Stage 1: deps ──────────────────────────────────────────
+# Instaluje zależności bez ciężaru kompilacji dev tools.
+FROM node:22-alpine AS deps
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+COPY package.json package-lock.json* ./
+# `npm ci` jest deterministyczny — używa dokładnie lockfile, szybciej niż install.
+RUN npm ci --no-audit --no-fund
+
+# ─── Stage 2: builder ──────────────────────────────────────
+FROM node:22-alpine AS builder
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Prisma generate przed buildem — żeby src/generated/prisma było wypełnione.
+RUN npx prisma generate
+# Telemetria off (mniejszy hałas w logach, brak wychodzącego ruchu).
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ─── Stage 3: runner ──────────────────────────────────────
+# Slim runtime — tylko to co potrzebne, non-root user, gotowe pod healthcheck.
+FROM node:22-alpine AS runner
+RUN apk add --no-cache libc6-compat openssl wget
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Non-root user — bezpieczeństwo (jak coś się włamie, nie ma root na hoście).
+RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs
+
+# Standalone server + statyczne assety + public/
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# /uploads/ jest mount-pointem volume (Coolify zarządza persistent storage).
+# Tworzymy katalog z poprawnymi uprawnieniami, żeby user `nextjs` mógł zapisywać.
+RUN mkdir -p /app/public/uploads && chown -R nextjs:nodejs /app/public/uploads
+
+USER nextjs
+EXPOSE 3000
+
+# Healthcheck: /api/auth/session zawsze odpowiada 200 (publiczny endpoint Auth.js),
+# bez potrzeby zalogowanej sesji. Coolify używa tego do liveness probe.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/auth/session || exit 1
+
+CMD ["node", "server.js"]

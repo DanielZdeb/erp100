@@ -1,0 +1,52 @@
+# Wzorce ignorowane przy `docker build` — kopiowane do kontekstu byłyby
+# 2 GB+ (node_modules, .next, public/uploads). Każdy z nich jest albo
+# generowany w builderze, albo mountowany jako volume.
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next
+out
+.turbo
+
+# Dev / build artifacts
+*.log
+.cache
+.DS_Store
+Thumbs.db
+
+# Env files — DO build NIE wchodzi żaden secret. Env podajemy przez
+# Coolify UI (-> kontener dostaje runtime).
+.env
+.env.*
+!.env.production.example
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+.claude
+
+# Lokalne uploady — na produkcji to volume, nie kopiujemy 244 MB do każdego builda.
+public/uploads
+
+# Dokumentacja + skrypty — działają lokalnie, nie potrzebne w runtime.
+README.md
+ONBOARDING.md
+docs
+scripts/inspect-*.ts
+scripts/list-*.ts
+scripts/img-sizes.ts
+
+# Test files (jeśli kiedyś dojdą)
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+coverage

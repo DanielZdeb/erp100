@@ -1,0 +1,490 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-app: var(--app-bg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Tło aplikacji — bardzo delikatny gradient niebieskawy */
+  --app-bg: oklch(0.985 0.012 250);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.18 0.025 252);
+
+  /* Karty pozostają jasne dla kontrastu z tłem */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.025 252);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.025 252);
+
+  /* Primary: żywy indygo */
+  --primary: oklch(0.55 0.22 270);
+  --primary-foreground: oklch(1 0 0);
+
+  /* Secondary: delikatny indygo */
+  --secondary: oklch(0.96 0.025 265);
+  --secondary-foreground: oklch(0.35 0.12 270);
+
+  /* Muted: chłodne szare */
+  --muted: oklch(0.965 0.012 250);
+  --muted-foreground: oklch(0.46 0.025 252);
+
+  /* Accent: jasne indygo */
+  --accent: oklch(0.95 0.04 265);
+  --accent-foreground: oklch(0.35 0.15 270);
+
+  /* Destructive: czerwień */
+  --destructive: oklch(0.6 0.225 25);
+
+  /* Border / input — delikatny niebieski cień */
+  --border: oklch(0.9 0.018 250);
+  --input: oklch(0.92 0.015 250);
+  --ring: oklch(0.6 0.18 270);
+
+  /* Wykresy — paleta wielokolorowa */
+  --chart-1: oklch(0.55 0.22 270); /* indigo */
+  --chart-2: oklch(0.65 0.18 165); /* teal */
+  --chart-3: oklch(0.72 0.18 75); /* amber */
+  --chart-4: oklch(0.6 0.22 340); /* pink */
+  --chart-5: oklch(0.65 0.2 145); /* emerald */
+
+  --radius: 0.75rem;
+
+  /* Sidebar — własna paleta z lekkim indygo */
+  --sidebar: oklch(0.99 0.008 265);
+  --sidebar-foreground: oklch(0.25 0.03 252);
+  --sidebar-primary: oklch(0.55 0.22 270);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0.04 265);
+  --sidebar-accent-foreground: oklch(0.35 0.15 270);
+  --sidebar-border: oklch(0.92 0.018 250);
+  --sidebar-ring: oklch(0.55 0.22 270);
+}
+
+.dark {
+  --app-bg: oklch(0.18 0.018 252);
+  --background: oklch(0.22 0.02 252);
+  --foreground: oklch(0.97 0.01 250);
+  --card: oklch(0.25 0.02 252);
+  --card-foreground: oklch(0.97 0.01 250);
+  --popover: oklch(0.25 0.02 252);
+  --popover-foreground: oklch(0.97 0.01 250);
+  --primary: oklch(0.7 0.2 268);
+  --primary-foreground: oklch(0.15 0.025 252);
+  --secondary: oklch(0.32 0.03 252);
+  --secondary-foreground: oklch(0.97 0.01 250);
+  --muted: oklch(0.3 0.02 252);
+  --muted-foreground: oklch(0.7 0.02 252);
+  --accent: oklch(0.32 0.04 268);
+  --accent-foreground: oklch(0.97 0.01 250);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.6 0.2 268);
+  --chart-1: oklch(0.7 0.2 268);
+  --chart-2: oklch(0.7 0.18 165);
+  --chart-3: oklch(0.75 0.18 75);
+  --chart-4: oklch(0.7 0.2 340);
+  --chart-5: oklch(0.7 0.18 145);
+  --sidebar: oklch(0.22 0.022 268);
+  --sidebar-foreground: oklch(0.97 0.01 250);
+  --sidebar-primary: oklch(0.7 0.2 268);
+  --sidebar-primary-foreground: oklch(0.15 0.025 252);
+  --sidebar-accent: oklch(0.32 0.04 268);
+  --sidebar-accent-foreground: oklch(0.97 0.01 250);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.6 0.2 268);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1,
+      "ss01" 1;
+    letter-spacing: -0.005em;
+  }
+  html {
+    @apply font-sans;
+    font-size: 15px; /* trochę większe niż 14 — łatwiej czytać dane */
+  }
+  code {
+    @apply font-mono text-[0.875em];
+    font-feature-settings: "ss01" 1;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.015em;
+  }
+  /* Tabular nums automatycznie dla liczb w tabelach */
+  th, td {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Druk etykiety produktu: chowamy wszystko poza wskazanym kontenerem */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-label-container,
+  .print-label-container * {
+    visibility: visible !important;
+  }
+  .print-label-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  @page {
+    margin: 0;
+  }
+}
+
+/* Druk awizacji dostawy — A4 PORTRAIT, kompaktowo, żeby zmieścić tabelę
+   z kartonami + 2 kolumnami ilości (deklarowana / przyjęta). Named page —
+   nie psuje druku etykiety produktu. */
+@page awizacja-page {
+  size: 210mm 297mm; /* A4 portrait explicit */
+  margin: 0;
+}
+
+@media print {
+  body.printing-awizacja {
+    background: white !important;
+  }
+  body.printing-awizacja * {
+    visibility: hidden !important;
+  }
+  body.printing-awizacja #awizacja-print,
+  body.printing-awizacja #awizacja-print * {
+    visibility: visible !important;
+  }
+  body.printing-awizacja #awizacja-print {
+    page: awizacja-page;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-width: 210mm !important;
+    max-height: 297mm !important;
+    padding: 8mm 8mm !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+    font-size: 8.5pt !important;
+    line-height: 1.25 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    /* Zachowaj kolory (żółta notatka, podświetlone kolumny) — Chrome domyślnie
+       je usuwa w druku dla oszczędności tuszu. */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  /* Wymuś kompaktowe fonty — A4 portrait potrzebuje miejsca na tabelę */
+  body.printing-awizacja #awizacja-print .text-xs,
+  body.printing-awizacja #awizacja-print .text-\[10px\],
+  body.printing-awizacja #awizacja-print .text-\[9px\] {
+    font-size: 7.5pt !important;
+  }
+  body.printing-awizacja #awizacja-print h2,
+  body.printing-awizacja #awizacja-print h3,
+  body.printing-awizacja #awizacja-print .text-base {
+    font-size: 12pt !important;
+    color: black !important;
+  }
+  /* Tabela towaru — pełna szerokość, kompaktowe ramki */
+  body.printing-awizacja #awizacja-print .awizacja-goods-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+    table-layout: fixed !important;
+  }
+  /* Explicit szerokości kolumn w mm — niezbędne w druku, bo Tailwind w-X to
+     piksele (96 DPI) i rozjeżdża się przy konwersji do mm. Suma stała 130mm
+     + Nazwa auto (~64mm) ≤ 194mm dostępnych po odjęciu 16mm padding z 210mm. */
+  body.printing-awizacja #awizacja-print .awizacja-col-lp { width: 6mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-sku { width: 22mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-name { width: auto !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-ean { width: 27mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-code128 { width: 27mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-dekl { width: 9mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-przyjeta { width: 12mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-kart { width: 8mm !important; }
+  body.printing-awizacja #awizacja-print .awizacja-col-cbm { width: 11mm !important; }
+  /* SKU w druku: nigdy nie zawijaj, używaj mniejszej czcionki */
+  body.printing-awizacja #awizacja-print .awizacja-goods-table .awizacja-col-sku,
+  body.printing-awizacja #awizacja-print .awizacja-goods-table td:nth-child(2) {
+    white-space: nowrap !important;
+    font-size: 6.5pt !important;
+  }
+  /* Nazwa produktu w druku: max 2 linijki (line-clamp) */
+  body.printing-awizacja #awizacja-print .awizacja-goods-table td:nth-child(3) .line-clamp-2 {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  body.printing-awizacja #awizacja-print .awizacja-goods-table th,
+  body.printing-awizacja #awizacja-print .awizacja-goods-table td {
+    border: 0.4pt solid #475569 !important;
+    padding: 1.5pt 2pt !important;
+    vertical-align: middle !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    overflow: hidden !important;
+  }
+  body.printing-awizacja #awizacja-print .awizacja-goods-table thead {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+  /* Barcode SVG — wąski, mieści się w 27mm kolumnie z paddingiem */
+  body.printing-awizacja #awizacja-print .awizacja-goods-table svg {
+    width: 25mm !important;
+    max-width: 25mm !important;
+    height: 7mm !important;
+    max-height: 7mm !important;
+    display: inline-block !important;
+  }
+  /* Kolumna "Przyjęta ilość" — pusta, podświetlona delikatnie żeby było
+     widać miejsce do wpisania */
+  body.printing-awizacja #awizacja-print .awizacja-accepted-col {
+    background: #fef3c7 !important;
+  }
+  /* Notatki callout — żółte tło + lewa krawędź, dobrze widoczne na A4 */
+  body.printing-awizacja #awizacja-print .awizacja-notes-callout {
+    background: #fef3c7 !important;
+    border-left: 1.5mm solid #d97706 !important;
+    padding: 2mm 3mm !important;
+    margin-top: 3mm !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  body.printing-awizacja #awizacja-print .awizacja-notes-callout p {
+    color: #78350f !important;
+    font-size: 9pt !important;
+  }
+  /* Podpisy na dole */
+  body.printing-awizacja #awizacja-print .awizacja-signatures {
+    margin-top: 8mm !important;
+    page-break-inside: avoid !important;
+  }
+  body.printing-awizacja #awizacja-print .awizacja-footer {
+    margin-top: 3mm !important;
+    font-size: 6.5pt !important;
+  }
+  body.printing-awizacja #awizacja-print tr {
+    page-break-inside: avoid !important;
+  }
+  body.printing-awizacja #awizacja-print thead {
+    display: table-header-group !important;
+  }
+}
+
+/* Channel view switcher — client-side show/hide bez przeładowania.
+   Wrapper ma data-cv="sklep|allegro|all". Komórki Allegro mają klasę
+   .cv-allegro, Sklepu .cv-sklep. W trybie single-channel druga znika.
+   `!important` żeby wygrać z utility classes (bg-amber-50/40 itp). */
+.cv-wrapper[data-cv="sklep"] th.cv-allegro,
+.cv-wrapper[data-cv="sklep"] td.cv-allegro,
+.cv-wrapper[data-cv="sklep"] colgroup col.cv-allegro,
+.cv-wrapper[data-cv="allegro"] th.cv-sklep,
+.cv-wrapper[data-cv="allegro"] td.cv-sklep,
+.cv-wrapper[data-cv="allegro"] colgroup col.cv-sklep {
+  display: none !important;
+}
+
+/* Ukryj strzałki spinnerów w polach number — zmiana wartości tylko z
+   klawiatury lub ręcznego klików. Dotyczy wszystkich input[type=number]. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Manual editor typography — stosuje user-set fontFamily + rozmiary do
+   treści TipTap edytora. CSS vars są ustawiane inline na wrapperze
+   .manual-prose w PageEditor. Wartości w pt — przeglądarka renderuje
+   1pt ≈ 1.33px, czyli ten sam stosunek co PDF (react-pdf używa pt).
+   Dzięki temu preview edytora wygląda jak PDF. */
+.manual-prose .ProseMirror {
+  font-size: var(--manual-body, 11pt);
+  line-height: 1.5;
+  color: #1f2937;
+  font-family: inherit;
+}
+.manual-prose .ProseMirror p {
+  font-size: var(--manual-body, 11pt);
+  margin: 0.05em 0;
+  /* Paragrafy domyślnie justify — TipTap zapisuje to też w JSON dla nowych
+     paragrafów (defaultAlignment), ale stare paragrafy bez atrybutu też
+     dostaną justify dzięki temu CSS-owi. Jeśli user explicit ustawi inny
+     align, atrybut textAlign przesłoni przez inline style. */
+  text-align: justify;
+}
+.manual-prose .ProseMirror h1 {
+  font-size: var(--manual-h1, 22pt);
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0.2em 0 0.08em;
+  line-height: 1.2;
+}
+.manual-prose .ProseMirror h2 {
+  font-size: var(--manual-h2, 16pt);
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0.15em 0 0.06em;
+  line-height: 1.25;
+}
+.manual-prose .ProseMirror h3 {
+  font-size: var(--manual-h3, 13pt);
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0.1em 0 0.04em;
+  line-height: 1.3;
+}
+/* Tabela TipTap — szerokość kolumn przesuwalna (resizable=true). Border
+   collapse i 1px granice pasują do PDF render w manual-pdf.tsx (case "table"). */
+.manual-prose .ProseMirror table.manual-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: var(--manual-body, 11pt);
+}
+.manual-prose .ProseMirror table.manual-table td,
+.manual-prose .ProseMirror table.manual-table th {
+  border: 1px solid #cbd5e1;
+  padding: 4pt 6pt;
+  vertical-align: top;
+  position: relative;
+  min-width: 1em;
+}
+.manual-prose .ProseMirror table.manual-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  text-align: left;
+}
+/* Resize handle — pasek do przeciągania na prawej krawędzi komórki. */
+.manual-prose .ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: #6366f1;
+  pointer-events: none;
+}
+.manual-prose .ProseMirror table .selectedCell::after {
+  background: rgba(99, 102, 241, 0.12);
+  content: "";
+  inset: 0;
+  position: absolute;
+  pointer-events: none;
+}
+.manual-prose .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+/* Listy — Tailwind v4 preflight + typography plugin (.prose) wyłączają
+   list-style-type globalnie i podmieniają markery na ::before pseudo. My
+   chcemy klasyczne markery (• i 1./2./3.), więc wymuszamy je !important
+   żeby wygrać z prose. Tutaj jest WIĘCEJ specyficzności (.manual-prose +
+   .ProseMirror + ul) niż w .prose (samo .prose ul), ale dodatkowe !important
+   chroni przed user-agent reset oraz zmianami Tailwinda. */
+.manual-prose .ProseMirror ul {
+  font-size: var(--manual-body, 11pt) !important;
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  padding-left: 1.5em !important;
+  margin: 0.08em 0 !important;
+}
+.manual-prose .ProseMirror ol {
+  font-size: var(--manual-body, 11pt) !important;
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.5em !important;
+  margin: 0.08em 0 !important;
+}
+.manual-prose .ProseMirror li {
+  margin: 0.02em 0 !important;
+  display: list-item !important;
+  padding-left: 0 !important;
+}
+/* Prose dodaje ::before z circle/dot pseudo — kasujemy żeby się nie dublowało
+   z natywnym markerem ul/ol. */
+.manual-prose .ProseMirror ul > li::before,
+.manual-prose .ProseMirror ol > li::before {
+  content: none !important;
+}
+.manual-prose .ProseMirror li > p {
+  margin: 0 !important;
+  display: inline-block;
+  vertical-align: top;
+  width: 100%;
+}
+/* Marker color = inherit, żeby markery były tego samego koloru co tekst */
+.manual-prose .ProseMirror li::marker {
+  color: inherit;
+}
+
