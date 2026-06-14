@@ -12,8 +12,11 @@ COPY package.json package-lock.json* ./
 # `npm ci` jest deterministyczny — używa dokładnie lockfile, szybciej niż install.
 # `--legacy-peer-deps` omija strict peer-dep checking npm v7+ — repo ma drobny
 # conflict tiptap (extension-table@3.26.1 chce core@3.26.1, starter-kit@3.26.0
-# wciąga core@3.26.0). Lokalnie też tego używasz, działa.
-RUN npm ci --no-audit --no-fund --legacy-peer-deps
+# wciąga core@3.26.0).
+# `--include=dev` MUSI być, bo Coolify może mieć NODE_ENV=production przy buildzie
+# co domyślnie pomija devDependencies — a my potrzebujemy typescript/eslint/
+# @types do `next build`.
+RUN npm ci --no-audit --no-fund --legacy-peer-deps --include=dev
 
 # ─── Stage 2: builder ──────────────────────────────────────
 FROM node:22-alpine AS builder
