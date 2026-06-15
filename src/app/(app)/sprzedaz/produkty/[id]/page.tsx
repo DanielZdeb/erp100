@@ -48,6 +48,9 @@ export default async function SprzedazProduktDetailPage({
           alt: true,
           thumbnailWebpUrl: true,
           isPrimary: true,
+          status: true,
+          errorMessage: true,
+          prompt: true,
         },
       },
     },
@@ -156,6 +159,9 @@ export default async function SprzedazProduktDetailPage({
               url: img.url,
               alt: img.alt,
               thumbnailWebpUrl: img.thumbnailWebpUrl,
+              status: img.status,
+              errorMessage: img.errorMessage,
+              prompt: img.prompt,
             }))}
           />
         ) : (

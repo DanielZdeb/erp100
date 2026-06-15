@@ -13,10 +13,10 @@
  * usuwa się ręcznie przez kartę produktu (zakładka Grafiki).
  */
 
-import { useState, useTransition, useEffect, useCallback } from "react";
+import { useState, useTransition, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, Loader2, ZoomIn, X, ArrowLeft, ArrowRight } from "lucide-react";
+import { Sparkles, Loader2, ZoomIn, X, ArrowLeft, ArrowRight, AlertTriangle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +36,9 @@ interface ImageItem {
   url: string;
   alt: string | null;
   thumbnailWebpUrl: string | null;
+  status: "PENDING" | "READY" | "FAILED";
+  errorMessage: string | null;
+  prompt: string | null;
 }
 
 export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
@@ -43,19 +46,29 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
   const [editing, setEditing] = useState<ImageItem | null>(null);
   const [prompt, setPrompt] = useState("");
   const [pending, startTransition] = useTransition();
-  // Lightbox — index zdjęcia którego pełen rozmiar jest pokazany; null = zamknięty
+  // Lightbox — index na liscie READY (filtrowanej); null = zamkniety
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
 
+  const readyImages = useMemo(
+    () => images.filter((i) => i.status === "READY"),
+    [images],
+  );
+
   const nextZoom = useCallback(
-    () => setZoomIndex((i) => (i === null ? null : (i + 1) % images.length)),
-    [images.length],
+    () =>
+      setZoomIndex((i) =>
+        i === null ? null : (i + 1) % readyImages.length,
+      ),
+    [readyImages.length],
   );
   const prevZoom = useCallback(
     () =>
       setZoomIndex((i) =>
-        i === null ? null : (i - 1 + images.length) % images.length,
+        i === null
+          ? null
+          : (i - 1 + readyImages.length) % readyImages.length,
       ),
-    [images.length],
+    [readyImages.length],
   );
 
   // Klawiatura w lightboxie: ← / → / Esc
@@ -70,6 +83,18 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomIndex, nextZoom, prevZoom]);
 
+  // Polling: gdy mamy PENDING zdjecia, odswiezamy RSC co 3s zeby zobaczyc updaty
+  // (backgroundowy worker dopelnia url + status=READY na serwerze).
+  const hasPending = useMemo(
+    () => images.some((i) => i.status === "PENDING"),
+    [images],
+  );
+  useEffect(() => {
+    if (!hasPending) return;
+    const t = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(t);
+  }, [hasPending, router]);
+
   function submitEdit() {
     if (!editing) return;
     if (!prompt.trim()) {
@@ -83,7 +108,7 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
           prompt.trim(),
         );
         if (result.ok) {
-          toast.success("Wygenerowano nową grafikę");
+          toast.success("Generuję — pojawi się w galerii za chwilę");
           setEditing(null);
           setPrompt("");
           router.refresh();
@@ -99,47 +124,97 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
   return (
     <>
       <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-        {images.map((img, idx) => (
-          <div
-            key={img.id}
-            className="group relative aspect-square rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50 hover:ring-2 hover:ring-violet-400 transition-all"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={img.thumbnailWebpUrl ?? img.url}
-              alt={img.alt ?? ""}
-              className="size-full object-cover"
-            />
-            {/* Overlay z 2 akcjami pojawia się na hover */}
-            <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/60 transition-colors grid place-items-center gap-1">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-stretch gap-1.5 w-[80%]">
-                <button
-                  type="button"
-                  onClick={() => setZoomIndex(idx)}
-                  className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-white/90 hover:bg-white text-slate-800 text-[10px] font-semibold uppercase tracking-wide"
-                >
-                  <ZoomIn className="size-3" />
-                  Powiększ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(img);
-                    setPrompt("");
-                  }}
-                  className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold uppercase tracking-wide"
-                >
-                  <Sparkles className="size-3" />
-                  Edit AI
-                </button>
+        {images.map((img) => {
+          if (img.status === "PENDING") {
+            return (
+              <div
+                key={img.id}
+                className="relative aspect-square rounded ring-1 ring-violet-200 overflow-hidden bg-gradient-to-br from-violet-50 via-fuchsia-50 to-violet-50 animate-pulse"
+                title={img.prompt ? `Generuję: ${img.prompt}` : "Generuję..."}
+              >
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="flex flex-col items-center gap-1.5 text-violet-700">
+                    <Loader2 className="size-5 animate-spin" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider">
+                      AI generuje
+                    </span>
+                  </div>
+                </div>
+                {img.prompt ? (
+                  <div className="absolute bottom-0 inset-x-0 px-1.5 py-1 bg-white/70 backdrop-blur-sm text-[9px] text-slate-700 line-clamp-2">
+                    {img.prompt}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+          if (img.status === "FAILED") {
+            return (
+              <div
+                key={img.id}
+                className="relative aspect-square rounded ring-1 ring-rose-200 overflow-hidden bg-rose-50/60"
+                title={img.errorMessage ?? "Generowanie nie powiodło się"}
+              >
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="flex flex-col items-center gap-1 text-rose-600 px-2 text-center">
+                    <AlertTriangle className="size-5" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider">
+                      Błąd AI
+                    </span>
+                  </div>
+                </div>
+                {img.errorMessage ? (
+                  <div className="absolute bottom-0 inset-x-0 px-1.5 py-1 bg-white/80 backdrop-blur-sm text-[9px] text-rose-700 line-clamp-2">
+                    {img.errorMessage}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+          // READY
+          const readyIdx = readyImages.findIndex((r) => r.id === img.id);
+          return (
+            <div
+              key={img.id}
+              className="group relative aspect-square rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50 hover:ring-2 hover:ring-violet-400 transition-all"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.thumbnailWebpUrl ?? img.url}
+                alt={img.alt ?? ""}
+                className="size-full object-cover"
+              />
+              {/* Overlay z 2 akcjami pojawia sie na hover */}
+              <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/60 transition-colors grid place-items-center gap-1">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-stretch gap-1.5 w-[80%]">
+                  <button
+                    type="button"
+                    onClick={() => readyIdx >= 0 && setZoomIndex(readyIdx)}
+                    className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-white/90 hover:bg-white text-slate-800 text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    <ZoomIn className="size-3" />
+                    Powiększ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(img);
+                      setPrompt("");
+                    }}
+                    className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    <Sparkles className="size-3" />
+                    Edit AI
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Lightbox — pełen rozmiar, nawigacja klawiaturą / przyciskami */}
-      {zoomIndex !== null && images[zoomIndex] && (
+      {zoomIndex !== null && readyImages[zoomIndex] && (
         <div
           className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setZoomIndex(null)}
@@ -158,7 +233,7 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
             <X className="size-5" />
           </button>
           {/* Poprzednie */}
-          {images.length > 1 && (
+          {readyImages.length > 1 && (
             <button
               type="button"
               onClick={(e) => {
@@ -173,7 +248,7 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
             </button>
           )}
           {/* Następne */}
-          {images.length > 1 && (
+          {readyImages.length > 1 && (
             <button
               type="button"
               onClick={(e) => {
@@ -194,15 +269,15 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={images[zoomIndex].url}
-              alt={images[zoomIndex].alt ?? ""}
+              src={readyImages[zoomIndex].url}
+              alt={readyImages[zoomIndex].alt ?? ""}
               className="max-w-full max-h-[80vh] object-contain rounded ring-1 ring-white/10"
             />
             <div className="text-[11px] text-white/70 tabular-nums">
-              {zoomIndex + 1} / {images.length}
-              {images[zoomIndex].alt ? (
+              {zoomIndex + 1} / {readyImages.length}
+              {readyImages[zoomIndex].alt ? (
                 <span className="ml-2 text-white/50">
-                  · {images[zoomIndex].alt}
+                  · {readyImages[zoomIndex].alt}
                 </span>
               ) : null}
             </div>

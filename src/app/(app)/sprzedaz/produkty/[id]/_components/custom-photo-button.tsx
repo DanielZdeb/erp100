@@ -166,17 +166,14 @@ export function AddCustomPhotoButton({
           aspectRatio,
         });
         if (result.ok) {
-          toast.success(result.message, { duration: 8000 });
+          toast.success(
+            `Dodano ${result.queued} placeholder${result.queued === 1 ? "" : "y"} — pojawią się od razu w galerii, AI wypełni je w tle.`,
+            { duration: 6000 },
+          );
           setOpen(false);
           reset();
-          // Auto-refresh co 8s przez 2 min — pokaże nowe zdjęcia gdy się
-          // zakończą. User i tak może odświeżyć ręcznie.
-          let refreshCount = 0;
-          const interval = setInterval(() => {
-            router.refresh();
-            refreshCount++;
-            if (refreshCount >= 15) clearInterval(interval);
-          }, 8000);
+          // Placeholdery juz sa widoczne w galerii (status=PENDING). Galeria pollule sama.
+          router.refresh();
         } else {
           toast.error(result.error);
         }

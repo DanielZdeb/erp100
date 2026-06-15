@@ -669,7 +669,7 @@ export async function editProductImageWithAiAction(
   productImageId: string,
   prompt: string,
 ): Promise<
-  | { ok: true; newImageId: string; newUrl: string }
+  | { ok: true; pendingImageId: string }
   | { ok: false; error: string }
 > {
   try {
@@ -688,64 +688,110 @@ export async function editProductImageWithAiAction(
       return { ok: false, error: "Zdjęcie nie istnieje." };
     }
 
-    // Wywołaj Nano Banana Pro z oryginałem jako referencją kompozycyjną
-    // (FIRST = composition template, zgodnie z konwencją z generateProductPhoto).
-    const editPrompt =
-      `You are editing an existing product photo. ` +
-      `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
-      `Apply this change: ${prompt.trim()}\n\n` +
-      `Product: ${original.product.name}${original.product.color ? `, color: ${original.product.color}` : ""}`;
-
-    const result = await generateProductPhoto({
-      prompt: editPrompt,
-      quality: "NANO_BANANA_PRO",
-      aspectRatio: "1:1",
-      referenceImageUrls: [original.url],
-    });
-
-    if (!result.ok) {
-      return { ok: false, error: result.error };
-    }
-
-    // Zapisz nowe zdjęcie obok oryginału
-    const ext = result.contentType.includes("jpeg") ? "jpg" : "png";
-    const file = new File(
-      [new Uint8Array(result.imageBuffer)],
-      `ai-edit-${productImageId}-${Date.now()}.${ext}`,
-      { type: result.contentType },
-    );
-    const uploaded = await uploadFile(file, {
-      folder: `products/${original.productId}/images`,
-    });
-
-    // Nowy ProductImage na końcu kolejności
+    // Pre-create PENDING — UI od razu pokazuje placeholder z loaderem
     const maxSort = await db.productImage.findFirst({
       where: { productId: original.productId },
       orderBy: { sortOrder: "desc" },
       select: { sortOrder: true },
     });
-    const created = await db.productImage.create({
+    const pending = await db.productImage.create({
       data: {
         productId: original.productId,
-        url: uploaded.url,
-        thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
-        thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
+        url: "",
+        status: "PENDING",
+        prompt: prompt.trim(),
         alt: `AI-edit: ${prompt.trim().slice(0, 80)}`,
         sortOrder: (maxSort?.sortOrder ?? 0) + 1,
       },
-      select: { id: true, url: true },
+      select: { id: true },
     });
-
     revalidatePath(`/sprzedaz/produkty/${original.productId}`);
     revalidatePath(`/produkty/${original.productId}`);
 
-    return { ok: true, newImageId: created.id, newUrl: created.url };
+    // Fire-and-forget — background dokonczy update url + status=READY
+    void runEditInBackground({
+      pendingImageId: pending.id,
+      productId: original.productId,
+      productName: original.product.name,
+      productColor: original.product.color,
+      originalUrl: original.url,
+      prompt: prompt.trim(),
+    }).catch((e) => {
+      console.error(`[ai-edit ${productImageId}] background error:`, e);
+    });
+
+    return { ok: true, pendingImageId: pending.id };
   } catch (e) {
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Błąd edycji AI.",
     };
   }
+}
+
+async function runEditInBackground(params: {
+  pendingImageId: string;
+  productId: string;
+  productName: string;
+  productColor: string | null;
+  originalUrl: string;
+  prompt: string;
+}) {
+  const editPrompt =
+    `You are editing an existing product photo. ` +
+    `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
+    `Apply this change: ${params.prompt}\n\n` +
+    `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}`;
+
+  const result = await generateProductPhoto({
+    prompt: editPrompt,
+    quality: "NANO_BANANA_PRO",
+    aspectRatio: "1:1",
+    referenceImageUrls: [params.originalUrl],
+  });
+
+  if (!result.ok) {
+    await db.productImage
+      .update({
+        where: { id: params.pendingImageId },
+        data: { status: "FAILED", errorMessage: result.error.slice(0, 500) },
+      })
+      .catch(() => undefined);
+    revalidatePath(`/sprzedaz/produkty/${params.productId}`);
+    revalidatePath(`/produkty/${params.productId}`);
+    return;
+  }
+
+  try {
+    const ext = result.contentType.includes("jpeg") ? "jpg" : "png";
+    const file = new File(
+      [new Uint8Array(result.imageBuffer)],
+      `ai-edit-${params.pendingImageId}-${Date.now()}.${ext}`,
+      { type: result.contentType },
+    );
+    const uploaded = await uploadFile(file, {
+      folder: `products/${params.productId}/images`,
+    });
+    await db.productImage.update({
+      where: { id: params.pendingImageId },
+      data: {
+        url: uploaded.url,
+        thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
+        thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
+        status: "READY",
+      },
+    });
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    await db.productImage
+      .update({
+        where: { id: params.pendingImageId },
+        data: { status: "FAILED", errorMessage: errMsg.slice(0, 500) },
+      })
+      .catch(() => undefined);
+  }
+  revalidatePath(`/sprzedaz/produkty/${params.productId}`);
+  revalidatePath(`/produkty/${params.productId}`);
 }
 
 /**
@@ -795,6 +841,32 @@ export async function generateCustomProductPhotosAction(
 
     const aspectRatio = input.aspectRatio ?? "1:1";
 
+    // Pre-create PENDING rekordy dla kazdego shota — UI od razu pokazuje placeholdery
+    // z loaderem zamiast czekac az background dokonczy generowanie.
+    const maxSort = await db.productImage.findFirst({
+      where: { productId: product.id },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    let nextSort = (maxSort?.sortOrder ?? 0) + 1;
+    const pendingRecords = await Promise.all(
+      shots.map((s) =>
+        db.productImage.create({
+          data: {
+            productId: product.id,
+            url: "",
+            status: "PENDING" as const,
+            prompt: s.prompt.trim(),
+            alt: `AI-custom: ${s.prompt.slice(0, 80)}`,
+            sortOrder: nextSort++,
+          },
+          select: { id: true },
+        }),
+      ),
+    );
+    revalidatePath(`/sprzedaz/produkty/${product.id}`);
+    revalidatePath(`/produkty/${product.id}`);
+
     // Fire-and-forget — odpowiedź wraca natychmiast, generowanie leci dalej
     // w background process.
     void runCustomGenerationInBackground({
@@ -803,9 +875,10 @@ export async function generateCustomProductPhotosAction(
       productColor: product.color,
       groupPrompt: input.groupPrompt.trim(),
       groupRefUrls: input.groupRefUrls,
-      shots: shots.map((s) => ({
+      shots: shots.map((s, i) => ({
         prompt: s.prompt.trim(),
         refUrls: s.refUrls,
+        pendingImageId: pendingRecords[i].id,
       })),
       aspectRatio,
     }).catch((e) => {
@@ -831,7 +904,7 @@ async function runCustomGenerationInBackground(params: {
   productColor: string | null;
   groupPrompt: string;
   groupRefUrls: string[];
-  shots: Array<{ prompt: string; refUrls: string[] }>;
+  shots: Array<{ prompt: string; refUrls: string[]; pendingImageId: string }>;
   aspectRatio: string;
 }) {
   for (let i = 0; i < params.shots.length; i++) {
@@ -857,6 +930,17 @@ async function runCustomGenerationInBackground(params: {
       console.warn(
         `[custom-gen ${params.productId}] shot ${i + 1} failed: ${result.error.slice(0, 200)}`,
       );
+      await db.productImage
+        .update({
+          where: { id: shot.pendingImageId },
+          data: {
+            status: "FAILED",
+            errorMessage: result.error.slice(0, 500),
+          },
+        })
+        .catch(() => undefined);
+      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
+      revalidatePath(`/produkty/${params.productId}`);
       continue;
     }
 
@@ -870,28 +954,34 @@ async function runCustomGenerationInBackground(params: {
       const uploaded = await uploadFile(file, {
         folder: `products/${params.productId}/images`,
       });
-      const maxSort = await db.productImage.findFirst({
-        where: { productId: params.productId },
-        orderBy: { sortOrder: "desc" },
-        select: { sortOrder: true },
-      });
-      await db.productImage.create({
+      await db.productImage.update({
+        where: { id: shot.pendingImageId },
         data: {
-          productId: params.productId,
           url: uploaded.url,
           thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
           thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
-          alt: `AI-custom: ${shot.prompt.slice(0, 80)}`,
-          sortOrder: (maxSort?.sortOrder ?? 0) + 1,
+          status: "READY",
         },
       });
       revalidatePath(`/sprzedaz/produkty/${params.productId}`);
       revalidatePath(`/produkty/${params.productId}`);
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.error(
         `[custom-gen ${params.productId}] shot ${i + 1} save failed:`,
         e,
       );
+      await db.productImage
+        .update({
+          where: { id: shot.pendingImageId },
+          data: {
+            status: "FAILED",
+            errorMessage: errMsg.slice(0, 500),
+          },
+        })
+        .catch(() => undefined);
+      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
+      revalidatePath(`/produkty/${params.productId}`);
     }
   }
   console.info(

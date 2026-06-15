@@ -942,6 +942,12 @@ model ProductStageCompletion {
   @@unique([productId, stage])
 }
 
+enum ProductImageStatus {
+  PENDING // wpis stworzony, AI jeszcze generuje (url pusty)
+  READY   // gotowe, url wskazuje na plik
+  FAILED  // generowanie nie powiodlo sie (errorMessage zawiera detal)
+}
+
 model ProductImage {
   id        String        @id @default(cuid())
   productId String
@@ -959,6 +965,13 @@ model ProductImage {
   // Bardzo mały (4×4 px) base64 placeholder do <Image placeholder="blur"> —
   // płynny efekt rozmazania zanim wczyta się thumb.
   thumbnailBlurDataUrl String?
+  // Status generowania AI. READY = zwykle wgrane recznie / juz wygenerowane,
+  // PENDING = wpis utworzony przez serwer ale AI jeszcze generuje (UI pokazuje spinner),
+  // FAILED = generowanie zwrocilo blad (UI pokazuje X z tooltipem `errorMessage`).
+  status       ProductImageStatus @default(READY)
+  errorMessage String?
+  // Prompt uzyty do wygenerowania (PENDING/READY z AI) — null dla recznie wgranych.
+  prompt       String?
   createdAt DateTime      @default(now())
 }
 
