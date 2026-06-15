@@ -109,6 +109,7 @@ export async function GET(
               productCode: true,
               name: true,
               eanCode: true,
+              colorCode: true,
               defaultUnitPricePln: true,
               defaultPricePerMeterPln: true,
               lengthM: true,
@@ -234,6 +235,20 @@ export async function GET(
   }
   const boltsAnalysis = analyzeBolts(materialItems);
 
+  // Mapa color (SKU suffix, np. „BLACK") → kod fabryczny koloru z Product
+  // (np. „RAL 6018"). Pierwszy znaleziony wpis wygrywa — wszystkie produkty
+  // tego samego koloru powinny mieć identyczny colorCode i tak, ale gdyby
+  // ktoś wpisał różne, bierzemy ten z pierwszej pozycji w order.items.
+  const colorCodes: Record<string, string> = {};
+  for (const it of order.items) {
+    const parsed = parseMaterialSku(it.product.productCode);
+    if (!parsed) continue;
+    if (colorCodes[parsed.color]) continue;
+    if (it.product.colorCode && it.product.colorCode.trim() !== "") {
+      colorCodes[parsed.color] = it.product.colorCode.trim();
+    }
+  }
+
   await ensureFontsRegistered();
 
   const pdfBuffer = await renderToBuffer(
@@ -260,6 +275,7 @@ export async function GET(
       sections: sectionsForPdf,
       items: itemsForPdf,
       bolts: boltsAnalysis,
+      colorCodes,
     }),
   );
 

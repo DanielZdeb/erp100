@@ -276,6 +276,10 @@ model Product {
   /// Code 128 — kod kreskowy (alfanumeryczny). Niezależny od EAN.
   code128     String?
   color       String?
+  /// Kod koloru wg fabryki / dostawcy (np. „RAL 6018", „Pantone 18-1664",
+  /// „CN-X23-RED"). Drukowany w tabelach na PDF zamówienia fabrycznego —
+  /// fabryka identyfikuje materiał po tym kodzie, nie po naszej nazwie.
+  colorCode   String?
 
   // ── Integracja z IAI Shop / sklepu zewnętrznym ──────────────────────
   /// ID produktu w zewnętrznym systemie sklepu (IAI Shop). Używane przy

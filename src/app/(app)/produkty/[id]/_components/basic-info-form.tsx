@@ -198,6 +198,44 @@ function BasicInfoFields({
         </p>
       </div>
 
+      {/* Kolor + Kod koloru (fabryczny) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="bi-color" className="text-sm">
+            Kolor
+          </Label>
+          <Input
+            id="bi-color"
+            value={values.color}
+            onChange={(e) => update("color", e.target.value)}
+            placeholder={ph("np. Czarny, Pastelowy róż", disabled)}
+            className={cn(READONLY_VALUE_CLASS)}
+            readOnly={disabled}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Czytelna nazwa koloru wyświetlana w ERP i sklepie.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="bi-color-code" className="text-sm">
+            Kod koloru (fabryczny)
+          </Label>
+          <Input
+            id="bi-color-code"
+            value={values.colorCode}
+            onChange={(e) => update("colorCode", e.target.value)}
+            placeholder={ph("np. RAL 6018, CN-X23-RED", disabled)}
+            className={cn("font-mono", READONLY_VALUE_CLASS)}
+            readOnly={disabled}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Drukowany w tabeli PDF zamówienia fabrycznego — fabryka
+            identyfikuje materiał po tym kodzie.
+          </p>
+        </div>
+      </div>
+
       {/* Waga + cło */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1.5">
@@ -523,6 +561,8 @@ function BasicInfoEditModal({
             values.customsDutyPct.trim() === ""
               ? null
               : Number(values.customsDutyPct),
+          color: values.color.trim() || null,
+          colorCode: values.colorCode.trim() || null,
         });
         toast.success("Zapisano podstawowe informacje");
         onOpenChange(false);

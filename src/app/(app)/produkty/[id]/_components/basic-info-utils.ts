@@ -19,6 +19,11 @@ export interface BasicInfoFormValues {
   weightKg: string;
   /** w UI 0..100, na zapis dzielimy przez 100 do 0..1. */
   customsDutyPct: string;
+  /** Wolnotekstowy kolor (np. „Czarny", „Pastelowy róż"). */
+  color: string;
+  /** Kod fabryczny koloru (np. „RAL 6018", „Pantone 18-1664"). Drukowany
+   *  w tabeli na PDF zamówienia fabrycznego. */
+  colorCode: string;
 }
 
 /**
@@ -35,6 +40,8 @@ export function productToBasicValues(p: {
   requiredComponentsTotal: number | null;
   weightKg: number | null;
   customsDutyPct: number | null;
+  color: string | null;
+  colorCode: string | null;
 }): BasicInfoFormValues {
   // ZESTAW zachowujemy w stanie formularza — UI pokazuje statyczny badge zamiast
   // selectora typu, ale wartość musi przejść przez form żeby zapis nie zniszczył
@@ -60,5 +67,7 @@ export function productToBasicValues(p: {
     weightKg: p.weightKg != null ? p.weightKg.toString() : "",
     customsDutyPct:
       p.customsDutyPct != null ? (p.customsDutyPct * 100).toString() : "",
+    color: p.color ?? "",
+    colorCode: p.colorCode ?? "",
   };
 }

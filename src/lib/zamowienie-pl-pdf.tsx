@@ -118,6 +118,10 @@ type OrderPlPdfProps = {
   sections: PdfSectionForPdf[];
   items: ItemForPdf[];
   bolts: BoltsAnalysis;
+  /** Mapa color (SKU suffix, np. "BLACK") → kod fabryczny koloru z produktu
+   *  (np. „RAL 6018"). Wykorzystywana w tabeli FactoryBoltsSummary. Brak wpisu
+   *  = pusta komórka „—" w kolumnie. */
+  colorCodes?: Record<string, string>;
   /** Default: krajalnia (zachowuje stare zachowanie). */
   mode?: OrderPlPdfMode;
 };
@@ -749,7 +753,7 @@ export function OrderPlPdf(
             jednym kolorze, nie cięte. Sekcja FactoryBoltsSummary renderuje
             tylko zbiorczą ilość belek per kolor (BEZ ROZKŁADU CIĘCIA). */}
         {props.mode === "fabryka" && (
-          <FactoryBoltsSummary bolts={props.bolts} />
+          <FactoryBoltsSummary bolts={props.bolts} colorCodes={props.colorCodes ?? {}} />
         )}
 
         {props.mode !== "fabryka" && (
@@ -888,7 +892,13 @@ export function OrderPlPdf(
  * cięcia (paska z segmentami) — fabryka produkuje belki w jednym kolorze,
  * długość pełna 98 m, bez cięć. Cięciem zajmuje się krajalnia.
  */
-function FactoryBoltsSummary({ bolts }: { bolts: BoltsAnalysis }) {
+function FactoryBoltsSummary({
+  bolts,
+  colorCodes,
+}: {
+  bolts: BoltsAnalysis;
+  colorCodes: Record<string, string>;
+}) {
   const totalBolts = bolts.byColor.reduce((s, c) => s + c.boltsUsed, 0);
   const totalMeters = totalBolts * DEFAULT_BOLT_LENGTH_M;
   return (
@@ -913,8 +923,9 @@ function FactoryBoltsSummary({ bolts }: { bolts: BoltsAnalysis }) {
         }}
       >
         <Text style={{ flexGrow: 1 }}>KOLOR</Text>
-        <Text style={{ width: 90, textAlign: "right" }}>LICZBA BELEK</Text>
-        <Text style={{ width: 110, textAlign: "right" }}>ŁĄCZNIE (m)</Text>
+        <Text style={{ width: 110 }}>KOD KOLORU</Text>
+        <Text style={{ width: 80, textAlign: "right" }}>LICZBA BELEK</Text>
+        <Text style={{ width: 90, textAlign: "right" }}>ŁĄCZNIE (m)</Text>
       </View>
 
       {bolts.byColor.map((c, idx) => {
@@ -951,7 +962,18 @@ function FactoryBoltsSummary({ bolts }: { bolts: BoltsAnalysis }) {
             </Text>
             <Text
               style={{
-                width: 90,
+                width: 110,
+                fontSize: 10,
+                fontFamily: "Courier",
+                fontWeight: 700,
+                color: COLORS.text,
+              }}
+            >
+              {colorCodes[c.color] ?? "—"}
+            </Text>
+            <Text
+              style={{
+                width: 80,
                 textAlign: "right",
                 fontSize: 14,
                 fontWeight: 700,
@@ -962,7 +984,7 @@ function FactoryBoltsSummary({ bolts }: { bolts: BoltsAnalysis }) {
             </Text>
             <Text
               style={{
-                width: 110,
+                width: 90,
                 textAlign: "right",
                 fontSize: 12,
                 fontWeight: 700,

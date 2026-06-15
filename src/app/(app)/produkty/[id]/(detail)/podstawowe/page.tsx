@@ -121,6 +121,8 @@ export default async function PodstawowePage({
     requiredComponentsTotal: product.requiredComponentsTotal,
     weightKg: product.weightKg,
     customsDutyPct: product.customsDutyPct,
+    color: product.color,
+    colorCode: product.colorCode,
   });
 
   const primaryImage =

@@ -421,6 +421,10 @@ const basicInfoSchema = z.object({
   weightKg: optionalNumber,
   /** Stawka cła w % (0..100) — przy zapisie konwertujemy na 0..1. */
   customsDutyPct: optionalNumber,
+  /** Czytelna nazwa koloru (np. „Czarny"). */
+  color: optionalString,
+  /** Kod fabryczny koloru (np. „RAL 6018"). */
+  colorCode: optionalString,
 });
 
 export async function updateProductBasicAction(id: string, input: unknown) {
@@ -466,6 +470,8 @@ export async function updateProductBasicAction(id: string, input: unknown) {
       weightKg: data.weightKg,
       customsDutyPct:
         data.customsDutyPct != null ? data.customsDutyPct / 100 : null,
+      color: data.color,
+      colorCode: data.colorCode,
     },
   });
 

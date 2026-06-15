@@ -134,13 +134,31 @@ function TooltipContent({
   React.useEffect(() => {
     if (!pos.visible) return;
     const onScroll = () => recompute();
+    // Globalny safety-net: jeśli kursor odjedzie z triggera szybko (drag,
+    // scroll przez kółko, tab switch, table re-render), `mouseleave` na
+    // triggerze nie zawsze odpala. Sprawdzamy pozycję myszki na każdym
+    // ruchu i ukrywamy tooltip, jeśli kursor już nie nad triggerem.
+    const onMouseMove = (e: MouseEvent) => {
+      const trigger = ctx?.triggerRef.current;
+      if (!trigger) return;
+      const r = trigger.getBoundingClientRect();
+      const margin = 4;
+      const inside =
+        e.clientX >= r.left - margin &&
+        e.clientX <= r.right + margin &&
+        e.clientY >= r.top - margin &&
+        e.clientY <= r.bottom + margin;
+      if (!inside) setPos((p) => ({ ...p, visible: false }));
+    };
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onScroll);
+    window.addEventListener("mousemove", onMouseMove);
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
+      window.removeEventListener("mousemove", onMouseMove);
     };
-  }, [pos.visible, recompute]);
+  }, [pos.visible, recompute, ctx]);
 
   // SSR / pierwszy render: nie portaluj nic.
   if (!mounted || typeof document === "undefined") return null;
