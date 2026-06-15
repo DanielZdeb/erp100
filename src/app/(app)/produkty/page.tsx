@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import {
   ChartPie,
@@ -66,6 +67,80 @@ import { fetchNbpRate } from "@/lib/nbp-rates";
 import { calculateShipping } from "@/lib/shipping-calc";
 
 export const dynamic = "force-dynamic";
+
+// ─── Cache'owane fragmenty danych ─────────────────────────────────
+// Dane „prawie statyczne" (kategorie, biblioteka pudełek, lista wszystkich
+// produktów do wizardu zestawu) cachujemy na 5 min — zmieniają się rzadko,
+// ale każde wejście na /produkty je pobiera. Po edycji produktu/kategorii
+// odpalamy `revalidateTag("products")` żeby cache się zresetował (server
+// actions już to robią — patrz `src/server/products.ts`).
+const getWizardLibrary = unstable_cache(
+  async (companyId: string) => {
+    const [boxes, categoryDuty, existingComponents, componentRules] =
+      await Promise.all([
+        db.shippingBox.findMany({
+          where: { companyId, archived: false },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            internalCode: true,
+            packagingType: true,
+            widthCm: true,
+            heightCm: true,
+            depthCm: true,
+            cardboardLayers: true,
+            origin: true,
+            isCollective: true,
+            purchasePricePln: true,
+            purposeText: true,
+            innerBoxesPerMaster: true,
+          },
+        }),
+        db.category.findMany({
+          where: { companyId },
+          select: { id: true, customsDutyPct: true },
+        }),
+        db.product.findMany({
+          where: { companyId, archived: false },
+          orderBy: [{ isComponent: "desc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            productCode: true,
+            code128: true,
+            categoryId: true,
+            isComponent: true,
+            weightKg: true,
+            shippingBoxWidthCm: true,
+            shippingBoxHeightCm: true,
+            shippingBoxDepthCm: true,
+            shippingBoxWeightKg: true,
+            unitsPerShippingBox: true,
+            defaultUnitPriceUsd: true,
+            defaultUnitPriceCny: true,
+            defaultUnitPricePln: true,
+            images: {
+              where: { isPrimary: true },
+              take: 1,
+              select: { url: true, thumbnailWebpUrl: true },
+            },
+          },
+        }),
+        db.componentCategoryRule.findMany({
+          where: { component: { companyId } },
+          select: {
+            componentId: true,
+            categoryId: true,
+            quantity: true,
+          },
+        }),
+      ]);
+    return { boxes, categoryDuty, existingComponents, componentRules };
+  },
+  ["produkty-wizard-library"],
+  { revalidate: 300, tags: ["products", "categories", "boxes"] },
+);
 
 type SearchParams = Promise<{
   q?: string;
@@ -165,10 +240,7 @@ export default async function ProduktyPage({
     componentCategoryOptionsRaw,
     totalProductCount,
     defaultContainerM3,
-    wizardAvailableBoxes,
-    wizardCategoryDuty,
-    wizardExistingComponents,
-    wizardComponentRules,
+    wizardLibrary,
   ] = await Promise.all([
     db.category.findMany({
       where: { companyId },
@@ -200,74 +272,14 @@ export default async function ProduktyPage({
     }),
     db.product.count({ where: navCountWhere }),
     getDefaultContainerM3(),
-    // Pudełka dla wizardu — z biblioteki, nieusunięte
-    db.shippingBox.findMany({
-      where: { companyId, archived: false },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        internalCode: true,
-        packagingType: true,
-        widthCm: true,
-        heightCm: true,
-        depthCm: true,
-        cardboardLayers: true,
-        origin: true,
-        isCollective: true,
-        purchasePricePln: true,
-        purposeText: true,
-        innerBoxesPerMaster: true,
-      },
-    }),
-    // Stawki cła per kategoria (do auto-uzupełnienia w wizardzie)
-    db.category.findMany({
-      where: { companyId },
-      select: { id: true, customsDutyPct: true },
-    }),
-    // Lista produktów + komponentów (do wizard Step "Komponenty" — dowolny
-    // produkt może być użyty jako komponent innego produktu). Zawiera URL
-    // głównej grafiki (primary image) do podglądu w kartach.
-    db.product.findMany({
-      where: { companyId, archived: false },
-      orderBy: [{ isComponent: "desc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        productCode: true,
-        code128: true,
-        categoryId: true,
-        isComponent: true,
-        // Dla wizard zestawu:
-        //  - tryb INDIVIDUAL_PACKAGING: produkty używają shippingBox*, komponenty
-        //    tylko weightKg (doliczane do sumarycznej wagi, bez osobnych kartonów).
-        weightKg: true,
-        shippingBoxWidthCm: true,
-        shippingBoxHeightCm: true,
-        shippingBoxDepthCm: true,
-        shippingBoxWeightKg: true,
-        unitsPerShippingBox: true,
-        // Ceny zakupu — do podsumowania kosztów składników w wizardzie zestawu
-        defaultUnitPriceUsd: true,
-        defaultUnitPriceCny: true,
-        defaultUnitPricePln: true,
-        images: {
-          where: { isPrimary: true },
-          take: 1,
-          select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
-        },
-      },
-    }),
-    // Reguły kategoria→komponent (do podpowiedzi w wizardzie)
-    db.componentCategoryRule.findMany({
-      where: { component: { companyId } },
-      select: {
-        componentId: true,
-        categoryId: true,
-        quantity: true,
-      },
-    }),
+    // Wizard library — cache 5 min, invalidate przez revalidateTag("products"/"boxes"/"categories")
+    getWizardLibrary(companyId),
   ]);
+
+  const wizardAvailableBoxes = wizardLibrary.boxes;
+  const wizardCategoryDuty = wizardLibrary.categoryDuty;
+  const wizardExistingComponents = wizardLibrary.existingComponents;
+  const wizardComponentRules = wizardLibrary.componentRules;
 
   const wizardCategoryDutyMap: Record<string, number | null> =
     Object.fromEntries(

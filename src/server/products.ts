@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { auth } from "@/auth";
@@ -307,6 +307,7 @@ export async function createProductAction(input: unknown) {
   await applyBoxRulesToNewProduct(product.id);
 
   revalidatePath("/produkty");
+  revalidateTag("products");
   return { ok: true as const, id: product.id };
 }
 
@@ -396,6 +397,7 @@ export async function updateProductAction(id: string, input: unknown) {
   }
 
   revalidatePath("/produkty");
+  revalidateTag("products");
   revalidatePath(`/produkty/${id}`);
   return { ok: true as const };
 }
@@ -474,6 +476,7 @@ export async function updateProductBasicAction(id: string, input: unknown) {
   }
 
   revalidatePath("/produkty");
+  revalidateTag("products");
   revalidatePath(`/produkty/${id}`);
   return { ok: true as const };
 }
@@ -531,6 +534,7 @@ export async function updateProductSaleDefaultsAction(
 
   await db.product.update({ where: { id }, data: patch });
   revalidatePath("/produkty");
+  revalidateTag("products");
   revalidatePath(`/produkty/${id}`);
   return { ok: true as const };
 }
@@ -636,6 +640,7 @@ export async function archiveProductAction(id: string, archived: boolean) {
   await requireUser();
   await db.product.update({ where: { id }, data: { archived } });
   revalidatePath("/produkty");
+  revalidateTag("products");
   revalidatePath(`/produkty/${id}`);
   return { ok: true as const };
 }
@@ -669,6 +674,7 @@ export async function deleteProductAction(id: string) {
     db.product.delete({ where: { id } }),
   ]);
   revalidatePath("/produkty");
+  revalidateTag("products");
   return { ok: true as const };
 }
 
