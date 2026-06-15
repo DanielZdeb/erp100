@@ -38,7 +38,7 @@ type Template = {
   logoPlacementRule: string | null;
   referenceImages: string[];
   aspectRatio: string;
-  defaultQuality: "STANDARD" | "HIGH" | "ULTRA";
+  defaultQuality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO";
 };
 
 function LucideIcon({
@@ -260,7 +260,7 @@ export function TemplateEditor({
         <div className="space-y-1.5">
           <Label>Jakość domyślna</Label>
           <div className="flex gap-2">
-            {(["STANDARD", "HIGH", "ULTRA"] as const).map((q) => (
+            {(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO"] as const).map((q) => (
               <button
                 key={q}
                 type="button"

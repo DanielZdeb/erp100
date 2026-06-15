@@ -33,7 +33,7 @@ const templateSchema = z.object({
   logoPlacementRule: z.string().nullable().optional(),
   referenceImages: z.array(z.string()).default([]),
   aspectRatio: z.string().default("1:1"),
-  defaultQuality: z.enum(["STANDARD", "HIGH", "ULTRA"]).default("STANDARD"),
+  defaultQuality: z.enum(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO"]).default("STANDARD"),
 });
 
 export async function createPhotoTemplateAction(input: unknown) {
@@ -215,7 +215,7 @@ const batchSchema = z.object({
       }),
     )
     .min(1),
-  quality: z.enum(["STANDARD", "HIGH", "ULTRA"]).optional(),
+  quality: z.enum(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO"]).optional(),
 });
 
 export async function createPhotoBatchAction(input: unknown) {

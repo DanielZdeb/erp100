@@ -85,9 +85,14 @@ export const SHOT_PRESETS: ShotPreset[] = [
   },
 ];
 
-/** Mapping z PhotoQuality na Gemini model + spec — używane przez backend. */
+/** Mapping z PhotoQuality na Gemini model + spec — używane przez backend.
+ *
+ *  Dispatcher w `photo-gemini.ts` rozpoznaje model po prefiksie:
+ *   - `imagen-*` → REST endpoint `:predict` (Imagen 4 API)
+ *   - `gemini-*` → REST endpoint `:generateContent` (Gemini Image API,
+ *     m.in. Nano Banana / Nano Banana Pro). */
 export const QUALITY_SPEC: Record<
-  "STANDARD" | "HIGH" | "ULTRA",
+  "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO",
   {
     model: string;
     /** Cena w USD per generated image — używana do estymaty kosztu */
@@ -95,6 +100,8 @@ export const QUALITY_SPEC: Record<
     /** Krótki opis dla UI */
     label: string;
     description: string;
+    /** Dla modeli Gemini Image — docelowa rozdzielczość. */
+    imageSize?: "1K" | "2K" | "4K";
   }
 > = {
   STANDARD: {
@@ -116,5 +123,19 @@ export const QUALITY_SPEC: Record<
     label: "Ultra",
     description:
       "Imagen 4 Ultra — najwyższa jakość, najlepiej dla katalogu / druku ($0.30/szt)",
+  },
+  // Nano Banana Pro = Gemini 3 Pro Image.
+  // Silne strony: doskonały tekst na obrazku, multi-reference (6 obiektów +
+  // 5 postaci), thinking mode, 14 aspect ratios, do 4K rozdzielczości,
+  // konwersacyjna edycja istniejących zdjęć ("zmień kolor", "wymień tło").
+  // 2K kosztuje $0.134, 4K — $0.24. Dla typowych produktówek 2K wystarcza
+  // (dwukrotnie ostrzejsze niż Imagen Fast).
+  NANO_BANANA_PRO: {
+    model: "gemini-3-pro-image-preview",
+    costPerImage: 0.134,
+    imageSize: "2K",
+    label: "Nano Banana Pro",
+    description:
+      "Gemini 3 Pro Image — 2K, najlepszy tekst na obrazku, do 6 referencji obiektów + 5 postaci ($0.134/szt)",
   },
 };

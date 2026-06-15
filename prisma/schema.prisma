@@ -1627,6 +1627,9 @@ enum PhotoQuality {
   STANDARD
   HIGH
   ULTRA
+  // Nano Banana Pro = Gemini 3 Pro Image. Inny silnik niż Imagen 4 (powyższe
+  // 3 quality) — multi-reference, thinking, świetny tekst na obrazku, 2K.
+  NANO_BANANA_PRO
 }
 
 enum PhotoBatchStatus {

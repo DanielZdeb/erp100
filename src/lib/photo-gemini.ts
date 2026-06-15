@@ -13,12 +13,15 @@ import { QUALITY_SPEC } from "./photo-shots-presets";
 
 export type GenerateImageInput = {
   prompt: string;
-  quality: "STANDARD" | "HIGH" | "ULTRA";
+  quality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO";
   aspectRatio: string;
-  /** Seed dla spójności — wszystkie zdjęcia w batchu używają tego samego. */
+  /** Seed dla spójności — wszystkie zdjęcia w batchu używają tego samego.
+   *  Uwaga: tylko Imagen wspiera explicit seed; Gemini Image używa wewnętrznej
+   *  determinacji z promptu. */
   seed?: bigint | null;
   /** Reference images (URLs) — dla utrzymania stylu + koloru. Konwertowane
-   *  do base64 przed wysłaniem do API. Imagen przyjmuje max ~3 referencje. */
+   *  do base64 przed wysłaniem do API. Imagen 4 przyjmuje max 3, Nano Banana
+   *  Pro do 11 (6 obiektów + 5 postaci) — limity narzuca model. */
   referenceImageUrls?: string[];
 };
 
@@ -53,6 +56,13 @@ export async function generateProductPhoto(
   }
 
   const spec = QUALITY_SPEC[input.quality];
+
+  // Dispatcher: model po prefiksie. Nano Banana / Nano Banana Pro chodzi
+  // przez Gemini Image API (:generateContent), Imagen 4 przez :predict.
+  if (spec.model.startsWith("gemini-")) {
+    return generateViaGeminiImage(input, spec, apiKey);
+  }
+
   try {
     // Pobierz reference images jako base64 (max 3)
     const referenceImages: Array<{ mimeType: string; data: string }> = [];
@@ -125,6 +135,129 @@ export async function generateProductPhoto(
       ok: true,
       imageBuffer: Buffer.from(pred.bytesBase64Encoded, "base64"),
       contentType: pred.mimeType ?? "image/png",
+      finalPrompt: input.prompt,
+      costUsd: spec.costPerImage,
+      isMock: false,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Unknown error",
+      isMock: false,
+    };
+  }
+}
+
+/**
+ * Generator przez Gemini Image API (:generateContent) — używany dla
+ * Nano Banana (gemini-2.5-flash-image) i Nano Banana Pro (gemini-3-pro-image).
+ *
+ * Różni się od Imagen 4 (:predict):
+ *  - Inny endpoint, inny kształt body (`contents.parts` zamiast `instances`)
+ *  - Reference images inline w `parts` zamiast `referenceImages`
+ *  - `generationConfig.responseModalities: ["IMAGE"]` mówi modelowi, że ma
+ *    generować obraz (a nie tylko tekst)
+ *  - Aspect ratio + rozdzielczość ustawia się przez `responseFormat.image`
+ *
+ * Limity:
+ *  - Nano Banana (Flash) — 1K, do 3 referencji
+ *  - Nano Banana Pro     — 1K/2K/4K, do 11 referencji (6 obj + 5 char)
+ */
+async function generateViaGeminiImage(
+  input: GenerateImageInput,
+  spec: (typeof QUALITY_SPEC)[keyof typeof QUALITY_SPEC],
+  apiKey: string,
+): Promise<GenerateImageResult> {
+  try {
+    // Reference images — Pro przyjmie do 11, Flash do ~3. Przekazujemy
+    // wszystkie z input — model sam odrzuci nadmiarowe.
+    const refs: Array<{ mimeType: string; data: string }> = [];
+    if (input.referenceImageUrls && input.referenceImageUrls.length > 0) {
+      for (const url of input.referenceImageUrls) {
+        const ref = await fetchImageAsBase64(url);
+        if (ref) refs.push(ref);
+      }
+    }
+
+    const parts: Array<
+      | { text: string }
+      | { inline_data: { mime_type: string; data: string } }
+    > = [{ text: input.prompt }];
+    for (const r of refs) {
+      parts.push({ inline_data: { mime_type: r.mimeType, data: r.data } });
+    }
+
+    const body = {
+      contents: [{ parts }],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+        ...(spec.imageSize && {
+          responseFormat: {
+            image: {
+              aspectRatio: input.aspectRatio,
+              imageSize: spec.imageSize,
+            },
+          },
+        }),
+      },
+    };
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:generateContent`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return {
+        ok: false,
+        error: `Gemini Image API ${res.status}: ${errText.slice(0, 500)}`,
+        isMock: false,
+      };
+    }
+
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            inlineData?: { mimeType?: string; data?: string };
+            inline_data?: { mime_type?: string; data?: string };
+          }>;
+        };
+      }>;
+    };
+    // Znajdź pierwszy part który ma inlineData (Gemini zwraca camelCase
+    // w odpowiedziach mimo, że request używa snake_case w `inline_data`).
+    const partsResp = data.candidates?.[0]?.content?.parts ?? [];
+    let imageData: { mime: string; b64: string } | null = null;
+    for (const p of partsResp) {
+      const inline:
+        | { mimeType?: string; data?: string; mime_type?: string }
+        | undefined = p.inlineData ?? p.inline_data;
+      const d = inline?.data;
+      const m = inline?.mimeType ?? inline?.mime_type;
+      if (d) {
+        imageData = { mime: m ?? "image/png", b64: d };
+        break;
+      }
+    }
+    if (!imageData) {
+      return {
+        ok: false,
+        error: "Gemini Image API: brak inlineData w odpowiedzi",
+        isMock: false,
+      };
+    }
+
+    return {
+      ok: true,
+      imageBuffer: Buffer.from(imageData.b64, "base64"),
+      contentType: imageData.mime,
       finalPrompt: input.prompt,
       costUsd: spec.costPerImage,
       isMock: false,

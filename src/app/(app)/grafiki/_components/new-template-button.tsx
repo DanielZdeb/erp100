@@ -54,7 +54,7 @@ export function NewTemplateButton() {
   const [globalPrompt, setGlobalPrompt] = useState(DEFAULT_GLOBAL_PROMPT);
   const [logoPlacement, setLogoPlacement] = useState("");
   const [aspectRatio, setAspectRatio] = useState("1:1");
-  const [quality, setQuality] = useState<"STANDARD" | "HIGH" | "ULTRA">(
+  const [quality, setQuality] = useState<"STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO">(
     "STANDARD",
   );
   const [pending, startTransition] = useTransition();
