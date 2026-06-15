@@ -1,6 +1,5 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ChartPie,
   Coins,
@@ -1264,21 +1263,12 @@ export default async function ProduktyPage({
                           taki sam wzorzec jak items-tab w zamówieniu) */}
                       <td className="px-2 py-2 align-top w-[200px] max-w-[200px]">
                         <div className="flex items-start gap-2">
-                          {p.images[0]?.url ? (
-                            <div className="relative size-9 rounded overflow-hidden bg-muted shrink-0 ring-1 ring-border">
-                              <Image
-                                src={p.images[0].url}
-                                alt={p.images[0].alt ?? p.name}
-                                fill
-                                sizes="36px"
-                                className="object-cover"
-                                loading="lazy"
-                                quality={70}
-                              />
-                            </div>
-                          ) : (
-                            <div className="size-9 rounded bg-muted shrink-0 ring-1 ring-border" />
-                          )}
+                          {/* Miniaturka wyłączona — zdjęcia produktów w oryginalnym
+                              formacie (1-3 MB JPG) spowalniały listę 346 produktów
+                              do ~15s. TODO: dodać kolumnę `thumbnailWebpUrl` (72px
+                              WebP) generowaną przy upload + batch dla istniejących,
+                              wtedy włączyć z powrotem. */}
+                          <div className="size-9 rounded bg-muted shrink-0 ring-1 ring-border" />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Tooltip>
@@ -2103,24 +2093,8 @@ export default async function ProduktyPage({
                                 <span className="text-[10px] text-blue-400 select-none">
                                   ↳
                                 </span>
-                                {pc.component.images[0]?.url ? (
-                                  <div className="relative size-6 rounded overflow-hidden bg-muted shrink-0 ring-1 ring-border">
-                                    <Image
-                                      src={pc.component.images[0].url}
-                                      alt={
-                                        pc.component.images[0].alt ??
-                                        pc.component.name
-                                      }
-                                      fill
-                                      sizes="24px"
-                                      className="object-cover"
-                                      loading="lazy"
-                                      quality={70}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
-                                )}
+                                {/* Miniaturka komponentu wyłączona — patrz komentarz wyżej. */}
+                                <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
                                 <Tooltip>
                                   <TooltipTrigger className="block max-w-[110px] cursor-help">
                                     <Link
