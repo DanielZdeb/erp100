@@ -479,7 +479,21 @@ type LayoutT = (typeof LAYOUT_VALUES)[number];
 export async function aiGenerateSalesDraftForProductAction(
   productId: string,
 ): Promise<
-  | { ok: true; templateId: string; templateName: string; missingInfo: string[]; researchSummary: string }
+  | {
+      ok: true;
+      templateId: string;
+      templateName: string;
+      missingInfo: string[];
+      researchSummary: string;
+      cost: {
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreateTokens: number;
+        cacheReadTokens: number;
+        webSearches: number;
+        usd: number;
+      };
+    }
   | { ok: false; error: string }
 > {
   try {
@@ -707,12 +721,39 @@ export async function aiGenerateSalesDraftForProductAction(
     revalidatePath(`/sprzedaz/produkty/${productId}`);
     revalidatePath("/sprzedaz/szablony-opisu");
 
+    // Kalkulacja kosztu — Claude Sonnet 4.6 ceny per Anthropic public pricing:
+    //   input  $3 / MTok       ($0.000003 / token)
+    //   output $15 / MTok      ($0.000015 / token)
+    //   cache write 5m $3.75 / MTok
+    //   cache read     $0.30 / MTok
+    //   web search     $0.01 / zapytanie ($10 / 1000)
+    const u = msg.usage;
+    const inputTokens = u.input_tokens ?? 0;
+    const outputTokens = u.output_tokens ?? 0;
+    const cacheCreateTokens = u.cache_creation_input_tokens ?? 0;
+    const cacheReadTokens = u.cache_read_input_tokens ?? 0;
+    const webSearches = u.server_tool_use?.web_search_requests ?? 0;
+    const usd =
+      (inputTokens * 3) / 1_000_000 +
+      (outputTokens * 15) / 1_000_000 +
+      (cacheCreateTokens * 3.75) / 1_000_000 +
+      (cacheReadTokens * 0.3) / 1_000_000 +
+      webSearches * 0.01;
+
     return {
       ok: true,
       templateId: template.id,
       templateName: template.name,
       missingInfo: Array.isArray(draft.missingInfo) ? draft.missingInfo : [],
       researchSummary: draft.researchSummary ?? "",
+      cost: {
+        inputTokens,
+        outputTokens,
+        cacheCreateTokens,
+        cacheReadTokens,
+        webSearches,
+        usd,
+      },
     };
   } catch (e) {
     return {

@@ -85,6 +85,14 @@ export function SalesCardEditor({
     templateName: string;
     missingInfo: string[];
     researchSummary: string;
+    cost: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreateTokens: number;
+      cacheReadTokens: number;
+      webSearches: number;
+      usd: number;
+    };
   } | null>(null);
 
   async function generateAiDraft() {
@@ -102,10 +110,12 @@ export function SalesCardEditor({
           templateName: r.templateName,
           missingInfo: r.missingInfo,
           researchSummary: r.researchSummary,
+          cost: r.cost,
         });
-        toast.success(`Wygenerowano szablon "${r.templateName}"`, {
-          duration: 6000,
-        });
+        toast.success(
+          `Wygenerowano szablon "${r.templateName}" za $${r.cost.usd.toFixed(4)}`,
+          { duration: 8000 },
+        );
         router.refresh();
       } else {
         toast.error(r.error);
@@ -229,6 +239,28 @@ export function SalesCardEditor({
               {draftResult.researchSummary}
             </p>
           )}
+          <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-600 bg-white/60 rounded px-2 py-1 ring-1 ring-violet-100">
+            <span className="font-semibold text-violet-900">
+              Koszt: ${draftResult.cost.usd.toFixed(4)}
+            </span>
+            <span className="text-slate-400">·</span>
+            <span>
+              {draftResult.cost.inputTokens.toLocaleString("pl-PL")} in /{" "}
+              {draftResult.cost.outputTokens.toLocaleString("pl-PL")} out tok.
+            </span>
+            {draftResult.cost.webSearches > 0 && (
+              <>
+                <span className="text-slate-400">·</span>
+                <span>{draftResult.cost.webSearches} web search{draftResult.cost.webSearches > 1 ? "" : ""}</span>
+              </>
+            )}
+            {draftResult.cost.cacheReadTokens > 0 && (
+              <>
+                <span className="text-slate-400">·</span>
+                <span>cache: {draftResult.cost.cacheReadTokens.toLocaleString("pl-PL")} tok.</span>
+              </>
+            )}
+          </div>
           {draftResult.missingInfo.length > 0 && (
             <div className="space-y-1">
               <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1">
