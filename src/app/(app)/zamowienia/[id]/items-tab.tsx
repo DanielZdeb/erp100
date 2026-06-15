@@ -256,7 +256,12 @@ type Item = {
         weightKg: number | null;
       };
     }[];
-    images: { url: string; alt: string | null }[];
+    images: {
+      url: string;
+      alt: string | null;
+      thumbnailWebpUrl: string | null;
+      thumbnailBlurDataUrl: string | null;
+    }[];
   };
   quantity: number;
   unitPriceUsd: number | null;
@@ -292,7 +297,11 @@ type ProductOption = {
   isComponent: boolean;
   cbmPerUnit: number | null;
   unitsPerBox: number | null;
-  images: { url: string; alt: string | null }[];
+  images: {
+    url: string;
+    alt: string | null;
+    thumbnailWebpUrl: string | null;
+  }[];
 };
 
 type CategoryItem = {
