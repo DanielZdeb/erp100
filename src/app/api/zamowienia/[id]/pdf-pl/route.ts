@@ -19,6 +19,7 @@ import {
 } from "@/lib/material-bolts";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import sharp from "sharp";
 import bwipjs from "bwip-js/node";
 import type { BarcodeVector, BarcodePath } from "@/lib/zamowienie-pl-pdf";
 
@@ -132,16 +133,15 @@ export async function GET(
     const filePath = path.join(projectRoot, "public", url);
     try {
       const buffer = await fs.readFile(filePath);
-      const ext = path.extname(filePath).toLowerCase().substring(1);
-      const mime =
-        ext === "png"
-          ? "image/png"
-          : ext === "jpg" || ext === "jpeg"
-            ? "image/jpeg"
-            : ext === "webp"
-              ? "image/webp"
-              : "image/png";
-      return `data:${mime};base64,${buffer.toString("base64")}`;
+      // @react-pdf/renderer (libpng) wywala się na 16-bit / interlaced /
+      // progressive PNG-ach ("Incomplete or corrupt PNG file") i nie wspiera
+      // WebP. Przepuszczamy więc WSZYSTKO przez sharp: resize do max 400 px +
+      // konwersja do JPG q=80. Drobne (~30 KB), bezpieczne dla pdf-rendererki.
+      const jpgBuffer = await sharp(buffer, { failOn: "none" })
+        .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      return `data:image/jpeg;base64,${jpgBuffer.toString("base64")}`;
     } catch {
       return null;
     }
