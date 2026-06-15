@@ -481,7 +481,12 @@ async function processBatchInBackground(batchId: string) {
       data: { status: "RUNNING" },
     });
 
-    // Build final prompt — łączymy: globalPrompt + product info + shot + override
+    // Build final prompt — łączymy: globalPrompt + product info + shot + override.
+    //
+    // Jeśli shot ma `referenceImageUrl`, dodajemy explicit hint mówiąc modelowi
+    // że PIERWSZY załączony obraz to wzór kompozycyjny — eliminuje przypadki
+    // gdzie 4 różne shoty (z 4 różnymi referencjami) generują ten sam obraz
+    // bo model traktował referencje jako równorzędne.
     const productLine = `Product: ${product.name}${product.color ? `, color: ${product.color}` : ""}`;
     const overrideLine = img.customOverride?.trim()
       ? `\nAdditional instructions: ${img.customOverride.trim()}`
@@ -489,19 +494,31 @@ async function processBatchInBackground(batchId: string) {
     const logoLine = batch.template.logoPlacementRule
       ? `\nLogo placement: ${batch.template.logoPlacementRule}`
       : "";
+    const shotRefHint = img.shot.referenceImageUrl
+      ? `\n\nIMPORTANT: The FIRST attached reference image is the composition template — match its camera angle, framing, perspective, lighting, and pose EXACTLY. Other attached images are for color/material reference only.`
+      : "";
     const finalPrompt =
-      `${batch.template.globalPrompt}\n\n${productLine}\n\nShot: ${img.shot.shotPrompt}${overrideLine}${logoLine}`;
+      `${batch.template.globalPrompt}\n\n${productLine}\n\nShot: ${img.shot.shotPrompt}${shotRefHint}${overrideLine}${logoLine}`;
 
-    // Reference images — z template + opcjonalnie primary image produktu + user overrides
+    // Reference images — kolejność MA znaczenie dla Nano Banana Pro:
+    // pierwsze są najbardziej wpływowe (model traktuje je jako primary
+    // composition reference), kolejne jako kolor/styl/secondary context.
+    //
+    // Strategia:
+    //  1. Shot-level reference FIRST — to jest „rzut na podstawie zdjęcia",
+    //     odpowiada za kompozycję, kąt kamery, kadr, pozę. Bez tego shot 2
+    //     wygląda jak shot 1 (bo prompt jest często ten sam dla wielu shotów,
+    //     dopiero różny obraz referencyjny daje różne kompozycje).
+    //  2. Po nim user-uploaded productReferences — np. „dokładny kolor materiału".
+    //  3. Potem primary image produktu — koloru / detal materiału.
+    //  4. Na końcu template.referenceImages — styl globalny (oświetlenie, tło).
     const refUrls: string[] = [];
-    refUrls.push(...batch.template.referenceImages);
-    if (product.images[0]?.url) refUrls.push(product.images[0].url);
-    refUrls.push(...img.productReferences);
-    // Shot-level reference (np. „rzut na podstawie zdjęcia") — AI ma stamtąd
-    // zaczerpnąć perspektywę, kąt kamery, kompozycję.
     if (img.shot.referenceImageUrl) {
       refUrls.push(img.shot.referenceImageUrl);
     }
+    refUrls.push(...img.productReferences);
+    if (product.images[0]?.url) refUrls.push(product.images[0].url);
+    refUrls.push(...batch.template.referenceImages);
 
     const result = await generateProductPhoto({
       prompt: finalPrompt,
