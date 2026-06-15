@@ -830,6 +830,7 @@ export const COLOR_PRESETS: Record<
   GREY: { label: "szary", hex: "#9ca3af", textOnBg: "light" },
   DARKGREY: { label: "ciemnoszary", hex: "#4b5563", textOnBg: "light" },
   DARKBEIGE: { label: "ciemnobeżowy", hex: "#a47148", textOnBg: "light" },
+  LIGHTBEIGE: { label: "jasny beż", hex: "#e8d8b8", textOnBg: "dark" },
   "R.BLUE": { label: "granatowy", hex: "#1e3a8a", textOnBg: "light" },
   "S.BLUE": { label: "jasnoniebieski", hex: "#7dd3fc", textOnBg: "dark" },
   PIST: { label: "pistacjowy", hex: "#a3e635", textOnBg: "dark" },
