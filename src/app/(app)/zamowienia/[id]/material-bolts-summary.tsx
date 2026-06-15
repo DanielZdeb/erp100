@@ -112,7 +112,7 @@ function ColorSection({
   orderId: string;
 }) {
   const meta = colorMeta(summary.color);
-  // Limit wierszy do max(minBolts, faktycznie użytych) — zawsze ≥ 5.
+  // Limit wierszy do max(minBolts, faktycznie użytych) — zawsze ≥ 6.
   const displayedBolts = summary.bolts.slice(
     0,
     Math.max(DEFAULT_MIN_BOLTS_PER_COLOR, summary.boltsUsed),

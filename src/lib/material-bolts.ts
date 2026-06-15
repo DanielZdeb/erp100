@@ -18,7 +18,7 @@
 /** Domyślna długość belki w metrach (fabryczna). */
 export const DEFAULT_BOLT_LENGTH_M = 98;
 /** Minimum logistyczne — belek per kolor poniżej którego fabryka odmawia. */
-export const DEFAULT_MIN_BOLTS_PER_COLOR = 5;
+export const DEFAULT_MIN_BOLTS_PER_COLOR = 6;
 
 /** Pojedyncza pozycja materiału w zamówieniu po sparsowaniu. */
 export type MaterialItem = {

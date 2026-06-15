@@ -858,7 +858,7 @@ export function ItemsTab({
       </div>
 
       {/* CN: licznik kategorii + wizualizacja kontenera (dwie kolumny).
-          PL: analiza belek materiału — wizualizacja cięcia, minimum 5 belek
+          PL: analiza belek materiału — wizualizacja cięcia, minimum 6 belek
           per kolor, sugestia dosypki. */}
       {items.length > 0 && country === "POLAND" && (
         <MaterialBoltsSummary
@@ -4341,6 +4341,13 @@ function TableFooterTotals({
   let totalInnerKartons = 0;
   let totalMasters = 0;
 
+  // PL: total belek (z fabryki) — sumarycznie po wszystkich kolorach
+  // materiałów. Wyświetlamy pod totalQty w stopce. Liczone tylko gdy
+  // zamówienie polskie + zawiera materiały (SKU M-*).
+  const totalFactoryBolts = isPoland
+    ? analyzeBolts(buildMaterialItems(items)).totalBolts
+    : 0;
+
   for (let i = 0; i < calc.items.length; i++) {
     const it = calc.items[i];
     const raw = items[i];
@@ -4441,9 +4448,19 @@ function TableFooterTotals({
         <td className="px-2 py-2 text-slate-700 uppercase tracking-wide text-[11px]">
           Σ Razem
         </td>
-        {/* Ilość */}
+        {/* Ilość + (PL) suma belek z fabryki */}
         <td className="px-2 py-2 text-right tabular-nums text-slate-900">
-          {totalQty.toLocaleString("pl-PL")}
+          <div className="inline-flex flex-col items-end leading-tight">
+            <span>{totalQty.toLocaleString("pl-PL")}</span>
+            {totalFactoryBolts > 0 ? (
+              <span
+                className="text-[9px] font-semibold tabular-nums leading-none text-indigo-700"
+                title={`${totalFactoryBolts} belek z fabryki (po wszystkich kolorach materiałów)`}
+              >
+                {totalFactoryBolts} belek
+              </span>
+            ) : null}
+          </div>
         </td>
         {/* CBM + master/inner totals */}
         <td className="px-2 py-2 text-right tabular-nums text-slate-900">
