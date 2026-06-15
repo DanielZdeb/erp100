@@ -144,6 +144,25 @@ export async function translateManualSectionAction(
   manualId: string,
   fromLang: string,
   toLang: string,
+): Promise<
+  | { ok: true; translatedCount: number }
+  | { ok: false; error: string }
+> {
+  try {
+    return await translateManualSectionInner(manualId, fromLang, toLang);
+  } catch (e) {
+    // Strukturyzowany return — w Next.js 16 throw z server action w trakcie
+    // RSC render owinięty bywa w „Server Components render" 500 z digest-em.
+    // Zwracamy {ok:false} żeby UI klienta dostał message i pokazał toast.
+    const error = e instanceof Error ? e.message : "Nieznany błąd";
+    return { ok: false, error };
+  }
+}
+
+async function translateManualSectionInner(
+  manualId: string,
+  fromLang: string,
+  toLang: string,
 ) {
   await requireUser();
   const companyId = await getCurrentCompanyId();
@@ -153,6 +172,12 @@ export async function translateManualSectionAction(
   }
   if (fromLang === toLang) {
     throw new Error("Język źródłowy = docelowy.");
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error(
+      "Auto-tłumaczenie wymaga klucza ANTHROPIC_API_KEY w env. " +
+        "Wygeneruj klucz na https://console.anthropic.com i dodaj do Coolify → Environment Variables.",
+    );
   }
 
   const manual = await db.productManual.findFirst({
@@ -359,7 +384,5 @@ export async function translateManualSectionAction(
   return {
     ok: true as const,
     translatedCount: translatedPages.length,
-    fromLang,
-    toLang,
   };
 }

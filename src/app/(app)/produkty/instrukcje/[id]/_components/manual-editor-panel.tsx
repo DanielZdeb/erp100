@@ -67,7 +67,16 @@ export function ManualEditorPanel({
     const { translateManualSectionAction } = await import(
       "@/server/manual-translate"
     );
-    return translateManualSectionAction(manualId, fromLang, toLang);
+    const result = await translateManualSectionAction(
+      manualId,
+      fromLang,
+      toLang,
+    );
+    // Action zwraca { ok: false, error } zamiast throwować — żeby uniknąć
+    // RSC „Server Components render" 500. Tutaj re-throwujemy żeby logic
+    // ManualEditor (try/catch + toast) miał message.
+    if (!result.ok) throw new Error(result.error);
+    return result;
   }
 
   return (
