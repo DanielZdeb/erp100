@@ -652,29 +652,153 @@ export async function regeneratePhotoImageAction(
 // ─── Zapis do galerii produktu ─────────────────────────────────────
 
 /** Skopiuj wygenerowane zdjęcie do galerii produktu (Product.images). */
-export async function saveImageToProductAction(imageId: string) {
-  await requireUser();
-  const companyId = await getCurrentCompanyId();
+/**
+ * AI edit istniejącego zdjęcia produktu przez Nano Banana Pro.
+ *
+ * User klika zdjęcie w karcie produktu sprzedażowej, wpisuje prompt
+ * (np. „wymień tło na białe studio", „dodaj cień", „zmień kolor materiału na granatowy")
+ * — Nano Banana Pro robi konwersacyjną edycję trzymając się oryginalnej kompozycji.
+ *
+ * Workflow:
+ *  1. Pobierz oryginalny ProductImage z bazy + sprawdź dostęp
+ *  2. Wywołaj generateProductPhoto z prompt + oryginałem jako referencją
+ *  3. Zapisz nowe zdjęcie obok jako kolejny ProductImage (nie nadpisujemy oryginału)
+ *  4. Zwróć URL i ID nowego zdjęcia
+ */
+export async function editProductImageWithAiAction(
+  productImageId: string,
+  prompt: string,
+): Promise<
+  | { ok: true; newImageId: string; newUrl: string }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
 
-  const img = await db.productPhotoImage.findFirst({
-    where: { id: imageId, status: "OK" },
-    include: {
-      batch: { select: { companyId: true } },
-    },
-  });
-  if (!img || img.batch.companyId !== companyId || !img.storageUrl) {
-    throw new Error("Zdjęcie niedostępne");
+    if (!prompt.trim()) {
+      return { ok: false, error: "Podaj prompt opisujący zmianę." };
+    }
+
+    const original = await db.productImage.findFirst({
+      where: { id: productImageId, product: { companyId } },
+      include: { product: { select: { id: true, name: true, color: true } } },
+    });
+    if (!original) {
+      return { ok: false, error: "Zdjęcie nie istnieje." };
+    }
+
+    // Wywołaj Nano Banana Pro z oryginałem jako referencją kompozycyjną
+    // (FIRST = composition template, zgodnie z konwencją z generateProductPhoto).
+    const editPrompt =
+      `You are editing an existing product photo. ` +
+      `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
+      `Apply this change: ${prompt.trim()}\n\n` +
+      `Product: ${original.product.name}${original.product.color ? `, color: ${original.product.color}` : ""}`;
+
+    const result = await generateProductPhoto({
+      prompt: editPrompt,
+      quality: "NANO_BANANA_PRO",
+      aspectRatio: "1:1",
+      referenceImageUrls: [original.url],
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    // Zapisz nowe zdjęcie obok oryginału
+    const ext = result.contentType.includes("jpeg") ? "jpg" : "png";
+    const file = new File(
+      [new Uint8Array(result.imageBuffer)],
+      `ai-edit-${productImageId}-${Date.now()}.${ext}`,
+      { type: result.contentType },
+    );
+    const uploaded = await uploadFile(file, {
+      folder: `products/${original.productId}/images`,
+    });
+
+    // Nowy ProductImage na końcu kolejności
+    const maxSort = await db.productImage.findFirst({
+      where: { productId: original.productId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    const created = await db.productImage.create({
+      data: {
+        productId: original.productId,
+        url: uploaded.url,
+        thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
+        thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
+        alt: `AI-edit: ${prompt.trim().slice(0, 80)}`,
+        sortOrder: (maxSort?.sortOrder ?? 0) + 1,
+      },
+      select: { id: true, url: true },
+    });
+
+    revalidatePath(`/sprzedaz/produkty/${original.productId}`);
+    revalidatePath(`/produkty/${original.productId}`);
+
+    return { ok: true, newImageId: created.id, newUrl: created.url };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Błąd edycji AI.",
+    };
   }
+}
 
-  await db.productImage.create({
-    data: {
-      productId: img.productId,
-      url: img.storageUrl,
-      alt: "AI-generated",
-      isPrimary: false,
-    },
-  });
+export async function saveImageToProductAction(
+  imageId: string,
+): Promise<
+  | { ok: true; productImageId: string }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
 
-  revalidatePath(`/produkty/${img.productId}`);
-  return { ok: true as const };
+    // Filter na status zdjęło wcześniej rekordy bez statusu OK lub batch innej firmy.
+    // Sprawdzamy każdy warunek osobno żeby user dostał konkretną przyczynę.
+    const img = await db.productPhotoImage.findFirst({
+      where: { id: imageId },
+      include: {
+        batch: { select: { companyId: true } },
+      },
+    });
+    if (!img) {
+      return { ok: false, error: "Zdjęcie nie istnieje w bazie." };
+    }
+    if (img.batch.companyId !== companyId) {
+      return { ok: false, error: "Zdjęcie należy do innej firmy." };
+    }
+    if (img.status !== "OK") {
+      return {
+        ok: false,
+        error: `Zdjęcie jeszcze nie jest gotowe (status: ${img.status}). Zaczekaj na zakończenie generowania.`,
+      };
+    }
+    if (!img.storageUrl) {
+      return { ok: false, error: "Brak URL-a obrazka w bazie." };
+    }
+
+    const created = await db.productImage.create({
+      data: {
+        productId: img.productId,
+        url: img.storageUrl,
+        alt: "AI-generated",
+        isPrimary: false,
+      },
+      select: { id: true },
+    });
+
+    revalidatePath(`/produkty/${img.productId}`);
+    revalidatePath(`/sprzedaz/produkty/${img.productId}`);
+    return { ok: true as const, productImageId: created.id };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Nieznany błąd przy zapisie.",
+    };
+  }
 }

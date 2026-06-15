@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { Card } from "@/components/ui/card";
 import { SalesCardEditor } from "./_components/sales-card-editor";
+import { ProductGalleryClickable } from "./_components/product-gallery-clickable";
 
 export const dynamic = "force-dynamic";
 
@@ -128,29 +129,23 @@ export default async function SprzedazProduktDetailPage({
         </div>
       </Card>
 
-      {/* Galeria miniatur */}
+      {/* Galeria miniatur — klikalne, edycja AI promptem przez Nano Banana Pro */}
       {product.images.length > 0 && (
         <Card className="p-4 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
             Grafiki produktowe ({product.images.length})
+            <span className="ml-2 text-[10px] font-normal normal-case text-slate-500">
+              · klik aby edytować przez AI
+            </span>
           </h2>
-          <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-            {product.images.map((img) => (
-              <div
-                key={img.id}
-                className="aspect-square rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50"
-              >
-                {img.thumbnailWebpUrl ?? img.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={img.thumbnailWebpUrl ?? img.url}
-                    alt={img.alt ?? ""}
-                    className="size-full object-cover"
-                  />
-                ) : null}
-              </div>
-            ))}
-          </div>
+          <ProductGalleryClickable
+            images={product.images.map((img) => ({
+              id: img.id,
+              url: img.url,
+              alt: img.alt,
+              thumbnailWebpUrl: img.thumbnailWebpUrl,
+            }))}
+          />
         </Card>
       )}
 

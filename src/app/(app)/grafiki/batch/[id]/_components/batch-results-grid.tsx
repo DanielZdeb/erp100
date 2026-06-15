@@ -156,8 +156,13 @@ export function BatchResultsGrid({
 
   async function saveToProduct(img: ImgRow) {
     try {
-      await saveImageToProductAction(img.id);
-      toast.success("Dodano do galerii produktu");
+      const result = await saveImageToProductAction(img.id);
+      if (result.ok) {
+        toast.success("Dodano do galerii produktu");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Błąd");
     }

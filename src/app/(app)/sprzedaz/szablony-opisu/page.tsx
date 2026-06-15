@@ -90,15 +90,9 @@ export default async function SzablonyOpisuPage() {
               </Card>
             </Link>
           ))}
-          <Link
-            href="#"
-            className="block"
-            onClick={(e) => e.preventDefault()}
-          >
-            <Card className="p-4 border-dashed flex items-center justify-center min-h-[120px]">
-              <NewDescriptionTemplateButton variant="minimal" />
-            </Card>
-          </Link>
+          <Card className="p-4 border-dashed flex items-center justify-center min-h-[120px]">
+            <NewDescriptionTemplateButton variant="minimal" />
+          </Card>
         </div>
       )}
     </div>
