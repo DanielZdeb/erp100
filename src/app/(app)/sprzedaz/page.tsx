@@ -1,4 +1,4 @@
-import { Sparkles, FileText, Image as ImageIcon, Tag, Wand2 } from "lucide-react";
+import { Sparkles, FileText, Image as ImageIcon, Tag, Wand2, Package, LayoutTemplate } from "lucide-react";
 import Link from "next/link";
 
 export default function SprzedazPage() {
@@ -18,19 +18,25 @@ export default function SprzedazPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <PlaceholderCard
+          href="/sprzedaz/produkty"
+          icon={Package}
+          accent="bg-emerald-50 text-emerald-700"
+          title="Produkty"
+          description="Lista produktów i zestawów (bez cen) — klik wiersza otwiera kartę sprzedażową z grafikami i opisem."
+        />
+        <PlaceholderCard
+          href="/sprzedaz/szablony-opisu"
+          icon={LayoutTemplate}
+          accent="bg-sky-50 text-sky-700"
+          title="Szablony opisu"
+          description="Definicja struktury opisu — sekcje 2-kolumnowe (Tekst+Tekst, Obraz+Tekst, Tekst+Obraz, Obraz+Obraz). Wybierane na karcie produktu."
+        />
+        <PlaceholderCard
           href="/sprzedaz/oferty"
           icon={Tag}
           accent="bg-pink-50 text-pink-700"
           title="Oferty"
           description="Tworzenie ofert pod konkretne marketplace'y (Allegro, Amazon, sklep własny)."
-          disabled
-        />
-        <PlaceholderCard
-          href="/sprzedaz/opisy"
-          icon={FileText}
-          accent="bg-emerald-50 text-emerald-700"
-          title="Opisy produktów"
-          description="AI-driven opisy, bullety, sekcje SEO, tłumaczenia."
           disabled
         />
         <PlaceholderCard

@@ -82,6 +82,7 @@ model Company {
   photoTemplates ProductPhotoTemplate[]
   photoBatches   ProductPhotoBatch[]
   orderTemplateSections OrderTemplateSection[]
+  descriptionTemplates  DescriptionTemplate[]
 }
 
 model User {
@@ -513,6 +514,16 @@ model Product {
   /// Dodatkowo produkt może dziedziczyć instrukcje z przypisań kategorii.
   manualAssignments ProductManualProduct[]
 
+  // ── Szablon opisu sprzedażowego ────────────────────────────────────
+  /// Wybrany szablon opisu (sekcje z 4 layoutami: TEXT_TEXT, IMAGE_TEXT itp).
+  /// Edytowany w `/sprzedaz/produkty/[id]` — produkt może mieć przypisany szablon
+  /// + JSON-owy content per sekcja (tekst i URL-e obrazków per slot).
+  descriptionTemplateId  String?
+  descriptionTemplate    DescriptionTemplate? @relation(fields: [descriptionTemplateId], references: [id])
+  /// Wypełniona treść: `{ [sectionId]: { leftText?, rightText?, leftImageUrl?, rightImageUrl? } }`.
+  /// Schemat treści zależy od `layout` sekcji w szablonie (frontend filtruje).
+  descriptionContentJson Json?
+
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -521,6 +532,67 @@ model Product {
   @@unique([companyId, eanCode])
   @@unique([companyId, iaiId])
   @@index([companyId])
+  @@index([descriptionTemplateId])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SZABLONY OPISU SPRZEDAŻOWEGO
+// Definiują strukturę karty produktu w `/sprzedaz/produkty/[id]` —
+// zestaw sekcji (każda z 2 slotami), każdy slot to tekst albo obraz.
+// Konkretne treści (text/URL obrazka) są zapisywane na produkcie w
+// `Product.descriptionContentJson` per sectionId.
+// ─────────────────────────────────────────────────────────────────────
+
+/// 4 layouty sekcji opisu — wybierane przy tworzeniu szablonu.
+/// Kolejność: LEWY_PRAWY (np. IMAGE_TEXT = lewy slot to obraz, prawy to tekst).
+enum DescriptionSectionLayout {
+  TEXT_TEXT
+  IMAGE_TEXT
+  TEXT_IMAGE
+  IMAGE_IMAGE
+}
+
+/// Zbiór sekcji tworzących jednolity wygląd opisu sprzedażowego.
+/// Przykład: szablon „Standard szarfa" z sekcjami: „Hero front" (IMAGE_TEXT),
+/// „Wymiary i waga" (TEXT_TEXT), „Galeria użycia" (IMAGE_IMAGE).
+model DescriptionTemplate {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Robocza nazwa szablonu (np. „Standard szarfa 6m", „Hamak premium").
+  name      String
+  sections  DescriptionTemplateSection[]
+  products  Product[]
+
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// Pojedyncza sekcja szablonu — 2 sloty (lewy + prawy), każdy może być
+/// tekstem lub obrazem zgodnie z `layout`. Pole `name` to nazwa robocza
+/// dla usera (np. „Obraz frontu", „Parametry produktu") — pomaga zrozumieć
+/// co gdzie wpisać przy wypełnianiu produktu.
+model DescriptionTemplateSection {
+  id         String                   @id @default(cuid())
+  templateId String
+  template   DescriptionTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  /// Nazwa sekcji (czytelna dla operatora) — np. „Hero front", „Wymiary".
+  name       String
+  layout     DescriptionSectionLayout
+  sortOrder  Int                      @default(0)
+  /// Opcjonalny hint dla slotu lewego (placeholder text albo demo-URL obrazka).
+  /// Wyświetlany w polu opisu produktu jako wskazówka dla operatora.
+  leftHint   String?
+  rightHint  String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([templateId])
 }
 
 // ─────────────────────────────────────────────────────────────────────
