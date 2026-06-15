@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { revalidateProductPaths } from "@/lib/revalidate-product";
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { uploadFile } from "@/lib/storage";
@@ -711,8 +712,7 @@ export async function editProductImageWithAiAction(
       },
       select: { id: true },
     });
-    revalidatePath(`/sprzedaz/produkty/${original.productId}`);
-    revalidatePath(`/produkty/${original.productId}`);
+    revalidateProductPaths(original.productId);
 
     // Fire-and-forget — background dokonczy update url + status=READY
     void runEditInBackground({
@@ -769,8 +769,7 @@ async function runEditInBackground(params: {
         data: { status: "FAILED", errorMessage: result.error.slice(0, 500) },
       })
       .catch(() => undefined);
-    revalidatePath(`/sprzedaz/produkty/${params.productId}`);
-    revalidatePath(`/produkty/${params.productId}`);
+    revalidateProductPaths(params.productId);
     return;
   }
 
@@ -802,8 +801,7 @@ async function runEditInBackground(params: {
       })
       .catch(() => undefined);
   }
-  revalidatePath(`/sprzedaz/produkty/${params.productId}`);
-  revalidatePath(`/produkty/${params.productId}`);
+  revalidateProductPaths(params.productId);
 }
 
 /**
@@ -876,8 +874,7 @@ export async function generateCustomProductPhotosAction(
         }),
       ),
     );
-    revalidatePath(`/sprzedaz/produkty/${product.id}`);
-    revalidatePath(`/produkty/${product.id}`);
+    revalidateProductPaths(product.id);
 
     // Fire-and-forget — odpowiedź wraca natychmiast, generowanie leci dalej
     // w background process.
@@ -951,8 +948,7 @@ async function runCustomGenerationInBackground(params: {
           },
         })
         .catch(() => undefined);
-      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
-      revalidatePath(`/produkty/${params.productId}`);
+      revalidateProductPaths(params.productId);
       continue;
     }
 
@@ -975,8 +971,7 @@ async function runCustomGenerationInBackground(params: {
           status: "READY",
         },
       });
-      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
-      revalidatePath(`/produkty/${params.productId}`);
+      revalidateProductPaths(params.productId);
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       console.error(
@@ -992,8 +987,7 @@ async function runCustomGenerationInBackground(params: {
           },
         })
         .catch(() => undefined);
-      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
-      revalidatePath(`/produkty/${params.productId}`);
+      revalidateProductPaths(params.productId);
     }
   }
   console.info(
@@ -1045,8 +1039,7 @@ export async function saveImageToProductAction(
       select: { id: true },
     });
 
-    revalidatePath(`/produkty/${img.productId}`);
-    revalidatePath(`/sprzedaz/produkty/${img.productId}`);
+    revalidateProductPaths(img.productId);
     return { ok: true as const, productImageId: created.id };
   } catch (e) {
     return {

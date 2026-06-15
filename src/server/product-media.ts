@@ -6,6 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { uploadFile, deleteFile } from "@/lib/storage";
+import { revalidateProductPaths } from "@/lib/revalidate-product";
 
 async function requireUser() {
   const session = await auth();
@@ -62,7 +63,7 @@ export async function uploadProductImageAction(
     select: { id: true, url: true },
   });
 
-  revalidatePath(`/produkty/${productId}`);
+  revalidateProductPaths(productId);
   return { ok: true as const, id: created.id, url: created.url };
 }
 
@@ -101,8 +102,7 @@ export async function setPrimaryImageAction(imageId: string) {
     });
   });
 
-  revalidatePath(`/produkty/${image.productId}`);
-  revalidatePath("/produkty");
+  revalidateProductPaths(image.productId);
   return { ok: true as const };
 }
 
@@ -128,8 +128,7 @@ export async function deleteProductImageAction(imageId: string) {
     }
   }
 
-  revalidatePath(`/produkty/${image.productId}`);
-  revalidatePath("/produkty");
+  revalidateProductPaths(image.productId);
   return { ok: true as const };
 }
 
