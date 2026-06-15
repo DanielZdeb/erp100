@@ -187,16 +187,20 @@ async function generateViaGeminiImage(
       parts.push({ inline_data: { mime_type: r.mimeType, data: r.data } });
     }
 
+    // Body Gemini 3 Pro Image:
+    //  - responseModalities MUSI mieć i TEXT i IMAGE (sam IMAGE też przejdzie,
+    //    ale dokumentacja Google preferuje oba — Pro „thinking mode" generuje
+    //    text-level reasoning obok obrazu).
+    //  - imageConfig (NIE responseFormat.image!) zawiera aspectRatio i imageSize
+    //    jako string literals ("1:1", "16:9", "2K", "4K", itp).
     const body = {
       contents: [{ parts }],
       generationConfig: {
-        responseModalities: ["IMAGE"],
+        responseModalities: ["TEXT", "IMAGE"],
         ...(spec.imageSize && {
-          responseFormat: {
-            image: {
-              aspectRatio: input.aspectRatio,
-              imageSize: spec.imageSize,
-            },
+          imageConfig: {
+            aspectRatio: input.aspectRatio,
+            imageSize: spec.imageSize,
           },
         }),
       },
