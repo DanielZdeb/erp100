@@ -668,6 +668,7 @@ export async function regeneratePhotoImageAction(
 export async function editProductImageWithAiAction(
   productImageId: string,
   prompt: string,
+  extraRefUrls: string[] = [],
 ): Promise<
   | { ok: true; pendingImageId: string }
   | { ok: false; error: string }
@@ -687,6 +688,11 @@ export async function editProductImageWithAiAction(
     if (!original) {
       return { ok: false, error: "Zdjęcie nie istnieje." };
     }
+
+    const sanitizedRefs = extraRefUrls
+      .filter((u) => typeof u === "string" && u.length > 0)
+      .filter((u) => u !== original.url)
+      .slice(0, 4);
 
     // Pre-create PENDING — UI od razu pokazuje placeholder z loaderem
     const maxSort = await db.productImage.findFirst({
@@ -715,6 +721,7 @@ export async function editProductImageWithAiAction(
       productName: original.product.name,
       productColor: original.product.color,
       originalUrl: original.url,
+      extraRefUrls: sanitizedRefs,
       prompt: prompt.trim(),
     }).catch((e) => {
       console.error(`[ai-edit ${productImageId}] background error:`, e);
@@ -735,19 +742,24 @@ async function runEditInBackground(params: {
   productName: string;
   productColor: string | null;
   originalUrl: string;
+  extraRefUrls: string[];
   prompt: string;
 }) {
+  const extraHint =
+    params.extraRefUrls.length > 0
+      ? `\n\nAdditional reference images (after the first) are STYLE / DETAIL / COMPARISON references — use them as guides for color, material, texture, or specific details requested in the edit. Do NOT copy their composition.`
+      : "";
   const editPrompt =
     `You are editing an existing product photo. ` +
     `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
-    `Apply this change: ${params.prompt}\n\n` +
+    `Apply this change: ${params.prompt}${extraHint}\n\n` +
     `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}`;
 
   const result = await generateProductPhoto({
     prompt: editPrompt,
     quality: "NANO_BANANA_PRO",
     aspectRatio: "1:1",
-    referenceImageUrls: [params.originalUrl],
+    referenceImageUrls: [params.originalUrl, ...params.extraRefUrls],
   });
 
   if (!result.ok) {

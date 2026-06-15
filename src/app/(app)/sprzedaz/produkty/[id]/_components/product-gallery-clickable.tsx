@@ -45,6 +45,7 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
   const router = useRouter();
   const [editing, setEditing] = useState<ImageItem | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [extraRefs, setExtraRefs] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   // Lightbox — index na liscie READY (filtrowanej); null = zamkniety
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
@@ -106,11 +107,13 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
         const result = await editProductImageWithAiAction(
           editing.id,
           prompt.trim(),
+          extraRefs,
         );
         if (result.ok) {
           toast.success("Generuję — pojawi się w galerii za chwilę");
           setEditing(null);
           setPrompt("");
+          setExtraRefs([]);
           router.refresh();
         } else {
           toast.error(result.error);
@@ -200,6 +203,7 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
                     onClick={() => {
                       setEditing(img);
                       setPrompt("");
+                      setExtraRefs([]);
                     }}
                     className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold uppercase tracking-wide"
                   >
@@ -326,6 +330,81 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
                   </p>
                 </div>
               </div>
+
+              {/* Picker dodatkowych referencji z galerii produktu */}
+              {(() => {
+                const candidates = readyImages.filter(
+                  (i) => i.id !== editing.id,
+                );
+                if (candidates.length === 0) return null;
+                return (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-2">
+                      Dodatkowe zdjęcia referencyjne
+                      <span className="text-[10px] font-normal text-slate-500">
+                        {extraRefs.length > 0
+                          ? `${extraRefs.length} wybrane (max 4)`
+                          : "opcjonalne — kliknij żeby dodać"}
+                      </span>
+                    </Label>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {candidates.map((img) => {
+                        const selected = extraRefs.includes(img.url);
+                        const order = selected
+                          ? extraRefs.indexOf(img.url) + 1
+                          : null;
+                        const disabled =
+                          !selected && extraRefs.length >= 4;
+                        return (
+                          <button
+                            key={img.id}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              setExtraRefs((prev) =>
+                                prev.includes(img.url)
+                                  ? prev.filter((u) => u !== img.url)
+                                  : [...prev, img.url],
+                              );
+                            }}
+                            className={cn(
+                              "relative size-14 shrink-0 rounded ring-1 overflow-hidden transition-all",
+                              selected
+                                ? "ring-2 ring-violet-500"
+                                : "ring-slate-200 hover:ring-violet-300",
+                              disabled && "opacity-40 cursor-not-allowed",
+                            )}
+                            title={
+                              selected
+                                ? "Kliknij żeby usunąć z referencji"
+                                : disabled
+                                  ? "Maksymalnie 4 referencje"
+                                  : "Kliknij żeby dodać jako referencję"
+                            }
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.thumbnailWebpUrl ?? img.url}
+                              alt={img.alt ?? ""}
+                              className="size-full object-cover"
+                            />
+                            {order !== null ? (
+                              <span className="absolute top-0 right-0 size-4 grid place-items-center text-[9px] font-bold text-white bg-violet-600 rounded-bl">
+                                {order}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Pierwszą referencją zawsze jest oryginał (kompozycja).
+                      Dodatkowe zdjęcia służą jako wzorce koloru / materiału /
+                      detalu, do których Nano Banana ma się odnieść.
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="text-[10px] text-slate-400 bg-slate-50 rounded p-2">
                 <strong>Tip:</strong> wpisz konkretną zmianę w 1 zdaniu. Im
