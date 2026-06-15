@@ -129,8 +129,22 @@ export async function upsertSectionAction(input: unknown) {
     rightTextPrompt: data.rightTextPrompt?.trim() || null,
   };
 
+  const sectionSelect = {
+    id: true,
+    name: true,
+    layout: true,
+    sortOrder: true,
+    leftHint: true,
+    rightHint: true,
+    leftImagePrompt: true,
+    rightImagePrompt: true,
+    leftTextPrompt: true,
+    rightTextPrompt: true,
+  } as const;
+
+  let section;
   if (data.sectionId) {
-    await db.descriptionTemplateSection.update({
+    section = await db.descriptionTemplateSection.update({
       where: { id: data.sectionId },
       data: {
         name: data.name.trim(),
@@ -139,6 +153,7 @@ export async function upsertSectionAction(input: unknown) {
         rightHint: data.rightHint?.trim() || null,
         ...aiFields,
       },
+      select: sectionSelect,
     });
   } else {
     const maxSort = await db.descriptionTemplateSection.findFirst({
@@ -146,7 +161,7 @@ export async function upsertSectionAction(input: unknown) {
       orderBy: { sortOrder: "desc" },
       select: { sortOrder: true },
     });
-    await db.descriptionTemplateSection.create({
+    section = await db.descriptionTemplateSection.create({
       data: {
         templateId: data.templateId,
         name: data.name.trim(),
@@ -156,11 +171,12 @@ export async function upsertSectionAction(input: unknown) {
         ...aiFields,
         sortOrder: (maxSort?.sortOrder ?? -1) + 1,
       },
+      select: sectionSelect,
     });
   }
 
   revalidatePath(`/sprzedaz/szablony-opisu/${data.templateId}`);
-  return { ok: true as const };
+  return { ok: true as const, section };
 }
 
 export async function deleteSectionAction(sectionId: string) {

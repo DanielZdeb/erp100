@@ -31,6 +31,7 @@ import {
   deleteSectionAction,
   reorderSectionsAction,
 } from "@/server/description-templates";
+import { IMAGE_PROMPTS, TEXT_PROMPTS } from "@/lib/prompt-library";
 
 type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
 
@@ -163,9 +164,10 @@ export function TemplateEditor({
       toast.error("Podaj nazwę sekcji");
       return;
     }
+    const wasEditing = editingSection;
     startTransition(async () => {
       try {
-        await upsertSectionAction({
+        const res = await upsertSectionAction({
           templateId,
           sectionId: editingSection?.id,
           name: dlgName,
@@ -177,7 +179,14 @@ export function TemplateEditor({
           leftTextPrompt: dlgLeftTextPrompt || null,
           rightTextPrompt: dlgRightTextPrompt || null,
         });
-        toast.success(editingSection ? "Sekcja zaktualizowana" : "Sekcja dodana");
+        if (wasEditing) {
+          setSections((prev) =>
+            prev.map((x) => (x.id === res.section.id ? res.section : x)),
+          );
+        } else {
+          setSections((prev) => [...prev, res.section]);
+        }
+        toast.success(wasEditing ? "Sekcja zaktualizowana" : "Sekcja dodana");
         setDialogOpen(false);
         router.refresh();
       } catch (e) {
@@ -323,14 +332,14 @@ export function TemplateEditor({
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-3xl w-[calc(100%-2rem)] max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b">
             <DialogTitle className="text-base">
               {editingSection ? "Edytuj sekcję" : "Nowa sekcja"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto px-5 py-4 flex-1 min-h-0">
             <div className="space-y-1.5">
               <Label htmlFor="sec-name" className="text-sm">
                 Nazwa sekcji <span className="text-red-500">*</span>
@@ -422,7 +431,7 @@ export function TemplateEditor({
             })()}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-5 py-3 border-t">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
@@ -493,8 +502,12 @@ function SlotConfigBlock({
           <Label className="text-[10px] uppercase tracking-wide text-violet-700 flex items-center gap-1">
             <Sparkles className="size-3" /> Prompt AI do zdjęcia (Nano Banana Pro)
           </Label>
+          <PromptPicker
+            kind="IMAGE"
+            onPick={(body) => setImagePrompt(body)}
+          />
           <Textarea
-            rows={3}
+            rows={5}
             placeholder='np. "close-up of material texture, natural lighting, white background, no humans, square crop"'
             value={imagePrompt}
             onChange={(e) => setImagePrompt(e.target.value)}
@@ -510,8 +523,12 @@ function SlotConfigBlock({
           <Label className="text-[10px] uppercase tracking-wide text-emerald-700 flex items-center gap-1">
             <Sparkles className="size-3" /> Prompt AI do tekstu (Claude)
           </Label>
+          <PromptPicker
+            kind="TEXT"
+            onPick={(body) => setTextPrompt(body)}
+          />
           <Textarea
-            rows={3}
+            rows={5}
             placeholder='np. "Napisz krótki akapit (2-3 zdania) o trwałości materiału. Skup się na korzyściach dla klienta."'
             value={textPrompt}
             onChange={(e) => setTextPrompt(e.target.value)}
@@ -524,5 +541,45 @@ function SlotConfigBlock({
         </div>
       )}
     </div>
+  );
+}
+
+/** Dropdown z gotowymi promptami z biblioteki. Po wyborze wstawia body do textarea. */
+function PromptPicker({
+  kind,
+  onPick,
+}: {
+  kind: "IMAGE" | "TEXT";
+  onPick: (body: string) => void;
+}) {
+  const prompts = kind === "IMAGE" ? IMAGE_PROMPTS : TEXT_PROMPTS;
+  // Grupowanie po `group` field
+  const groups = prompts.reduce<Record<string, typeof prompts>>((acc, p) => {
+    (acc[p.group] ??= []).push(p);
+    return acc;
+  }, {});
+  return (
+    <select
+      value=""
+      onChange={(e) => {
+        const id = e.target.value;
+        if (!id) return;
+        const p = prompts.find((x) => x.id === id);
+        if (p) onPick(p.body);
+        e.target.value = ""; // reset żeby można wybrać ten sam ponownie
+      }}
+      className="w-full text-[11px] px-2 py-1 rounded ring-1 ring-slate-200 bg-white outline-none focus:ring-2 focus:ring-emerald-400"
+    >
+      <option value="">📚 Wybierz z biblioteki ({prompts.length})...</option>
+      {Object.entries(groups).map(([g, items]) => (
+        <optgroup key={g} label={g}>
+          {items.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }
