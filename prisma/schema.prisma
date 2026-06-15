@@ -863,6 +863,13 @@ model ProductImage {
   stage     ProductStage?
   sortOrder Int           @default(0)
   isPrimary Boolean       @default(false)
+  // Miniaturka 144×144 WebP — generowana przez sharp w storage.uploadFile().
+  // Używana w liście produktów zamiast pełnego `url` (1-3 MB JPG) → ~5 KB.
+  // null = brak miniaturki (legacy uploads — batch-script je dorobi).
+  thumbnailWebpUrl     String?
+  // Bardzo mały (4×4 px) base64 placeholder do <Image placeholder="blur"> —
+  // płynny efekt rozmazania zanim wczyta się thumb.
+  thumbnailBlurDataUrl String?
   createdAt DateTime      @default(now())
 }
 

@@ -53,6 +53,8 @@ export async function uploadProductImageAction(
     data: {
       productId,
       url: uploaded.url,
+      thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
+      thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
       stage,
       sortOrder: 0,
       isPrimary: stage == null && existingPrimaryCount === 0,

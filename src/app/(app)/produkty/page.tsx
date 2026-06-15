@@ -254,7 +254,7 @@ export default async function ProduktyPage({
         images: {
           where: { isPrimary: true },
           take: 1,
-          select: { url: true, alt: true },
+          select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
         },
       },
     }),
@@ -391,7 +391,7 @@ export default async function ProduktyPage({
       images: {
         where: { isPrimary: true },
         take: 1,
-        select: { url: true, alt: true },
+        select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
       },
       shippingBoxes: {
         include: {
@@ -459,7 +459,7 @@ export default async function ProduktyPage({
               images: {
                 where: { isPrimary: true },
                 take: 1,
-                select: { url: true, alt: true },
+                select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
               },
             },
           },
@@ -1263,12 +1263,27 @@ export default async function ProduktyPage({
                           taki sam wzorzec jak items-tab w zamówieniu) */}
                       <td className="px-2 py-2 align-top w-[200px] max-w-[200px]">
                         <div className="flex items-start gap-2">
-                          {/* Miniaturka wyłączona — zdjęcia produktów w oryginalnym
-                              formacie (1-3 MB JPG) spowalniały listę 346 produktów
-                              do ~15s. TODO: dodać kolumnę `thumbnailWebpUrl` (72px
-                              WebP) generowaną przy upload + batch dla istniejących,
-                              wtedy włączyć z powrotem. */}
-                          <div className="size-9 rounded bg-muted shrink-0 ring-1 ring-border" />
+                          {p.images[0]?.thumbnailWebpUrl ? (
+                            // 144×144 WebP miniaturka (~5 KB) — zwykła <img>
+                            // wystarczy, bo plik jest już zoptymalizowany.
+                            // Pomijamy next/image (sharp on-demand cache problem
+                            // z lokalnymi /uploads/).
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={p.images[0].thumbnailWebpUrl}
+                              alt={p.images[0].alt ?? p.name}
+                              width={36}
+                              height={36}
+                              loading="lazy"
+                              decoding="async"
+                              className="size-9 rounded object-cover bg-muted shrink-0 ring-1 ring-border"
+                            />
+                          ) : (
+                            // Legacy upload sprzed thumbnail feature'a — placeholder.
+                            // Batch-script (`generate-all-thumbnails.ts`) dorobi
+                            // thumb i to się zniknie.
+                            <div className="size-9 rounded bg-muted shrink-0 ring-1 ring-border" />
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Tooltip>
@@ -2093,8 +2108,23 @@ export default async function ProduktyPage({
                                 <span className="text-[10px] text-blue-400 select-none">
                                   ↳
                                 </span>
-                                {/* Miniaturka komponentu wyłączona — patrz komentarz wyżej. */}
-                                <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
+                                {pc.component.images[0]?.thumbnailWebpUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={pc.component.images[0].thumbnailWebpUrl}
+                                    alt={
+                                      pc.component.images[0].alt ??
+                                      pc.component.name
+                                    }
+                                    width={24}
+                                    height={24}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="size-6 rounded object-cover bg-muted shrink-0 ring-1 ring-border"
+                                  />
+                                ) : (
+                                  <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
+                                )}
                                 <Tooltip>
                                   <TooltipTrigger className="block max-w-[110px] cursor-help">
                                     <Link
