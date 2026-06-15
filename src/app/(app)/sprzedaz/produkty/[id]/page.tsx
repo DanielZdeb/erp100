@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { SalesCardEditor } from "./_components/sales-card-editor";
 import { ProductGalleryClickable } from "./_components/product-gallery-clickable";
 import { AddCustomPhotoButton } from "./_components/custom-photo-button";
+import { CopyFromProductButton } from "./_components/copy-from-product-button";
 
 export const dynamic = "force-dynamic";
 
@@ -145,13 +146,16 @@ export default async function SprzedazProduktDetailPage({
               </span>
             )}
           </h2>
-          <AddCustomPhotoButton
-            productId={product.id}
-            galleryImages={product.images.map((img) => ({
-              url: img.url,
-              thumbnailUrl: img.thumbnailWebpUrl ?? img.url,
-            }))}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <CopyFromProductButton productId={product.id} />
+            <AddCustomPhotoButton
+              productId={product.id}
+              galleryImages={product.images.map((img) => ({
+                url: img.url,
+                thumbnailUrl: img.thumbnailWebpUrl ?? img.url,
+              }))}
+            />
+          </div>
         </div>
         {product.images.length > 0 ? (
           <ProductGalleryClickable

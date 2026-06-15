@@ -1203,6 +1203,130 @@ export async function bulkEditProductImagesAiAction(
  * Zwraca URL ktory mozna doliczyc do extraRefUrls. Nie tworzy ProductImage —
  * to tylko luzny upload.
  */
+/**
+ * Skopiuj zaznaczone zdjecia z dowolnego produktu (tej samej firmy) do produktu
+ * docelowego. Dwa tryby:
+ *  - "copy"  — instant kopia bez kosztu (nowe ProductImage wskazuja na ten sam url)
+ *  - "ai"    — bulk-edit cross-product: zrodlowy url staje sie kompozycyjna ref dla
+ *              Nano Banana, kazdy pre-create PENDING + bg edit-runner z promptem
+ */
+export async function copyImagesFromProductAction(
+  destProductId: string,
+  sourceImageIds: string[],
+  mode: "copy" | "ai",
+  options: { prompt?: string; extraRefUrls?: string[] } = {},
+): Promise<
+  | { ok: true; createdCount: number }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    if (sourceImageIds.length === 0) {
+      return { ok: false, error: "Wybierz zdjecia do skopiowania." };
+    }
+    if (sourceImageIds.length > 20) {
+      return { ok: false, error: "Maksymalnie 20 zdjec naraz." };
+    }
+    const dest = await db.product.findFirst({
+      where: { id: destProductId, companyId },
+      select: { id: true, name: true, color: true },
+    });
+    if (!dest) return { ok: false, error: "Produkt docelowy nie istnieje." };
+
+    const sources = await db.productImage.findMany({
+      where: {
+        id: { in: sourceImageIds },
+        product: { companyId },
+        archived: false,
+        status: "READY",
+      },
+      select: {
+        id: true,
+        url: true,
+        thumbnailWebpUrl: true,
+        thumbnailBlurDataUrl: true,
+        alt: true,
+      },
+    });
+    if (sources.length === 0) {
+      return { ok: false, error: "Brak zrodlowych READY zdjec." };
+    }
+
+    const maxSort = await db.productImage.findFirst({
+      where: { productId: destProductId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    let nextSort = (maxSort?.sortOrder ?? 0) + 1;
+
+    if (mode === "copy") {
+      await Promise.all(
+        sources.map((s) =>
+          db.productImage.create({
+            data: {
+              productId: destProductId,
+              url: s.url,
+              thumbnailWebpUrl: s.thumbnailWebpUrl,
+              thumbnailBlurDataUrl: s.thumbnailBlurDataUrl,
+              alt: s.alt ?? null,
+              status: "READY",
+              sortOrder: nextSort++,
+            },
+          }),
+        ),
+      );
+      await ensureProductHasPrimaryImage(destProductId).catch(() => undefined);
+      revalidateProductPaths(destProductId);
+      return { ok: true, createdCount: sources.length };
+    }
+
+    if (!options.prompt?.trim()) {
+      return { ok: false, error: "Podaj prompt opisujacy zmiane (np. zmien kolor na granatowy)." };
+    }
+    const refs = (options.extraRefUrls ?? [])
+      .filter((u) => typeof u === "string" && u.length > 0)
+      .slice(0, 4);
+
+    const pending = await Promise.all(
+      sources.map((s) =>
+        db.productImage.create({
+          data: {
+            productId: destProductId,
+            url: "",
+            status: "PENDING",
+            prompt: options.prompt!.trim(),
+            alt: `AI-import: ${options.prompt!.trim().slice(0, 80)}`,
+            sortOrder: nextSort++,
+          },
+          select: { id: true },
+        }).then((p) => ({ pendingId: p.id, sourceUrl: s.url })),
+      ),
+    );
+    revalidateProductPaths(destProductId);
+
+    void (async () => {
+      for (const p of pending) {
+        await runEditInBackground({
+          pendingImageId: p.pendingId,
+          productId: destProductId,
+          productName: dest.name,
+          productColor: dest.color,
+          originalUrl: p.sourceUrl,
+          extraRefUrls: refs.filter((u) => u !== p.sourceUrl),
+          prompt: options.prompt!.trim(),
+        }).catch((e) => {
+          console.error(`[copy-ai ${destProductId}] background error:`, e);
+        });
+      }
+    })();
+
+    return { ok: true, createdCount: pending.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
 export async function uploadAiRefAction(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {

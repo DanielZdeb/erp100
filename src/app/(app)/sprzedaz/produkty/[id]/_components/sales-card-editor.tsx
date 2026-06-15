@@ -8,10 +8,10 @@
  *  - Zapis treści przez setProductDescriptionContentAction
  */
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle } from "lucide-react";
+import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle, ChevronDown, Copy } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,24 @@ import {
   generateSectionTextAction,
   generateSectionImageAction,
   aiGenerateSalesDraftForProductAction,
+  listProductsWithTemplateAction,
+  copyDescriptionTemplateFromProductAction,
 } from "@/server/description-templates";
 import { formatPln, formatUsd } from "@/lib/usd-to-pln";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
 
@@ -95,6 +111,7 @@ export function SalesCardEditor({
       usd: number;
     };
   } | null>(null);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
 
   async function generateAiDraft() {
     if (
@@ -191,24 +208,55 @@ export function SalesCardEditor({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={generateAiDraft}
-            disabled={pending || draftLoading}
-            className="gap-1.5 ring-1 ring-violet-200 text-violet-700 hover:bg-violet-50"
-            title="AI przeszuka sieć i wygeneruje dopasowany szablon + treść opisu dla tego produktu"
-          >
-            {draftLoading ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" /> Generuję draft...
-              </>
-            ) : (
-              <>
-                <Wand2 className="size-3.5" /> Wygeneruj szablon AI
-              </>
-            )}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending || draftLoading}
+                  className="gap-1.5 ring-1 ring-violet-200 text-violet-700 hover:bg-violet-50"
+                />
+              }
+            >
+              {draftLoading ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" /> Generuję draft...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="size-3.5" /> Wygeneruj szablon AI
+                  <ChevronDown className="size-3.5 opacity-60" />
+                </>
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem
+                onClick={generateAiDraft}
+                className="flex-col items-start gap-0.5 py-2"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Wand2 className="size-3.5 text-violet-600" />
+                  <span className="text-sm font-medium">Wygeneruj nowy (web search)</span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Claude przeszuka sieć i zaprojektuje dedykowany szablon + treść
+                </p>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setCopyDialogOpen(true)}
+                className="flex-col items-start gap-0.5 py-2"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Copy className="size-3.5 text-emerald-600" />
+                  <span className="text-sm font-medium">Skopiuj z innego produktu</span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Klon szablonu + treści, opcjonalnie z dostosowaniem AI do różnic
+                </p>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={saveContent}
             disabled={pending || !templateId}
@@ -391,7 +439,264 @@ export function SalesCardEditor({
           })}
         </div>
       )}
+
+      {copyDialogOpen && (
+        <CopyTemplateDialog
+          destProductId={productId}
+          onClose={() => setCopyDialogOpen(false)}
+          onSuccess={() => {
+            setCopyDialogOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+function CopyTemplateDialog({
+  destProductId,
+  onClose,
+  onSuccess,
+}: {
+  destProductId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<
+    Array<{
+      id: string;
+      name: string;
+      productCode: string | null;
+      color: string | null;
+      templateName: string | null;
+      sectionCount: number;
+      thumbnailUrl: string | null;
+    }>
+  >([]);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [mode, setMode] = useState<"copy" | "ai-adjust">("copy");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await listProductsWithTemplateAction(query);
+        if (!cancelled) {
+          setProducts(res.products.filter((p) => p.id !== destProductId));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query, destProductId]);
+
+  async function submit() {
+    if (!selectedSource) {
+      toast.error("Wybierz produkt zrodlowy.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const r = await copyDescriptionTemplateFromProductAction(
+        selectedSource,
+        destProductId,
+        mode,
+      );
+      if (r.ok) {
+        if (r.adjusted && r.cost) {
+          toast.success(
+            `Skopiowano i dostosowano "${r.templateName}" za ${formatUsd(r.cost.usd, 4)} (~${formatPln(r.cost.usd)})`,
+            { duration: 8000 },
+          );
+        } else {
+          toast.success(`Skopiowano szablon "${r.templateName}"`, {
+            duration: 6000,
+          });
+        }
+        onSuccess();
+      } else {
+        toast.error(r.error);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Blad");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-3xl w-[calc(100%-2rem)] max-h-[92vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b">
+          <DialogTitle className="text-base flex items-center gap-2">
+            <Copy className="size-4 text-emerald-600" />
+            Skopiuj szablon z innego produktu
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="px-5 py-3 border-b">
+          <Input
+            autoFocus
+            placeholder="Szukaj produktu po nazwie / SKU / EAN..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="text-sm h-8"
+          />
+        </div>
+
+        <div className="overflow-y-auto px-2 py-2 flex-1 min-h-0">
+          {loading && (
+            <div className="grid place-items-center py-8 text-slate-400 text-sm">
+              <Loader2 className="size-4 animate-spin mb-2" />
+              Laduje produkty z szablonami...
+            </div>
+          )}
+          {!loading && products.length === 0 && (
+            <div className="text-center py-8 text-sm text-slate-500">
+              Brak produktow z szablonem opisu. Najpierw utworz szablon dla
+              innego produktu.
+            </div>
+          )}
+          {!loading &&
+            products.map((p) => {
+              const isSelected = selectedSource === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedSource(p.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded transition-colors text-left",
+                    isSelected
+                      ? "bg-emerald-50 ring-1 ring-emerald-400"
+                      : "hover:bg-slate-50",
+                  )}
+                >
+                  {p.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.thumbnailUrl}
+                      alt=""
+                      className="size-10 rounded object-cover ring-1 ring-slate-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="size-10 rounded bg-slate-100 ring-1 ring-slate-200 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold truncate">
+                      {p.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 flex items-center gap-2 flex-wrap">
+                      {p.productCode && (
+                        <span className="font-mono">{p.productCode}</span>
+                      )}
+                      {p.color && <span>· {p.color}</span>}
+                      <span>· {p.sectionCount} sekcji</span>
+                    </div>
+                    {p.templateName && (
+                      <div className="text-[10px] text-slate-400 truncate">
+                        Szablon: {p.templateName}
+                      </div>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <Sparkles className="size-4 text-emerald-600 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {selectedSource && (
+          <div className="px-5 py-3 border-t bg-slate-50/60 space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              Tryb kopiowania
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("copy")}
+                className={cn(
+                  "p-3 rounded ring-1 text-left transition-all",
+                  mode === "copy"
+                    ? "ring-2 ring-emerald-500 bg-emerald-50/60"
+                    : "ring-slate-200 hover:ring-slate-400 bg-white",
+                )}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Copy className="size-3.5 text-emerald-600" />
+                  <span className="text-xs font-semibold">Kopia 1:1</span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Klon szablonu + treści, bez zmian. Bez kosztu AI.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("ai-adjust")}
+                className={cn(
+                  "p-3 rounded ring-1 text-left transition-all",
+                  mode === "ai-adjust"
+                    ? "ring-2 ring-violet-500 bg-violet-50/60"
+                    : "ring-slate-200 hover:ring-slate-400 bg-white",
+                )}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Wand2 className="size-3.5 text-violet-600" />
+                  <span className="text-xs font-semibold">Dostosuj przez AI</span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Claude analizuje różnice (kolor, rozmiar, SKU) i podmienia
+                  tylko te w tekstach.
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="px-5 py-3 border-t">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Anuluj
+          </Button>
+          <Button
+            onClick={submit}
+            disabled={submitting || !selectedSource}
+            className={cn(
+              "gap-1.5",
+              mode === "copy"
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-violet-600 hover:bg-violet-700",
+            )}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                {mode === "copy" ? "Kopiuje..." : "Dostosowuje..."}
+              </>
+            ) : mode === "copy" ? (
+              <>
+                <Copy className="size-3.5" />
+                Skopiuj
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-3.5" />
+                Skopiuj + dostosuj
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
