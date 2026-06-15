@@ -86,7 +86,7 @@ export default async function ZamowieniaPage({
                 images: {
                   where: { isPrimary: true },
                   take: 1,
-                  select: { url: true },
+                  select: { url: true, thumbnailWebpUrl: true },
                 },
                 boxWidthCm: true,
                 boxHeightCm: true,
@@ -329,8 +329,13 @@ export default async function ZamowieniaPage({
         cur.qty += it.quantity;
         cur.sku += 1;
         // Pierwszy produkt z miniaturką wygrywa jako reprezentant
-        if (!cur.sampleImageUrl && it.product.images[0]?.url) {
-          cur.sampleImageUrl = it.product.images[0].url;
+        // Preferujemy thumbnail (~5 KB) zamiast oryginału (1-3 MB).
+        const repImg =
+          it.product.images[0]?.thumbnailWebpUrl ??
+          it.product.images[0]?.url ??
+          null;
+        if (!cur.sampleImageUrl && repImg) {
+          cur.sampleImageUrl = repImg;
           cur.sampleProductName = it.product.name;
           cur.sampleProductCode = it.product.productCode;
         }
@@ -338,7 +343,10 @@ export default async function ZamowieniaPage({
         categoryCounts.set(rootName, {
           qty: it.quantity,
           sku: 1,
-          sampleImageUrl: it.product.images[0]?.url ?? null,
+          sampleImageUrl:
+            it.product.images[0]?.thumbnailWebpUrl ??
+            it.product.images[0]?.url ??
+            null,
           sampleProductName: it.product.name,
           sampleProductCode: it.product.productCode,
         });

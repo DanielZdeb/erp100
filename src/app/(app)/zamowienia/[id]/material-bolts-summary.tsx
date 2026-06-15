@@ -283,13 +283,17 @@ function ItemCard({ item }: { item: MaterialItem }) {
     <div className="inline-flex items-center gap-2 rounded-md ring-1 ring-slate-200 bg-slate-50/50 pl-1 pr-2 py-1 min-w-0">
       <div className="size-9 rounded shrink-0 bg-slate-200 overflow-hidden grid place-items-center">
         {item.imageUrl ? (
-          <Image
+          // `imageUrl` przychodzi z parsera materiałów (items-tab.tsx) —
+          // preferowana jest thumbnailWebpUrl (~5KB), fallback na oryginał.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={item.imageUrl}
             alt={item.name}
             width={36}
             height={36}
+            loading="lazy"
+            decoding="async"
             className="object-cover w-full h-full"
-            unoptimized
           />
         ) : (
           <span className="text-[8px] text-slate-400 uppercase">brak</span>

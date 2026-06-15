@@ -1081,17 +1081,18 @@ function ItemRow({
             href={`/produkty/${item.product.id}`}
             className="flex items-center gap-2 hover:bg-muted/40 -mx-1 px-1 py-0.5 rounded transition-colors group flex-1 min-w-0"
           >
-            {item.product.images[0] ? (
-              <div className="relative size-7 rounded overflow-hidden bg-muted shrink-0">
-                <Image
-                  src={item.product.images[0].url}
-                  alt={item.product.images[0].alt ?? item.product.name}
-                  fill
-                  sizes="28px"
-                  className="object-cover"
-                  unoptimized
-                />
-              </div>
+            {item.product.images[0]?.thumbnailWebpUrl ? (
+              // WebP miniaturka 144×144 (~5 KB) — zwykły <img> wystarczy.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.product.images[0].thumbnailWebpUrl}
+                alt={item.product.images[0].alt ?? item.product.name}
+                width={28}
+                height={28}
+                loading="lazy"
+                decoding="async"
+                className="size-7 rounded object-cover bg-muted shrink-0"
+              />
             ) : (
               <div className="size-7 rounded bg-muted shrink-0" />
             )}
@@ -3896,17 +3897,17 @@ function AddItemDialog({
                         onClick={(e) => e.stopPropagation()}
                         className="size-4 accent-primary shrink-0"
                       />
-                      {p.images[0]?.url ? (
-                        <div className="relative size-10 rounded overflow-hidden bg-muted shrink-0 ring-1 ring-border">
-                          <Image
-                            src={p.images[0].url}
-                            alt={p.images[0].alt ?? p.name}
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </div>
+                      {p.images[0]?.thumbnailWebpUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.images[0].thumbnailWebpUrl}
+                          alt={p.images[0].alt ?? p.name}
+                          width={40}
+                          height={40}
+                          loading="lazy"
+                          decoding="async"
+                          className="size-10 rounded object-cover bg-muted shrink-0 ring-1 ring-border"
+                        />
                       ) : (
                         <div className="size-10 rounded bg-muted shrink-0 ring-1 ring-border" />
                       )}
@@ -4677,7 +4678,12 @@ function buildMaterialItems(items: Item[]): MaterialItem[] {
       lengthM: parsed.lengthM,
       color: parsed.color,
       quantity: it.quantity,
-      imageUrl: it.product.images?.[0]?.url ?? null,
+      // Preferujemy miniaturkę WebP (5 KB) — fallback na oryginał gdy brak
+      // (legacy obrazek sprzed thumbnail feature'a).
+      imageUrl:
+        it.product.images?.[0]?.thumbnailWebpUrl ??
+        it.product.images?.[0]?.url ??
+        null,
     });
   }
   return out;

@@ -156,7 +156,7 @@ export default async function ZamowienieDetailPage({
                       images: {
                         where: { isPrimary: true },
                         take: 1,
-                        select: { url: true },
+                        select: { url: true, thumbnailWebpUrl: true },
                       },
                     },
                   },
@@ -184,7 +184,7 @@ export default async function ZamowienieDetailPage({
               images: {
                 where: { isPrimary: true },
                 take: 1,
-                select: { url: true, alt: true },
+                select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
               },
               stageCompletions: {
                 select: { stage: true, notes: true },
@@ -207,7 +207,7 @@ export default async function ZamowienieDetailPage({
                   images: {
                     where: { isPrimary: true },
                     take: 1,
-                    select: { url: true },
+                    select: { url: true, thumbnailWebpUrl: true },
                   },
                 },
               },
@@ -368,7 +368,7 @@ export default async function ZamowienieDetailPage({
                   images: {
                     where: { isPrimary: true },
                     take: 1,
-                    select: { url: true },
+                    select: { url: true, thumbnailWebpUrl: true },
                   },
                 },
               },
@@ -396,7 +396,7 @@ export default async function ZamowienieDetailPage({
           images: {
             where: { isPrimary: true },
             take: 1,
-            select: { url: true, alt: true },
+            select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
           },
           stageCompletions: {
             select: { stage: true, notes: true },
@@ -419,7 +419,7 @@ export default async function ZamowienieDetailPage({
               images: {
                 where: { isPrimary: true },
                 take: 1,
-                select: { url: true },
+                select: { url: true, thumbnailWebpUrl: true },
               },
             },
           },
@@ -639,7 +639,7 @@ export default async function ZamowienieDetailPage({
           images: {
             where: { isPrimary: true },
             take: 1,
-            select: { url: true, alt: true },
+            select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
           },
         },
       }),
