@@ -51,7 +51,10 @@ function parseStatus(v: string | undefined): OrderStatusT | typeof ALL {
   if (v && (ORDER_STATUSES as readonly string[]).includes(v)) {
     return v as OrderStatusT;
   }
-  return "PLANOWANE";
+  // Domyślnie pokazujemy WSZYSTKIE zamówienia — user widzi pełną listę
+  // z badge'm statusu per wiersz. Wcześniej domyślne „PLANOWANE" często
+  // dawało pustą listę bo planowanych zamówień rzadko jest dużo.
+  return ALL;
 }
 
 export default async function ZamowieniaPage({
