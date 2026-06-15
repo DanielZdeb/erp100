@@ -15,6 +15,7 @@ import { getCurrentCompanyId } from "@/lib/tenant";
 import { Card } from "@/components/ui/card";
 import { SalesCardEditor } from "./_components/sales-card-editor";
 import { ProductGalleryClickable } from "./_components/product-gallery-clickable";
+import { AddCustomPhotoButton } from "./_components/custom-photo-button";
 
 export const dynamic = "force-dynamic";
 
@@ -129,15 +130,26 @@ export default async function SprzedazProduktDetailPage({
         </div>
       </Card>
 
-      {/* Galeria miniatur — klikalne, edycja AI promptem przez Nano Banana Pro */}
-      {product.images.length > 0 && (
-        <Card className="p-4 space-y-3">
+      {/* Galeria miniatur — klikalne (Edit AI) + button „Dodaj własne (AI)" */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
             Grafiki produktowe ({product.images.length})
-            <span className="ml-2 text-[10px] font-normal normal-case text-slate-500">
-              · klik aby edytować przez AI
-            </span>
+            {product.images.length > 0 && (
+              <span className="ml-2 text-[10px] font-normal normal-case text-slate-500">
+                · klik aby edytować przez AI
+              </span>
+            )}
           </h2>
+          <AddCustomPhotoButton
+            productId={product.id}
+            galleryImages={product.images.map((img) => ({
+              url: img.url,
+              thumbnailUrl: img.thumbnailWebpUrl ?? img.url,
+            }))}
+          />
+        </div>
+        {product.images.length > 0 ? (
           <ProductGalleryClickable
             images={product.images.map((img) => ({
               id: img.id,
@@ -146,8 +158,12 @@ export default async function SprzedazProduktDetailPage({
               thumbnailWebpUrl: img.thumbnailWebpUrl,
             }))}
           />
-        </Card>
-      )}
+        ) : (
+          <div className="rounded-lg ring-1 ring-dashed ring-slate-300 p-8 text-center text-sm text-slate-500">
+            Brak grafik — dodaj swoje generując przez AI powyżej.
+          </div>
+        )}
+      </Card>
 
       {/* Edytor szablonu + zawartości */}
       <SalesCardEditor

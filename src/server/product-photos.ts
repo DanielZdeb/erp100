@@ -748,6 +748,157 @@ export async function editProductImageWithAiAction(
   }
 }
 
+/**
+ * Custom photo generation w karcie produktu — pozwala wygenerować
+ * dowolną liczbę nowych zdjęć (rzutów) per produkt, każde z własnym promptem
+ * i własnymi referencjami + wspólny opis grupowy.
+ *
+ * Wszystkie ujęcia idą Nano Banana Pro w tle (fire-and-forget). UI poll-uje
+ * `Product.images` przez `router.refresh()`.
+ *
+ * Workflow per shot:
+ *  - prompt finalny = `${groupPrompt}\n\nShot: ${shot.prompt}`
+ *  - referencje = shotRefs (first, composition) ++ groupRefs (style/color context)
+ *  - wynik zapisywany jako kolejny ProductImage
+ */
+export async function generateCustomProductPhotosAction(
+  productId: string,
+  input: {
+    groupPrompt: string;
+    groupRefUrls: string[];
+    shots: Array<{ prompt: string; refUrls: string[] }>;
+    aspectRatio?: string;
+  },
+): Promise<
+  | { ok: true; queued: number; message: string }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    const product = await db.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true, name: true, color: true },
+    });
+    if (!product) return { ok: false, error: "Produkt nie istnieje." };
+
+    const shots = input.shots.filter((s) => s.prompt.trim().length > 0);
+    if (shots.length === 0) {
+      return { ok: false, error: "Dodaj co najmniej jedno ujęcie z promptem." };
+    }
+    if (shots.length > 12) {
+      return { ok: false, error: "Maksymalnie 12 ujęć naraz." };
+    }
+    if (!input.groupPrompt.trim()) {
+      return { ok: false, error: "Wpisz opis ogólny grupy." };
+    }
+
+    const aspectRatio = input.aspectRatio ?? "1:1";
+
+    // Fire-and-forget — odpowiedź wraca natychmiast, generowanie leci dalej
+    // w background process.
+    void runCustomGenerationInBackground({
+      productId: product.id,
+      productName: product.name,
+      productColor: product.color,
+      groupPrompt: input.groupPrompt.trim(),
+      groupRefUrls: input.groupRefUrls,
+      shots: shots.map((s) => ({
+        prompt: s.prompt.trim(),
+        refUrls: s.refUrls,
+      })),
+      aspectRatio,
+    }).catch((e) => {
+      console.error(`[custom-gen ${productId}] background error:`, e);
+    });
+
+    return {
+      ok: true,
+      queued: shots.length,
+      message: `Generuję ${shots.length} ujęć w tle. Możesz zamknąć dialog — wracaj za chwilę i odśwież.`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Nieznany błąd",
+    };
+  }
+}
+
+async function runCustomGenerationInBackground(params: {
+  productId: string;
+  productName: string;
+  productColor: string | null;
+  groupPrompt: string;
+  groupRefUrls: string[];
+  shots: Array<{ prompt: string; refUrls: string[] }>;
+  aspectRatio: string;
+}) {
+  for (let i = 0; i < params.shots.length; i++) {
+    const shot = params.shots[i];
+    const productLine = `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}`;
+    const compositionHint =
+      shot.refUrls.length > 0
+        ? `\n\nIMPORTANT: The FIRST attached reference image is the composition template — match its camera angle, framing, perspective, lighting, pose EXACTLY. Other images are for color/material/style context only.`
+        : "";
+    const finalPrompt =
+      `${params.groupPrompt}\n\n${productLine}\n\nShot ${i + 1}: ${shot.prompt}${compositionHint}`;
+
+    const refs = [...shot.refUrls, ...params.groupRefUrls];
+
+    const result = await generateProductPhoto({
+      prompt: finalPrompt,
+      quality: "NANO_BANANA_PRO",
+      aspectRatio: params.aspectRatio,
+      referenceImageUrls: refs,
+    });
+
+    if (!result.ok) {
+      console.warn(
+        `[custom-gen ${params.productId}] shot ${i + 1} failed: ${result.error.slice(0, 200)}`,
+      );
+      continue;
+    }
+
+    try {
+      const ext = result.contentType.includes("jpeg") ? "jpg" : "png";
+      const file = new File(
+        [new Uint8Array(result.imageBuffer)],
+        `custom-${params.productId}-${Date.now()}-${i}.${ext}`,
+        { type: result.contentType },
+      );
+      const uploaded = await uploadFile(file, {
+        folder: `products/${params.productId}/images`,
+      });
+      const maxSort = await db.productImage.findFirst({
+        where: { productId: params.productId },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
+      await db.productImage.create({
+        data: {
+          productId: params.productId,
+          url: uploaded.url,
+          thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
+          thumbnailBlurDataUrl: uploaded.thumbnailBlurDataUrl,
+          alt: `AI-custom: ${shot.prompt.slice(0, 80)}`,
+          sortOrder: (maxSort?.sortOrder ?? 0) + 1,
+        },
+      });
+      revalidatePath(`/sprzedaz/produkty/${params.productId}`);
+      revalidatePath(`/produkty/${params.productId}`);
+    } catch (e) {
+      console.error(
+        `[custom-gen ${params.productId}] shot ${i + 1} save failed:`,
+        e,
+      );
+    }
+  }
+  console.info(
+    `[custom-gen ${params.productId}] done — ${params.shots.length} shots processed`,
+  );
+}
+
 export async function saveImageToProductAction(
   imageId: string,
 ): Promise<
