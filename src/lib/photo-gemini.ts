@@ -95,8 +95,11 @@ export async function generateProductPhoto(
       parameters: {
         sampleCount: 1,
         aspectRatio: input.aspectRatio,
-        ...(input.seed != null && { seed: Number(input.seed) }),
-        // Bez safety override — domyślne
+        // UWAGA: Imagen 4 NIE wspiera już `seed` (Google usunął — deterministyczne
+        // generowanie pozwala odtwarzać obrazy, potencjalne nadużycia). Przekazanie
+        // seed daje INVALID_ARGUMENT. `input.seed` używamy tylko do trackingu
+        // w bazie, nie wysyłamy do API.
+        // Bez safety override — domyślne.
       },
     };
 
