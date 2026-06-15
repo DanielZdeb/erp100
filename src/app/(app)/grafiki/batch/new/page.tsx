@@ -43,10 +43,16 @@ export default async function NewBatchPage({
         weightKg: true,
         shortDescription: true,
         categoryId: true,
+        // WSZYSTKIE obrazki produktu — używane jako pickable references
+        // w ReferencesCell ("Wybierz z galerii"). primaryImageUrl wyliczamy
+        // potem z pierwszej w sortOrder + isPrimary.
         images: {
-          where: { isPrimary: true },
-          take: 1,
-          select: { url: true },
+          orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+          select: {
+            url: true,
+            thumbnailWebpUrl: true,
+            isPrimary: true,
+          },
         },
         category: { select: { name: true } },
       },
@@ -112,6 +118,14 @@ export default async function NewBatchPage({
             color: p.color,
             categoryId: p.categoryId,
             primaryImageUrl: p.images[0]?.url ?? null,
+            // Galeria — wszystkie zdjęcia produktu, używane jako pickable refs.
+            // Preferujemy thumbnailWebpUrl do podglądu (~5KB) — kliknięcie i tak
+            // doda pełny `url` do referenceImages (Imagen/Nano Banana dostają
+            // oryginał, nie thumb).
+            galleryImages: p.images.map((img) => ({
+              url: img.url,
+              thumbnailUrl: img.thumbnailWebpUrl ?? img.url,
+            })),
             categoryName: p.category?.name ?? null,
             paramsLine,
           };

@@ -65,6 +65,8 @@ type ProductFromCatalog = {
   color: string | null;
   categoryId: string | null;
   primaryImageUrl: string | null;
+  /** Galeria produktu — pickable jako reference w ReferencesCell. */
+  galleryImages: { url: string; thumbnailUrl: string }[];
   categoryName: string | null;
   /** Krótkie parametry z bazy (wymiary, waga) — pokażemy w wierszu matrycy. */
   paramsLine: string;
@@ -287,6 +289,20 @@ export function BatchWizard({
               ...r,
               referenceImages: r.referenceImages.filter((u) => u !== url),
             }
+          : r,
+      ),
+    );
+  }
+
+  /** Dodaje URL z galerii produktu (bez ponownego uploadu — to są obrazy które
+   *  już są w naszym storage). Ignoruje duplikaty. */
+  function addReferenceFromUrl(productId: string, url: string) {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.productId === productId
+          ? r.referenceImages.includes(url)
+            ? r
+            : { ...r, referenceImages: [...r.referenceImages, url] }
           : r,
       ),
     );
@@ -640,6 +656,10 @@ export function BatchWizard({
                               urls={row.referenceImages}
                               onAdd={(file) => uploadReference(p.id, file)}
                               onRemove={(url) => removeReference(p.id, url)}
+                              galleryImages={p.galleryImages}
+                              onPickFromGallery={(url) =>
+                                addReferenceFromUrl(p.id, url)
+                              }
                             />
                           </td>
 
@@ -1039,12 +1059,17 @@ function ReferencesCell({
   urls,
   onAdd,
   onRemove,
+  galleryImages,
+  onPickFromGallery,
 }: {
   urls: string[];
   onAdd: (file: File) => void;
   onRemove: (url: string) => void;
+  galleryImages: { url: string; thumbnailUrl: string }[];
+  onPickFromGallery: (url: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-1">
@@ -1065,11 +1090,21 @@ function ReferencesCell({
             </button>
           </div>
         ))}
+        {galleryImages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="size-10 rounded ring-1 ring-dashed ring-emerald-300 hover:ring-emerald-500 hover:bg-emerald-50 grid place-items-center text-emerald-600 hover:text-emerald-700 transition"
+            title="Wybierz z galerii produktu"
+          >
+            <ImageIcon className="size-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           className="size-10 rounded ring-1 ring-dashed ring-slate-300 hover:ring-violet-400 hover:bg-violet-50 grid place-items-center text-slate-400 hover:text-violet-600 transition"
-          title="Dodaj zdjęcie referencyjne"
+          title="Wgraj nowe zdjęcie referencyjne"
         >
           <Upload className="size-3.5" />
         </button>
@@ -1087,6 +1122,66 @@ function ReferencesCell({
           }
         }}
       />
+      {pickerOpen && (
+        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-base">
+                Wybierz zdjęcia z galerii produktu
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-slate-500">
+              Kliknij aby dodać jako referencję (oryginalny URL idzie do AI).
+              Już użyte mają szarą obwódkę.
+            </p>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-[60vh] overflow-y-auto">
+              {galleryImages.map((img) => {
+                const alreadyUsed = urls.includes(img.url);
+                return (
+                  <button
+                    key={img.url}
+                    type="button"
+                    onClick={() => {
+                      onPickFromGallery(img.url);
+                      // Picker pozostaje otwarty — można dodać więcej naraz
+                    }}
+                    className={cn(
+                      "aspect-square rounded ring-1 overflow-hidden transition-all relative",
+                      alreadyUsed
+                        ? "ring-slate-300 opacity-50 cursor-default"
+                        : "ring-slate-200 hover:ring-emerald-500 hover:scale-105 cursor-pointer",
+                    )}
+                    disabled={alreadyUsed}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.thumbnailUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                    {alreadyUsed && (
+                      <div className="absolute inset-0 bg-black/30 grid place-items-center">
+                        <span className="text-[9px] uppercase tracking-wide font-bold text-white">
+                          dodane
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                className="px-3 py-1.5 text-sm rounded ring-1 ring-slate-200 hover:bg-slate-50"
+              >
+                Gotowe
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

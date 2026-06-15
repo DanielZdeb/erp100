@@ -65,33 +65,18 @@ export async function generateProductPhoto(
 
   try {
     // Pobierz reference images jako base64 (max 3)
-    const referenceImages: Array<{ mimeType: string; data: string }> = [];
-    if (input.referenceImageUrls && input.referenceImageUrls.length > 0) {
-      for (const url of input.referenceImageUrls.slice(0, 3)) {
-        const ref = await fetchImageAsBase64(url);
-        if (ref) referenceImages.push(ref);
-      }
-    }
-
-    // Imagen API request body — REST endpoint:
-    // https://generativelanguage.googleapis.com/v1beta/models/{model}:predict
+    // UWAGA: Imagen 4 przez Generative Language API NIE wspiera już
+    // reference images. Google usunął `REFERENCE_TYPE_*` z publicznego API
+    // (zostały tylko na Vertex AI z imagegeneration@006). Próba wysłania
+    // dawała `Invalid reference type: REFERENCE_TYPE_DEFAULT`.
+    //
+    // Reference images są opcjonalnie wciąż wspierane w `gemini-3-pro-image`
+    // (Nano Banana Pro) — wcześniejszy dispatcher w generateProductPhoto
+    // tam je przekazuje przez `inline_data` w `parts`. Jeśli user wybrał
+    // Imagen 4 quality + dał referencje → ignorujemy je i wysyłamy sam prompt.
+    // (Niech wybierze Nano Banana Pro jeśli chce wykorzystać referencje.)
     const body = {
-      instances: [
-        {
-          prompt: input.prompt,
-          // Reference images są przekazywane jako image conditioning gdy istnieją.
-          // Imagen 4 nie wszystkie warianty wspierają — Fast może odrzucić.
-          ...(referenceImages.length > 0 && {
-            referenceImages: referenceImages.map((img, i) => ({
-              referenceType: "REFERENCE_TYPE_DEFAULT",
-              referenceId: i,
-              referenceImage: {
-                bytesBase64Encoded: img.data,
-              },
-            })),
-          }),
-        },
-      ],
+      instances: [{ prompt: input.prompt }],
       parameters: {
         sampleCount: 1,
         aspectRatio: input.aspectRatio,
