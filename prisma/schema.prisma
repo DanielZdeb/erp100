@@ -972,6 +972,10 @@ model ProductImage {
   errorMessage String?
   // Prompt uzyty do wygenerowania (PENDING/READY z AI) — null dla recznie wgranych.
   prompt       String?
+  // Archiwum — zdjecia ktore zostaly schowane z galerii ale nie usuniete na stale.
+  // Domyslnie galeria filtruje archived=false; jest osobna zakladka Archiwum
+  // do przegladu i przywracania.
+  archived  Boolean       @default(false)
   createdAt DateTime      @default(now())
 }
 

@@ -51,6 +51,7 @@ export default async function SprzedazProduktDetailPage({
           status: true,
           errorMessage: true,
           prompt: true,
+          archived: true,
         },
       },
     },
@@ -154,6 +155,7 @@ export default async function SprzedazProduktDetailPage({
         </div>
         {product.images.length > 0 ? (
           <ProductGalleryClickable
+            productId={product.id}
             images={product.images.map((img) => ({
               id: img.id,
               url: img.url,
@@ -162,6 +164,7 @@ export default async function SprzedazProduktDetailPage({
               status: img.status,
               errorMessage: img.errorMessage,
               prompt: img.prompt,
+              archived: img.archived,
             }))}
           />
         ) : (

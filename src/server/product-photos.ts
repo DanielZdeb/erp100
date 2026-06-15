@@ -769,7 +769,10 @@ async function runEditInBackground(params: {
         data: { status: "FAILED", errorMessage: result.error.slice(0, 500) },
       })
       .catch(() => undefined);
-    revalidateProductPaths(params.productId);
+    // UWAGA: nie wolamy revalidatePath z background — Next.js 16 rzuca
+    // "Route ... used revalidatePath during render which is unsupported"
+    // gdy strona jest jednoczesnie pollowana po stronie klienta.
+    // Polling /sprzedaz/produkty/[id] (force-dynamic) i tak pobiera swieze dane.
     return;
   }
 
@@ -801,7 +804,6 @@ async function runEditInBackground(params: {
       })
       .catch(() => undefined);
   }
-  revalidateProductPaths(params.productId);
 }
 
 /**
@@ -948,7 +950,6 @@ async function runCustomGenerationInBackground(params: {
           },
         })
         .catch(() => undefined);
-      revalidateProductPaths(params.productId);
       continue;
     }
 
@@ -971,7 +972,6 @@ async function runCustomGenerationInBackground(params: {
           status: "READY",
         },
       });
-      revalidateProductPaths(params.productId);
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       console.error(
@@ -987,12 +987,269 @@ async function runCustomGenerationInBackground(params: {
           },
         })
         .catch(() => undefined);
-      revalidateProductPaths(params.productId);
     }
+    // UWAGA: nie wolamy revalidatePath z background — patrz komentarz w runEditInBackground.
   }
   console.info(
     `[custom-gen ${params.productId}] done — ${params.shots.length} shots processed`,
   );
+}
+
+// ─── Archiwum, usuwanie, bulk-edit zdjec produktowych ────────────────
+
+export async function archiveProductImageAction(
+  imageId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    const img = await db.productImage.findFirst({
+      where: { id: imageId, product: { companyId } },
+      select: { id: true, productId: true },
+    });
+    if (!img) return { ok: false, error: "Zdjecie nie istnieje." };
+    await db.productImage.update({
+      where: { id: img.id },
+      data: { archived: true, isPrimary: false },
+    });
+    revalidateProductPaths(img.productId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+export async function restoreProductImageAction(
+  imageId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    const img = await db.productImage.findFirst({
+      where: { id: imageId, product: { companyId } },
+      select: { id: true, productId: true },
+    });
+    if (!img) return { ok: false, error: "Zdjecie nie istnieje." };
+    await db.productImage.update({
+      where: { id: img.id },
+      data: { archived: false },
+    });
+    revalidateProductPaths(img.productId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+export async function hardDeleteProductImageAction(
+  imageId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    const img = await db.productImage.findFirst({
+      where: { id: imageId, product: { companyId } },
+      select: { id: true, productId: true, url: true, isPrimary: true },
+    });
+    if (!img) return { ok: true };
+    if (img.url) {
+      const { deleteFile } = await import("@/lib/storage");
+      await deleteFile(img.url).catch(() => undefined);
+    }
+    await db.productImage.delete({ where: { id: img.id } });
+    if (img.isPrimary) {
+      const next = await db.productImage.findFirst({
+        where: { productId: img.productId, archived: false, status: "READY" },
+        orderBy: { sortOrder: "asc" },
+      });
+      if (next) {
+        await db.productImage.update({
+          where: { id: next.id },
+          data: { isPrimary: true },
+        });
+      }
+    }
+    revalidateProductPaths(img.productId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+/**
+ * Bulk-edit AI: dla kazdego z `imageIds` tworzy PENDING placeholder i odpala
+ * background edit-runner. Wynik = lista pendingImageId. Polling galerii
+ * pokaze gotowe zdjecia po kolei.
+ */
+export async function bulkEditProductImagesAiAction(
+  productId: string,
+  imageIds: string[],
+  prompt: string,
+  extraRefUrls: string[] = [],
+): Promise<
+  | { ok: true; queued: number }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    if (!prompt.trim()) {
+      return { ok: false, error: "Wpisz prompt." };
+    }
+    if (imageIds.length === 0) {
+      return { ok: false, error: "Zaznacz co najmniej 1 zdjecie." };
+    }
+    if (imageIds.length > 20) {
+      return { ok: false, error: "Maksymalnie 20 zdjec naraz." };
+    }
+    const product = await db.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true, name: true, color: true },
+    });
+    if (!product) return { ok: false, error: "Produkt nie istnieje." };
+
+    const originals = await db.productImage.findMany({
+      where: {
+        id: { in: imageIds },
+        productId,
+        status: "READY",
+      },
+      select: { id: true, url: true, sortOrder: true },
+    });
+    if (originals.length === 0) {
+      return { ok: false, error: "Brak zaznaczonych READY zdjec." };
+    }
+
+    const sanitizedRefs = extraRefUrls
+      .filter((u) => typeof u === "string" && u.length > 0)
+      .slice(0, 4);
+
+    // Pre-create PENDING placeholderow — po jednym na kazde oryginalne
+    const maxSort = await db.productImage.findFirst({
+      where: { productId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    let nextSort = (maxSort?.sortOrder ?? 0) + 1;
+    const pending = await Promise.all(
+      originals.map((orig) =>
+        db.productImage.create({
+          data: {
+            productId,
+            url: "",
+            status: "PENDING",
+            prompt: prompt.trim(),
+            alt: `AI-bulk: ${prompt.trim().slice(0, 80)}`,
+            sortOrder: nextSort++,
+          },
+          select: { id: true },
+        }).then((p) => ({ pendingId: p.id, originalUrl: orig.url })),
+      ),
+    );
+    revalidateProductPaths(productId);
+
+    void (async () => {
+      for (const p of pending) {
+        await runEditInBackground({
+          pendingImageId: p.pendingId,
+          productId,
+          productName: product.name,
+          productColor: product.color,
+          originalUrl: p.originalUrl,
+          extraRefUrls: sanitizedRefs.filter((u) => u !== p.originalUrl),
+          prompt: prompt.trim(),
+        }).catch((e) => {
+          console.error(`[bulk-edit ${productId}] background error:`, e);
+        });
+      }
+    })();
+
+    return { ok: true, queued: pending.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+/**
+ * Upload pliku z dysku jako referencja AI (do uzycia w Edit AI / bulk).
+ * Zwraca URL ktory mozna doliczyc do extraRefUrls. Nie tworzy ProductImage —
+ * to tylko luzny upload.
+ */
+export async function uploadAiRefAction(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: "Brak pliku." };
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      return { ok: false, error: "Plik za duzy (max 20 MB)." };
+    }
+    if (!file.type.startsWith("image/")) {
+      return { ok: false, error: "Tylko obrazy (JPG/PNG/WEBP)." };
+    }
+    const { uploadFile } = await import("@/lib/storage");
+    const uploaded = await uploadFile(file, { folder: "ai-refs" });
+    return { ok: true, url: uploaded.url };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad uploadu." };
+  }
+}
+
+/**
+ * Lista produktow + miniatury do pickera "refs z innego produktu".
+ * Filtruje archived i tylko READY. Limit 200 produktow / 12 obrazow na produkt.
+ */
+export async function listProductsForRefPickerAction(
+  query: string = "",
+): Promise<{
+  products: Array<{
+    id: string;
+    name: string;
+    productCode: string | null;
+    color: string | null;
+    images: Array<{
+      id: string;
+      url: string;
+      thumbnailWebpUrl: string | null;
+    }>;
+  }>;
+}> {
+  await requireUser();
+  const companyId = await getCurrentCompanyId();
+  const q = query.trim();
+  const products = await db.product.findMany({
+    where: {
+      companyId,
+      archived: false,
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" as const } },
+              { productCode: { contains: q, mode: "insensitive" as const } },
+              { eanCode: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { name: "asc" },
+    take: 200,
+    select: {
+      id: true,
+      name: true,
+      productCode: true,
+      color: true,
+      images: {
+        where: { archived: false, status: "READY" },
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+        take: 12,
+        select: { id: true, url: true, thumbnailWebpUrl: true },
+      },
+    },
+  });
+  return { products };
 }
 
 export async function saveImageToProductAction(
