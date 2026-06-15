@@ -13,10 +13,10 @@
  * usuwa się ręcznie przez kartę produktu (zakładka Grafiki).
  */
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, ZoomIn, X, ArrowLeft, ArrowRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -43,6 +43,32 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
   const [editing, setEditing] = useState<ImageItem | null>(null);
   const [prompt, setPrompt] = useState("");
   const [pending, startTransition] = useTransition();
+  // Lightbox — index zdjęcia którego pełen rozmiar jest pokazany; null = zamknięty
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
+
+  const nextZoom = useCallback(
+    () => setZoomIndex((i) => (i === null ? null : (i + 1) % images.length)),
+    [images.length],
+  );
+  const prevZoom = useCallback(
+    () =>
+      setZoomIndex((i) =>
+        i === null ? null : (i - 1 + images.length) % images.length,
+      ),
+    [images.length],
+  );
+
+  // Klawiatura w lightboxie: ← / → / Esc
+  useEffect(() => {
+    if (zoomIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomIndex(null);
+      else if (e.key === "ArrowRight") nextZoom();
+      else if (e.key === "ArrowLeft") prevZoom();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomIndex, nextZoom, prevZoom]);
 
   function submitEdit() {
     if (!editing) return;
@@ -73,14 +99,9 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
   return (
     <>
       <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-        {images.map((img) => (
-          <button
+        {images.map((img, idx) => (
+          <div
             key={img.id}
-            type="button"
-            onClick={() => {
-              setEditing(img);
-              setPrompt("");
-            }}
             className="group relative aspect-square rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50 hover:ring-2 hover:ring-violet-400 transition-all"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -89,17 +110,105 @@ export function ProductGalleryClickable({ images }: { images: ImageItem[] }) {
               alt={img.alt ?? ""}
               className="size-full object-cover"
             />
-            <div className="absolute inset-0 bg-violet-900/0 group-hover:bg-violet-900/50 transition-colors grid place-items-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1 text-white">
-                <Sparkles className="size-5" />
-                <span className="text-[9px] uppercase tracking-wide font-bold">
+            {/* Overlay z 2 akcjami pojawia się na hover */}
+            <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/60 transition-colors grid place-items-center gap-1">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-stretch gap-1.5 w-[80%]">
+                <button
+                  type="button"
+                  onClick={() => setZoomIndex(idx)}
+                  className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-white/90 hover:bg-white text-slate-800 text-[10px] font-semibold uppercase tracking-wide"
+                >
+                  <ZoomIn className="size-3" />
+                  Powiększ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(img);
+                    setPrompt("");
+                  }}
+                  className="flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold uppercase tracking-wide"
+                >
+                  <Sparkles className="size-3" />
                   Edit AI
-                </span>
+                </button>
               </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
+
+      {/* Lightbox — pełen rozmiar, nawigacja klawiaturą / przyciskami */}
+      {zoomIndex !== null && images[zoomIndex] && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setZoomIndex(null)}
+        >
+          {/* Zamknij */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomIndex(null);
+            }}
+            className="absolute top-4 right-4 size-10 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
+            aria-label="Zamknij"
+            title="Esc"
+          >
+            <X className="size-5" />
+          </button>
+          {/* Poprzednie */}
+          {images.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                prevZoom();
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
+              aria-label="Poprzednie"
+              title="←"
+            >
+              <ArrowLeft className="size-5" />
+            </button>
+          )}
+          {/* Następne */}
+          {images.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                nextZoom();
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
+              aria-label="Następne"
+              title="→"
+            >
+              <ArrowRight className="size-5" />
+            </button>
+          )}
+          {/* Obraz */}
+          <div
+            className="relative max-w-[92vw] max-h-[88vh] flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={images[zoomIndex].url}
+              alt={images[zoomIndex].alt ?? ""}
+              className="max-w-full max-h-[80vh] object-contain rounded ring-1 ring-white/10"
+            />
+            <div className="text-[11px] text-white/70 tabular-nums">
+              {zoomIndex + 1} / {images.length}
+              {images[zoomIndex].alt ? (
+                <span className="ml-2 text-white/50">
+                  · {images[zoomIndex].alt}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-w-2xl">

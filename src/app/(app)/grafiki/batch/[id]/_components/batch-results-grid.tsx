@@ -11,6 +11,7 @@ import {
   Save,
   X,
   Rocket,
+  ZoomIn,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -92,6 +93,17 @@ export function BatchResultsGrid({
   const [editRefUrl, setEditRefUrl] = useState("");
   const [pending, startTransition] = useTransition();
   const [pendingBatch, startBatch] = useTransition();
+  // Lightbox — null = zamknięty; URL = aktualnie pokazany pełen rozmiar
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!zoomUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomUrl(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomUrl]);
 
   // Index dla szybkiego lookup'u
   const imgKey = (pid: string, sid: string) => `${pid}|${sid}`;
@@ -273,6 +285,7 @@ export function BatchResultsGrid({
                         img={img}
                         onEdit={() => openEdit(img)}
                         onSave={() => saveToProduct(img)}
+                        onZoom={() => setZoomUrl(img.storageUrl)}
                       />
                     </td>
                   );
@@ -361,6 +374,34 @@ export function BatchResultsGrid({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lightbox — klik na obraz w siatce wyników */}
+      {zoomUrl && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setZoomUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomUrl(null);
+            }}
+            className="absolute top-4 right-4 size-10 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center"
+            aria-label="Zamknij"
+            title="Esc"
+          >
+            <X className="size-5" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={zoomUrl}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[92vw] max-h-[88vh] object-contain rounded ring-1 ring-white/10"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -369,10 +410,12 @@ function ImageCell({
   img,
   onEdit,
   onSave,
+  onZoom,
 }: {
   img: ImgRow;
   onEdit: () => void;
   onSave: () => void;
+  onZoom: () => void;
 }) {
   if (img.status === "PENDING") {
     return (
@@ -415,6 +458,14 @@ function ImageCell({
             "flex items-center justify-center gap-1",
           )}
         >
+          <button
+            type="button"
+            onClick={onZoom}
+            className="size-7 rounded bg-white text-slate-700 grid place-items-center hover:bg-slate-100"
+            title="Powiększ"
+          >
+            <ZoomIn className="size-3.5" />
+          </button>
           <button
             type="button"
             onClick={onEdit}
