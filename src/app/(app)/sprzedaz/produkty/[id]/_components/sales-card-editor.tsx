@@ -11,7 +11,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, ImageIcon, Save, Layers } from "lucide-react";
+import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   setProductDescriptionTemplateAction,
   setProductDescriptionContentAction,
+  generateSectionTextAction,
+  generateSectionImageAction,
 } from "@/server/description-templates";
 
 type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
@@ -31,6 +33,10 @@ interface SectionView {
   layout: Layout;
   leftHint: string | null;
   rightHint: string | null;
+  leftImagePrompt?: string | null;
+  rightImagePrompt?: string | null;
+  leftTextPrompt?: string | null;
+  rightTextPrompt?: string | null;
 }
 
 interface TemplateView {
@@ -203,8 +209,13 @@ export function SalesCardEditor({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <SlotEditor
+                    productId={productId}
+                    sectionId={s.id}
+                    side="left"
                     kind={leftKind}
                     hint={s.leftHint}
+                    aiTextPrompt={s.leftTextPrompt ?? null}
+                    aiImagePrompt={s.leftImagePrompt ?? null}
                     value={
                       leftKind === "TEXT" ? cur.leftText ?? null : cur.leftImageUrl ?? null
                     }
@@ -219,8 +230,13 @@ export function SalesCardEditor({
                     availableImages={availableImages}
                   />
                   <SlotEditor
+                    productId={productId}
+                    sectionId={s.id}
+                    side="right"
                     kind={rightKind}
                     hint={s.rightHint}
+                    aiTextPrompt={s.rightTextPrompt ?? null}
+                    aiImagePrompt={s.rightImagePrompt ?? null}
                     value={
                       rightKind === "TEXT" ? cur.rightText ?? null : cur.rightImageUrl ?? null
                     }
@@ -245,23 +261,89 @@ export function SalesCardEditor({
 }
 
 function SlotEditor({
+  productId,
+  sectionId,
+  side,
   kind,
   hint,
+  aiTextPrompt,
+  aiImagePrompt,
   value,
   onChange,
   availableImages,
 }: {
+  productId: string;
+  sectionId: string;
+  side: "left" | "right";
   kind: "TEXT" | "IMAGE";
   hint: string | null;
+  aiTextPrompt: string | null;
+  aiImagePrompt: string | null;
   value: string | null;
   onChange: (v: string | null) => void;
   availableImages: ImageAsset[];
 }) {
+  const [generating, setGenerating] = useState(false);
+
+  async function handleGenerateText() {
+    setGenerating(true);
+    try {
+      const r = await generateSectionTextAction(productId, sectionId, side);
+      if (!r.ok) {
+        toast.error(r.error || "Nie udało się wygenerować tekstu");
+        return;
+      }
+      onChange(r.text);
+      toast.success("Tekst wygenerowany");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleGenerateImage() {
+    setGenerating(true);
+    try {
+      const r = await generateSectionImageAction(productId, sectionId, side);
+      if (!r.ok) {
+        toast.error(r.error || "Nie udało się wygenerować obrazu");
+        return;
+      }
+      onChange(r.url);
+      toast.success("Obraz wygenerowany");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   if (kind === "TEXT") {
     return (
       <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-          <FileText className="size-3" /> Tekst
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+            <FileText className="size-3" /> Tekst
+          </div>
+          {aiTextPrompt ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 gap-1 text-[10px]"
+              onClick={handleGenerateText}
+              disabled={generating}
+              title={`Prompt: ${aiTextPrompt}`}
+            >
+              {generating ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Sparkles className="size-3 text-emerald-600" />
+              )}
+              Generuj AI
+            </Button>
+          ) : null}
         </div>
         <Textarea
           rows={4}
@@ -279,8 +361,28 @@ function SlotEditor({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-        <ImageIcon className="size-3" /> Obraz
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+          <ImageIcon className="size-3" /> Obraz
+        </div>
+        {aiImagePrompt ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 gap-1 text-[10px]"
+            onClick={handleGenerateImage}
+            disabled={generating}
+            title={`Prompt: ${aiImagePrompt}`}
+          >
+            {generating ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Sparkles className="size-3 text-violet-600" />
+            )}
+            Generuj AI
+          </Button>
+        ) : null}
       </div>
       {value ? (
         <div className="relative rounded ring-1 ring-slate-200 overflow-hidden aspect-video bg-slate-50">

@@ -10,6 +10,7 @@ import {
   FolderTree,
   Image as ImageIcon,
   LayoutDashboard,
+  LayoutTemplate,
   Package,
   Settings,
   Ship,
@@ -122,6 +123,20 @@ const NAV_SPRZEDAZ: NavItem[] = [
     activeBg: "bg-indigo-50 text-indigo-700",
   },
   {
+    href: "/sprzedaz/produkty",
+    label: "Produkty",
+    icon: Package,
+    accent: "text-emerald-500",
+    activeBg: "bg-emerald-50 text-emerald-700",
+  },
+  {
+    href: "/sprzedaz/szablony-opisu",
+    label: "Szablony opisu",
+    icon: LayoutTemplate,
+    accent: "text-sky-500",
+    activeBg: "bg-sky-50 text-sky-700",
+  },
+  {
     href: "/sprzedaz/oferty",
     label: "Oferty",
     icon: Tag,
@@ -131,7 +146,7 @@ const NAV_SPRZEDAZ: NavItem[] = [
   },
   {
     href: "/sprzedaz/opisy",
-    label: "Opisy produktów",
+    label: "Opisy produktów (AI)",
     icon: FileText,
     accent: "text-emerald-500",
     activeBg: "bg-emerald-50 text-emerald-700",
@@ -168,7 +183,7 @@ const NAV_SPRZEDAZ: NavItem[] = [
   },
 ];
 
-const SPRZEDAZ_PREFIXES = ["/sprzedaz", "/grafiki", "/oferty", "/opisy", "/zdjecia"];
+const SPRZEDAZ_PREFIXES = ["/sprzedaz", "/grafiki", "/oferty", "/opisy", "/zdjecia", "/szablony-opisu"];
 
 function detectWorkspace(pathname: string): Workspace {
   const isSprzedaz = SPRZEDAZ_PREFIXES.some(

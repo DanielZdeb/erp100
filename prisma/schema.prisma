@@ -588,6 +588,19 @@ model DescriptionTemplateSection {
   /// Wyświetlany w polu opisu produktu jako wskazówka dla operatora.
   leftHint   String?
   rightHint  String?
+  /// AI prompt do generowania ZDJĘCIA dla tego slotu (gdy layout ma IMAGE
+  /// w tym slocie). Operator w karcie produktu klika „Generuj AI" i Nano
+  /// Banana Pro generuje obraz na podstawie tego prompta + danych produktu.
+  /// Przykład: „close-up of product material texture, natural lighting,
+  ///           white background, no humans, square crop".
+  leftImagePrompt  String?
+  rightImagePrompt String?
+  /// AI prompt do generowania TEKSTU dla tego slotu (gdy layout ma TEXT
+  /// w tym slocie). Wysyłany do Claude wraz z opisem produktu.
+  /// Przykład: „Write a short paragraph (2-3 sentences) about the durability
+  ///           of the material. Focus on benefits for the customer."
+  leftTextPrompt   String?
+  rightTextPrompt  String?
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

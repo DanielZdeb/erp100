@@ -189,6 +189,10 @@ export default async function SprzedazProduktDetailPage({
             layout: s.layout,
             leftHint: s.leftHint,
             rightHint: s.rightHint,
+            leftImagePrompt: s.leftImagePrompt,
+            rightImagePrompt: s.rightImagePrompt,
+            leftTextPrompt: s.leftTextPrompt,
+            rightTextPrompt: s.rightTextPrompt,
           })),
         }))}
         selectedTemplateSections={
@@ -198,6 +202,10 @@ export default async function SprzedazProduktDetailPage({
             layout: s.layout,
             leftHint: s.leftHint,
             rightHint: s.rightHint,
+            leftImagePrompt: s.leftImagePrompt,
+            rightImagePrompt: s.rightImagePrompt,
+            leftTextPrompt: s.leftTextPrompt,
+            rightTextPrompt: s.rightTextPrompt,
           })) ?? null
         }
         availableImages={product.images.map((img) => ({

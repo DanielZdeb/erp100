@@ -10,7 +10,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, ArrowUp, ArrowDown, FileText, ImageIcon, Save } from "lucide-react";
+import { Pencil, Plus, Trash2, ArrowUp, ArrowDown, FileText, ImageIcon, Save, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,10 @@ interface SectionVM {
   sortOrder: number;
   leftHint: string | null;
   rightHint: string | null;
+  leftImagePrompt: string | null;
+  rightImagePrompt: string | null;
+  leftTextPrompt: string | null;
+  rightTextPrompt: string | null;
 }
 
 const LAYOUT_LABELS: Record<Layout, string> = {
@@ -110,6 +114,10 @@ export function TemplateEditor({
   const [dlgLayout, setDlgLayout] = useState<Layout>("IMAGE_TEXT");
   const [dlgLeftHint, setDlgLeftHint] = useState("");
   const [dlgRightHint, setDlgRightHint] = useState("");
+  const [dlgLeftImagePrompt, setDlgLeftImagePrompt] = useState("");
+  const [dlgRightImagePrompt, setDlgRightImagePrompt] = useState("");
+  const [dlgLeftTextPrompt, setDlgLeftTextPrompt] = useState("");
+  const [dlgRightTextPrompt, setDlgRightTextPrompt] = useState("");
 
   function openCreate() {
     setEditingSection(null);
@@ -117,6 +125,10 @@ export function TemplateEditor({
     setDlgLayout("IMAGE_TEXT");
     setDlgLeftHint("");
     setDlgRightHint("");
+    setDlgLeftImagePrompt("");
+    setDlgRightImagePrompt("");
+    setDlgLeftTextPrompt("");
+    setDlgRightTextPrompt("");
     setDialogOpen(true);
   }
 
@@ -126,6 +138,10 @@ export function TemplateEditor({
     setDlgLayout(s.layout);
     setDlgLeftHint(s.leftHint ?? "");
     setDlgRightHint(s.rightHint ?? "");
+    setDlgLeftImagePrompt(s.leftImagePrompt ?? "");
+    setDlgRightImagePrompt(s.rightImagePrompt ?? "");
+    setDlgLeftTextPrompt(s.leftTextPrompt ?? "");
+    setDlgRightTextPrompt(s.rightTextPrompt ?? "");
     setDialogOpen(true);
   }
 
@@ -156,6 +172,10 @@ export function TemplateEditor({
           layout: dlgLayout,
           leftHint: dlgLeftHint || null,
           rightHint: dlgRightHint || null,
+          leftImagePrompt: dlgLeftImagePrompt || null,
+          rightImagePrompt: dlgRightImagePrompt || null,
+          leftTextPrompt: dlgLeftTextPrompt || null,
+          rightTextPrompt: dlgRightTextPrompt || null,
         });
         toast.success(editingSection ? "Sekcja zaktualizowana" : "Sekcja dodana");
         setDialogOpen(false);
@@ -354,6 +374,10 @@ export function TemplateEditor({
                           sortOrder: 0,
                           leftHint: null,
                           rightHint: null,
+                          leftImagePrompt: null,
+                          rightImagePrompt: null,
+                          leftTextPrompt: null,
+                          rightTextPrompt: null,
                         }}
                       />
                     </button>
@@ -362,34 +386,40 @@ export function TemplateEditor({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="left-hint" className="text-sm">
-                  Hint lewy slot
-                </Label>
-                <Textarea
-                  id="left-hint"
-                  rows={2}
-                  placeholder="opis co wpisać/wstawić"
-                  value={dlgLeftHint}
-                  onChange={(e) => setDlgLeftHint(e.target.value)}
-                  className="text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="right-hint" className="text-sm">
-                  Hint prawy slot
-                </Label>
-                <Textarea
-                  id="right-hint"
-                  rows={2}
-                  placeholder="opis co wpisać/wstawić"
-                  value={dlgRightHint}
-                  onChange={(e) => setDlgRightHint(e.target.value)}
-                  className="text-xs"
-                />
-              </div>
-            </div>
+            {(() => {
+              const [leftKind, rightKind] =
+                dlgLayout === "TEXT_TEXT"
+                  ? (["TEXT", "TEXT"] as const)
+                  : dlgLayout === "IMAGE_TEXT"
+                    ? (["IMAGE", "TEXT"] as const)
+                    : dlgLayout === "TEXT_IMAGE"
+                      ? (["TEXT", "IMAGE"] as const)
+                      : (["IMAGE", "IMAGE"] as const);
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  <SlotConfigBlock
+                    side="Lewy"
+                    kind={leftKind}
+                    hint={dlgLeftHint}
+                    setHint={setDlgLeftHint}
+                    imagePrompt={dlgLeftImagePrompt}
+                    setImagePrompt={setDlgLeftImagePrompt}
+                    textPrompt={dlgLeftTextPrompt}
+                    setTextPrompt={setDlgLeftTextPrompt}
+                  />
+                  <SlotConfigBlock
+                    side="Prawy"
+                    kind={rightKind}
+                    hint={dlgRightHint}
+                    setHint={setDlgRightHint}
+                    imagePrompt={dlgRightImagePrompt}
+                    setImagePrompt={setDlgRightImagePrompt}
+                    textPrompt={dlgRightTextPrompt}
+                    setTextPrompt={setDlgRightTextPrompt}
+                  />
+                </div>
+              );
+            })()}
           </div>
 
           <DialogFooter>
@@ -407,6 +437,92 @@ export function TemplateEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SlotConfigBlock({
+  side,
+  kind,
+  hint,
+  setHint,
+  imagePrompt,
+  setImagePrompt,
+  textPrompt,
+  setTextPrompt,
+}: {
+  side: "Lewy" | "Prawy";
+  kind: "TEXT" | "IMAGE";
+  hint: string;
+  setHint: (v: string) => void;
+  imagePrompt: string;
+  setImagePrompt: (v: string) => void;
+  textPrompt: string;
+  setTextPrompt: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded ring-1 ring-slate-200 p-2.5 bg-slate-50/40">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            "text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded",
+            kind === "IMAGE"
+              ? "bg-violet-100 text-violet-700"
+              : "bg-slate-200 text-slate-700",
+          )}
+        >
+          {side} {kind}
+        </span>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase tracking-wide text-slate-500">
+          Hint dla operatora
+        </Label>
+        <Textarea
+          rows={2}
+          placeholder="krótka instrukcja co tu wstawić (max 1 zdanie)"
+          value={hint}
+          onChange={(e) => setHint(e.target.value)}
+          className="text-xs"
+        />
+      </div>
+
+      {kind === "IMAGE" ? (
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase tracking-wide text-violet-700 flex items-center gap-1">
+            <Sparkles className="size-3" /> Prompt AI do zdjęcia (Nano Banana Pro)
+          </Label>
+          <Textarea
+            rows={3}
+            placeholder='np. "close-up of material texture, natural lighting, white background, no humans, square crop"'
+            value={imagePrompt}
+            onChange={(e) => setImagePrompt(e.target.value)}
+            className="text-xs"
+          />
+          <p className="text-[9px] text-slate-500">
+            Operator w karcie produktu kliknie „Generuj AI" — Nano Banana
+            wygeneruje obraz na podstawie tego prompta + galerii produktu jako referencji.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase tracking-wide text-emerald-700 flex items-center gap-1">
+            <Sparkles className="size-3" /> Prompt AI do tekstu (Claude)
+          </Label>
+          <Textarea
+            rows={3}
+            placeholder='np. "Napisz krótki akapit (2-3 zdania) o trwałości materiału. Skup się na korzyściach dla klienta."'
+            value={textPrompt}
+            onChange={(e) => setTextPrompt(e.target.value)}
+            className="text-xs"
+          />
+          <p className="text-[9px] text-slate-500">
+            Operator w karcie produktu kliknie „Generuj AI" — Claude wygeneruje
+            polski tekst z uwzględnieniem nazwy / koloru / kategorii produktu.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -59,6 +59,10 @@ export default async function SzablonOpisuEditPage({
           sortOrder: s.sortOrder,
           leftHint: s.leftHint,
           rightHint: s.rightHint,
+          leftImagePrompt: s.leftImagePrompt,
+          rightImagePrompt: s.rightImagePrompt,
+          leftTextPrompt: s.leftTextPrompt,
+          rightTextPrompt: s.rightTextPrompt,
         }))}
       />
     </div>
