@@ -433,6 +433,7 @@ model Product {
 
   images       ProductImage[]
   files        ProductFile[]
+  aiCosts      ProductAiCost[]
   priceHistory ProductPriceHistory[]
   orderItems   ImportOrderItem[]
 
@@ -977,6 +978,35 @@ model ProductImage {
   // do przegladu i przywracania.
   archived  Boolean       @default(false)
   createdAt DateTime      @default(now())
+}
+
+enum ProductAiAction {
+  TEXT_GEN         // generowanie tekstu sekcji przez Claude
+  IMAGE_GEN        // generowanie obrazu sekcji przez Nano Banana Pro
+  IMAGE_EDIT       // edycja istniejacego zdjecia przez Nano Banana Pro
+  BULK_EDIT        // bulk edit zaznaczonych zdjec galerii
+  CUSTOM_GEN       // multi-shot custom generation z karty produktu
+  COPY_IMAGES_AI   // skopiowanie zdjec z innego produktu z modyfikacja AI
+  DRAFT_TEMPLATE   // aiGenerateSalesDraftForProductAction
+  COPY_TEMPLATE_AI // copyDescriptionTemplateFromProductAction (ai-adjust)
+}
+
+model ProductAiCost {
+  id        String          @id @default(cuid())
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  companyId String
+  action    ProductAiAction
+  // Human readable etykieta: "Generuj tekst sekcji 'Hero'" / "Nano Banana edit (galeria)"
+  label     String
+  // Koszt USD wedlug cennika danego API
+  usd       Float
+  // Dodatkowe info: tokens, web searches, model, prompt fragment itp.
+  metadata  Json?
+  createdAt DateTime        @default(now())
+
+  @@index([productId, createdAt])
+  @@index([companyId, createdAt])
 }
 
 enum ProductFileKind {

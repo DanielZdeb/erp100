@@ -6,6 +6,9 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
+import { logProductAiCost } from "@/server/product-ai-costs";
+
+const NANO_BANANA_PRO_USD = 0.134;
 
 async function requireUser() {
   const session = await auth();
@@ -268,6 +271,7 @@ export async function generateSectionTextAction(
   productId: string,
   sectionId: string,
   side: "left" | "right",
+  extraPrompt: string = "",
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     await requireUser();
@@ -325,9 +329,12 @@ export async function generateSectionTextAction(
       .filter(Boolean)
       .join("\n");
 
+    const extraBlock = extraPrompt?.trim()
+      ? `\n\n=== Additional context from operator ===\n${extraPrompt.trim()}\n\n`
+      : "";
     const msg = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 600,
+      max_tokens: 1500,
       messages: [
         {
           role: "user",
@@ -335,9 +342,16 @@ export async function generateSectionTextAction(
             `You are writing product description copy for an e-commerce store. ` +
             `Write in Polish. Keep it concise, benefit-focused, no marketing fluff.\n\n` +
             `=== Section context (from template) ===\n${section.name}\n\n` +
-            `=== Instructions ===\n${sectionPrompt.trim()}\n\n` +
+            `=== Instructions ===\n${sectionPrompt.trim()}${extraBlock}` +
             `=== Product ===\n${productCtx}\n\n` +
-            `Return ONLY the final text — no preamble, no quotes, no markdown headers.`,
+            `=== Formatting rules ===\n` +
+            `Return HTML (not Markdown) using ONLY these tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>, <br>.\n` +
+            `- Use <h2> for one major heading (if any), <h3> for sub-headings.\n` +
+            `- Use <ul><li> for bullet lists, <ol><li> for numbered.\n` +
+            `- Use <strong> for key benefits and important phrases.\n` +
+            `- Use <em> for emphasis, <u> sparingly for crucial details.\n` +
+            `- Short paragraphs (2-3 sentences max).\n` +
+            `Return ONLY the HTML — no preamble, no \`\`\`html, no quotes around the output.`,
         },
       ],
     });
@@ -347,6 +361,18 @@ export async function generateSectionTextAction(
       .join("\n")
       .trim();
     if (!text) return { ok: false, error: "Claude zwrócił pusty tekst." };
+
+    const inp = msg.usage.input_tokens ?? 0;
+    const out = msg.usage.output_tokens ?? 0;
+    const usd = (inp * 3) / 1_000_000 + (out * 15) / 1_000_000;
+    void logProductAiCost({
+      productId,
+      companyId,
+      action: "TEXT_GEN",
+      label: `Generuj tekst sekcji "${section.name}" (${side})`,
+      usd,
+      metadata: { inputTokens: inp, outputTokens: out, model: "claude-sonnet-4-6" },
+    });
     return { ok: true, text };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Błąd AI." };
@@ -362,6 +388,9 @@ export async function generateSectionImageAction(
   productId: string,
   sectionId: string,
   side: "left" | "right",
+  extraPrompt: string = "",
+  extraRefUrls: string[] = [],
+  regenerateFromUrl: string | null = null,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
     await requireUser();
@@ -405,16 +434,31 @@ export async function generateSectionImageAction(
     const { generateProductPhoto } = await import("@/lib/photo-gemini");
     const { uploadFile } = await import("@/lib/storage");
 
+    const refs = [
+      ...(regenerateFromUrl ? [regenerateFromUrl] : []),
+      ...extraRefUrls
+        .filter((u) => typeof u === "string" && u.length > 0)
+        .slice(0, 4),
+      ...product.images.map((i) => i.url),
+    ];
+    const editHint = regenerateFromUrl
+      ? `\n\nThis is a RE-EDIT. The FIRST attached reference is the current image to edit — keep its composition, camera angle, framing exactly. Apply only the change described.\n`
+      : "";
+    const extraBlock = extraPrompt?.trim()
+      ? `\n\nOperator additional context: ${extraPrompt.trim()}\n`
+      : "";
     const finalPrompt =
       `${sectionPrompt.trim()}\n\n` +
       `Product: ${product.name}${product.color ? `, color: ${product.color}` : ""}\n` +
-      `Section context: ${section.name}`;
+      `Section context: ${section.name}` +
+      extraBlock +
+      editHint;
 
     const result = await generateProductPhoto({
       prompt: finalPrompt,
       quality: "NANO_BANANA_PRO",
       aspectRatio: "1:1",
-      referenceImageUrls: product.images.map((i) => i.url),
+      referenceImageUrls: refs,
     });
     if (!result.ok) return { ok: false, error: result.error };
 
@@ -426,6 +470,21 @@ export async function generateSectionImageAction(
     );
     const uploaded = await uploadFile(file, {
       folder: `products/${product.id}/images`,
+    });
+
+    void logProductAiCost({
+      productId: product.id,
+      companyId,
+      action: regenerateFromUrl ? "IMAGE_EDIT" : "IMAGE_GEN",
+      label: regenerateFromUrl
+        ? `Re-edit obraz sekcji "${section.name}" (${side})`
+        : `Generuj obraz sekcji "${section.name}" (${side})`,
+      usd: NANO_BANANA_PRO_USD,
+      metadata: {
+        model: "gemini-3-pro-image-preview",
+        refs: refs.length,
+        regenerate: !!regenerateFromUrl,
+      },
     });
     return { ok: true, url: uploaded.url };
   } catch (e) {
@@ -739,6 +798,21 @@ export async function aiGenerateSalesDraftForProductAction(
       (cacheCreateTokens * 3.75) / 1_000_000 +
       (cacheReadTokens * 0.3) / 1_000_000 +
       webSearches * 0.01;
+
+    void logProductAiCost({
+      productId,
+      companyId,
+      action: "DRAFT_TEMPLATE",
+      label: `AI draft szablonu "${template.name}"`,
+      usd,
+      metadata: {
+        inputTokens,
+        outputTokens,
+        webSearches,
+        sectionCount: draft.sections.length,
+        model: "claude-sonnet-4-6",
+      },
+    });
 
     return {
       ok: true,
@@ -1108,6 +1182,22 @@ export async function copyDescriptionTemplateFromProductAction(
 
     revalidatePath(`/sprzedaz/produkty/${destProductId}`);
     revalidatePath("/sprzedaz/szablony-opisu");
+
+    if (cost) {
+      void logProductAiCost({
+        productId: destProductId,
+        companyId,
+        action: "COPY_TEMPLATE_AI",
+        label: `Skopiuj+dostosuj szablon z "${source.name}"`,
+        usd: cost.usd,
+        metadata: {
+          inputTokens: cost.inputTokens,
+          outputTokens: cost.outputTokens,
+          sourceProductId,
+          model: "claude-sonnet-4-6",
+        },
+      });
+    }
 
     return {
       ok: true,

@@ -17,6 +17,7 @@ import { SalesCardEditor } from "./_components/sales-card-editor";
 import { ProductGalleryClickable } from "./_components/product-gallery-clickable";
 import { AddCustomPhotoButton } from "./_components/custom-photo-button";
 import { CopyFromProductButton } from "./_components/copy-from-product-button";
+import { AiCostLog } from "./_components/ai-cost-log";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function SprzedazProduktDetailPage({
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex items-center justify-between gap-2 text-xs">
         <Link
           href="/sprzedaz/produkty"
           className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
@@ -79,6 +80,7 @@ export default async function SprzedazProduktDetailPage({
           <ArrowLeft className="size-3.5" />
           Wszystkie produkty
         </Link>
+        <AiCostLog productId={product.id} />
       </div>
 
       {/* Header z grafiką + danymi */}

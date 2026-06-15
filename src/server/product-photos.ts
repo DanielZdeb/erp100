@@ -14,6 +14,9 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { revalidateProductPaths } from "@/lib/revalidate-product";
+import { logProductAiCost } from "@/server/product-ai-costs";
+
+const NANO_BANANA_PRO_USD = 0.134;
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { uploadFile } from "@/lib/storage";
@@ -727,6 +730,15 @@ export async function editProductImageWithAiAction(
       console.error(`[ai-edit ${productImageId}] background error:`, e);
     });
 
+    void logProductAiCost({
+      productId: original.productId,
+      companyId,
+      action: "IMAGE_EDIT",
+      label: `Edycja AI: ${prompt.trim().slice(0, 80)}`,
+      usd: NANO_BANANA_PRO_USD,
+      metadata: { refs: sanitizedRefs.length, model: "gemini-3-pro-image-preview" },
+    });
+
     return { ok: true, pendingImageId: pending.id };
   } catch (e) {
     return {
@@ -919,6 +931,18 @@ export async function generateCustomProductPhotosAction(
       aspectRatio,
     }).catch((e) => {
       console.error(`[custom-gen ${productId}] background error:`, e);
+    });
+
+    void logProductAiCost({
+      productId: product.id,
+      companyId,
+      action: "CUSTOM_GEN",
+      label: `Custom gen ${shots.length} × Nano Banana`,
+      usd: NANO_BANANA_PRO_USD * shots.length,
+      metadata: {
+        shots: shots.length,
+        groupPrompt: input.groupPrompt.slice(0, 200),
+      },
     });
 
     return {
@@ -1192,6 +1216,15 @@ export async function bulkEditProductImagesAiAction(
       }
     })();
 
+    void logProductAiCost({
+      productId,
+      companyId,
+      action: "BULK_EDIT",
+      label: `Bulk-edit ${pending.length} × "${prompt.trim().slice(0, 60)}"`,
+      usd: NANO_BANANA_PRO_USD * pending.length,
+      metadata: { count: pending.length, refs: sanitizedRefs.length },
+    });
+
     return { ok: true, queued: pending.length };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Blad." };
@@ -1320,6 +1353,15 @@ export async function copyImagesFromProductAction(
         });
       }
     })();
+
+    void logProductAiCost({
+      productId: destProductId,
+      companyId,
+      action: "COPY_IMAGES_AI",
+      label: `Z innego produktu (AI) ${pending.length} × "${options.prompt!.trim().slice(0, 60)}"`,
+      usd: NANO_BANANA_PRO_USD * pending.length,
+      metadata: { count: pending.length, refs: refs.length },
+    });
 
     return { ok: true, createdCount: pending.length };
   } catch (e) {

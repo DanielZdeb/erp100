@@ -29,6 +29,7 @@ import {
 } from "@/server/description-templates";
 import { formatPln, formatUsd } from "@/lib/usd-to-pln";
 import { Input } from "@/components/ui/input";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   Dialog,
   DialogContent,
@@ -723,126 +724,123 @@ function SlotEditor({
   onChange: (v: string | null) => void;
   availableImages: ImageAsset[];
 }) {
-  const [generating, setGenerating] = useState(false);
-
-  async function handleGenerateText() {
-    setGenerating(true);
-    try {
-      const r = await generateSectionTextAction(productId, sectionId, side);
-      if (!r.ok) {
-        toast.error(r.error || "Nie udało się wygenerować tekstu");
-        return;
-      }
-      onChange(r.text);
-      toast.success("Tekst wygenerowany");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nie udało się");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function handleGenerateImage() {
-    setGenerating(true);
-    try {
-      const r = await generateSectionImageAction(productId, sectionId, side);
-      if (!r.ok) {
-        toast.error(r.error || "Nie udało się wygenerować obrazu");
-        return;
-      }
-      onChange(r.url);
-      toast.success("Obraz wygenerowany");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nie udało się");
-    } finally {
-      setGenerating(false);
-    }
-  }
+  const [dialogOpen, setDialogOpen] = useState(false);
+  // Dla obrazka: regenerateFromUrl=URL kiedy uzytkownik klika "Edit AI" na istniejacym
+  const [regenerateUrl, setRegenerateUrl] = useState<string | null>(null);
 
   if (kind === "TEXT") {
     return (
+      <>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+              <FileText className="size-3" /> Tekst
+            </div>
+            {aiTextPrompt ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 gap-1 text-[10px]"
+                onClick={() => {
+                  setRegenerateUrl(null);
+                  setDialogOpen(true);
+                }}
+                title={`Prompt: ${aiTextPrompt}`}
+              >
+                <Sparkles className="size-3 text-emerald-600" />
+                Generuj AI
+              </Button>
+            ) : null}
+          </div>
+          <RichTextEditor
+            value={value ?? ""}
+            onChange={(html) => onChange(html || null)}
+            placeholder={hint ?? "Wpisz tekst opisu..."}
+          />
+          {hint ? (
+            <p className="text-[10px] text-slate-400">Hint: {hint}</p>
+          ) : null}
+        </div>
+        {dialogOpen && (
+          <SlotGenerationDialog
+            kind="TEXT"
+            productId={productId}
+            sectionId={sectionId}
+            side={side}
+            basePrompt={aiTextPrompt ?? ""}
+            availableImages={availableImages}
+            regenerateFromUrl={null}
+            onClose={() => setDialogOpen(false)}
+            onResult={(v) => {
+              onChange(v);
+              setDialogOpen(false);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-            <FileText className="size-3" /> Tekst
+            <ImageIcon className="size-3" /> Obraz
           </div>
-          {aiTextPrompt ? (
+          {aiImagePrompt ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
               className="h-6 px-2 gap-1 text-[10px]"
-              onClick={handleGenerateText}
-              disabled={generating}
-              title={`Prompt: ${aiTextPrompt}`}
+              onClick={() => {
+                setRegenerateUrl(null);
+                setDialogOpen(true);
+              }}
+              title={`Prompt: ${aiImagePrompt}`}
             >
-              {generating ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Sparkles className="size-3 text-emerald-600" />
-              )}
+              <Sparkles className="size-3 text-violet-600" />
               Generuj AI
             </Button>
           ) : null}
         </div>
-        <Textarea
-          rows={4}
-          placeholder={hint ?? "Wpisz tekst opisu..."}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value || null)}
-          className="text-xs"
-        />
-        {hint ? (
-          <p className="text-[10px] text-slate-400">Hint: {hint}</p>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-          <ImageIcon className="size-3" /> Obraz
-        </div>
-        {aiImagePrompt ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-6 px-2 gap-1 text-[10px]"
-            onClick={handleGenerateImage}
-            disabled={generating}
-            title={`Prompt: ${aiImagePrompt}`}
-          >
-            {generating ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Sparkles className="size-3 text-violet-600" />
-            )}
-            Generuj AI
-          </Button>
-        ) : null}
-      </div>
-      {value ? (
-        <div className="relative rounded ring-1 ring-slate-200 overflow-hidden aspect-video bg-slate-50">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="" className="size-full object-cover" />
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="absolute top-1 right-1 size-5 rounded-full bg-rose-500 text-white text-[12px] grid place-items-center hover:bg-rose-600"
-            title="Usuń wybór"
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <div className="rounded ring-1 ring-dashed ring-slate-300 p-3 text-[11px] text-slate-500 text-center">
-          {hint ?? "Wybierz obraz z galerii poniżej"}
-        </div>
-      )}
-      {availableImages.length > 0 ? (
+        {value ? (
+          <div className="group relative rounded ring-1 ring-slate-200 overflow-hidden aspect-video bg-slate-50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={value} alt="" className="size-full object-cover" />
+            <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/50 transition-colors grid place-items-center">
+              {aiImagePrompt && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegenerateUrl(value);
+                    setDialogOpen(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold uppercase tracking-wide"
+                  title="Edytuj AI"
+                >
+                  <Sparkles className="size-3" />
+                  Edytuj AI
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="absolute top-1 right-1 size-5 rounded-full bg-rose-500 text-white text-[12px] grid place-items-center hover:bg-rose-600"
+              title="Usuń wybór"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <div className="rounded ring-1 ring-dashed ring-slate-300 p-3 text-[11px] text-slate-500 text-center">
+            {hint ?? "Wybierz obraz z galerii poniżej"}
+          </div>
+        )}
+        {availableImages.length > 0 ? (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {availableImages.map((img) => {
             const src = img.thumbnailWebpUrl ?? img.url;
@@ -869,7 +867,305 @@ function SlotEditor({
           Brak grafik w galerii — dodaj je w zakładce „Grafiki produktowe" karty produktu.
         </p>
       )}
-    </div>
+      </div>
+      {dialogOpen && (
+        <SlotGenerationDialog
+          kind="IMAGE"
+          productId={productId}
+          sectionId={sectionId}
+          side={side}
+          basePrompt={aiImagePrompt ?? ""}
+          availableImages={availableImages}
+          regenerateFromUrl={regenerateUrl}
+          onClose={() => setDialogOpen(false)}
+          onResult={(v) => {
+            onChange(v);
+            setDialogOpen(false);
+            setRegenerateUrl(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SlotGenerationDialog({
+  kind,
+  productId,
+  sectionId,
+  side,
+  basePrompt,
+  availableImages,
+  regenerateFromUrl,
+  onClose,
+  onResult,
+}: {
+  kind: "TEXT" | "IMAGE";
+  productId: string;
+  sectionId: string;
+  side: "left" | "right";
+  basePrompt: string;
+  availableImages: ImageAsset[];
+  regenerateFromUrl: string | null;
+  onClose: () => void;
+  onResult: (value: string) => void;
+}) {
+  const [extraPrompt, setExtraPrompt] = useState("");
+  const [extraRefs, setExtraRefs] = useState<string[]>([]);
+  const [pending, setPending] = useState(false);
+
+  function toggleRef(url: string) {
+    setExtraRefs((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url].slice(0, 4),
+    );
+  }
+
+  async function uploadFromDisk(file: File) {
+    if (!file) return;
+    if (extraRefs.length >= 4) {
+      toast.error("Maksymalnie 4 referencje.");
+      return;
+    }
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { uploadAiRefAction } = await import("@/server/product-photos");
+      const r = await uploadAiRefAction(fd);
+      if (r.ok) {
+        setExtraRefs((prev) => [...prev, r.url].slice(0, 4));
+        toast.success("Referencja wgrana");
+      } else {
+        toast.error(r.error);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Blad uploadu");
+    }
+  }
+
+  async function submit() {
+    setPending(true);
+    try {
+      if (kind === "TEXT") {
+        const r = await generateSectionTextAction(
+          productId,
+          sectionId,
+          side,
+          extraPrompt.trim(),
+        );
+        if (r.ok) {
+          onResult(r.text);
+          toast.success("Tekst wygenerowany");
+        } else {
+          toast.error(r.error);
+        }
+      } else {
+        const r = await generateSectionImageAction(
+          productId,
+          sectionId,
+          side,
+          extraPrompt.trim(),
+          extraRefs,
+          regenerateFromUrl,
+        );
+        if (r.ok) {
+          onResult(r.url);
+          toast.success(regenerateFromUrl ? "Obraz zaktualizowany" : "Obraz wygenerowany");
+        } else {
+          toast.error(r.error);
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Blad");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const isImage = kind === "IMAGE";
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-2xl w-[calc(100%-2rem)] max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b">
+          <DialogTitle className="text-base flex items-center gap-2">
+            <Sparkles className={cn("size-4", isImage ? "text-violet-600" : "text-emerald-600")} />
+            {regenerateFromUrl
+              ? "Edytuj AI (Nano Banana Pro)"
+              : isImage
+                ? "Generuj obraz AI (Nano Banana Pro)"
+                : "Generuj tekst AI (Claude)"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 overflow-y-auto px-5 py-4 flex-1 min-h-0">
+          {regenerateFromUrl && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-500">Aktualny obraz (zostanie zachowany jako kompozycja)</Label>
+              <div className="aspect-video rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50 max-w-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={regenerateFromUrl} alt="" className="size-full object-cover" />
+              </div>
+            </div>
+          )}
+
+          {basePrompt && (
+            <div className="rounded p-2 text-[11px] bg-slate-50 ring-1 ring-slate-200">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Bazowy prompt z szablonu
+              </span>
+              <p className="text-slate-700 whitespace-pre-wrap mt-1">{basePrompt}</p>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="slot-extra" className="text-sm">
+              {regenerateFromUrl
+                ? "Co zmienić? (wymagane)"
+                : "Dodatkowy kontekst (opcjonalne)"}
+            </Label>
+            <Textarea
+              id="slot-extra"
+              rows={4}
+              placeholder={
+                regenerateFromUrl
+                  ? "np. zmień kolor produktu na granatowy · wymień tło na białe studio"
+                  : "np. dodaj akcent na trwałość · krótszy ton · podkreśl ekologię"
+              }
+              value={extraPrompt}
+              onChange={(e) => setExtraPrompt(e.target.value)}
+              autoFocus
+            />
+            <p className="text-[10px] text-slate-500">
+              {regenerateFromUrl
+                ? "Kompozycja, kąt kamery i pozycja zostaną zachowane — AI zmieni tylko to o co poprosisz."
+                : "Twój dopisek zostanie połączony z bazowym promptem z szablonu."}
+            </p>
+          </div>
+
+          {isImage && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Label className="text-sm">Dodatkowe zdjęcia referencyjne</Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-[10px]"
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "image/*";
+                      input.onchange = () => {
+                        const f = input.files?.[0];
+                        if (f) void uploadFromDisk(f);
+                      };
+                      input.click();
+                    }}
+                    disabled={pending || extraRefs.length >= 4}
+                  >
+                    Z dysku
+                  </Button>
+                </div>
+              </div>
+              {extraRefs.length > 0 && (
+                <div className="flex gap-1.5 flex-wrap p-2 rounded bg-slate-50 ring-1 ring-slate-200">
+                  {extraRefs.map((url, i) => (
+                    <div
+                      key={url}
+                      className="relative size-14 rounded ring-2 ring-violet-500 overflow-hidden"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="" className="size-full object-cover" />
+                      <span className="absolute top-0 right-0 size-4 grid place-items-center text-[9px] font-bold text-white bg-violet-600 rounded-bl">
+                        {i + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExtraRefs((prev) => prev.filter((u) => u !== url))
+                        }
+                        className="absolute bottom-0 left-0 right-0 py-0.5 bg-slate-900/70 hover:bg-rose-600 text-white text-[9px] font-bold transition-colors"
+                      >
+                        Usuń
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {availableImages.length > 0 && (
+                <>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Z galerii tego produktu (max 4 łącznie):
+                  </p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {availableImages.map((img) => {
+                      const selected = extraRefs.includes(img.url);
+                      const disabled = !selected && extraRefs.length >= 4;
+                      return (
+                        <button
+                          key={img.url}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => toggleRef(img.url)}
+                          className={cn(
+                            "size-12 rounded ring-1 overflow-hidden shrink-0 transition-all",
+                            selected
+                              ? "ring-2 ring-violet-500"
+                              : "ring-slate-200 hover:ring-violet-300",
+                            disabled && "opacity-40 cursor-not-allowed",
+                          )}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.thumbnailWebpUrl ?? img.url}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
+            Koszt: {isImage ? "$0.134 (~0.54 zł)" : "~$0.003 (~0.01 zł)"} ·{" "}
+            {isImage ? "Nano Banana Pro 2K" : "Claude Sonnet 4.6"}
+          </div>
+        </div>
+
+        <DialogFooter className="px-5 py-3 border-t">
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Anuluj
+          </Button>
+          <Button
+            onClick={submit}
+            disabled={pending || (!!regenerateFromUrl && !extraPrompt.trim())}
+            className={cn(
+              "gap-1.5",
+              isImage
+                ? "bg-violet-600 hover:bg-violet-700"
+                : "bg-emerald-600 hover:bg-emerald-700",
+            )}
+          >
+            {pending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Generuję...
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-3.5" />
+                {regenerateFromUrl ? "Generuj edycję" : "Generuj"}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
