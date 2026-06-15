@@ -11,7 +11,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2 } from "lucide-react";
+import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   setProductDescriptionContentAction,
   generateSectionTextAction,
   generateSectionImageAction,
+  aiGenerateSalesDraftForProductAction,
 } from "@/server/description-templates";
 
 type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
@@ -79,6 +80,42 @@ export function SalesCardEditor({
     initialContent,
   );
   const [pending, startTransition] = useTransition();
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftResult, setDraftResult] = useState<{
+    templateName: string;
+    missingInfo: string[];
+    researchSummary: string;
+  } | null>(null);
+
+  async function generateAiDraft() {
+    if (
+      !confirm(
+        "AI przeszuka sieć dla podobnych produktów i wygeneruje nowy, dopasowany szablon + treść opisu. Operacja zajmie ~30-60s. Kontynuować?",
+      )
+    )
+      return;
+    setDraftLoading(true);
+    try {
+      const r = await aiGenerateSalesDraftForProductAction(productId);
+      if (r.ok) {
+        setDraftResult({
+          templateName: r.templateName,
+          missingInfo: r.missingInfo,
+          researchSummary: r.researchSummary,
+        });
+        toast.success(`Wygenerowano szablon "${r.templateName}"`, {
+          duration: 6000,
+        });
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się");
+    } finally {
+      setDraftLoading(false);
+    }
+  }
 
   const sections =
     selectedTemplateSections ??
@@ -142,14 +179,75 @@ export function SalesCardEditor({
             z galerii produktu.
           </p>
         </div>
-        <Button
-          onClick={saveContent}
-          disabled={pending || !templateId}
-          className="gap-1.5"
-        >
-          <Save className="size-3.5" /> Zapisz
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={generateAiDraft}
+            disabled={pending || draftLoading}
+            className="gap-1.5 ring-1 ring-violet-200 text-violet-700 hover:bg-violet-50"
+            title="AI przeszuka sieć i wygeneruje dopasowany szablon + treść opisu dla tego produktu"
+          >
+            {draftLoading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Generuję draft...
+              </>
+            ) : (
+              <>
+                <Wand2 className="size-3.5" /> Wygeneruj szablon AI
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={saveContent}
+            disabled={pending || !templateId}
+            className="gap-1.5"
+          >
+            <Save className="size-3.5" /> Zapisz
+          </Button>
+        </div>
       </header>
+
+      {draftResult && (
+        <div className="rounded-lg ring-1 ring-violet-200 bg-violet-50/40 p-3 space-y-2 text-xs">
+          <div className="flex items-start justify-between gap-2">
+            <div className="font-semibold text-violet-900 flex items-center gap-1.5">
+              <Sparkles className="size-3.5" />
+              AI-draft: {draftResult.templateName}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftResult(null)}
+              className="text-[10px] text-slate-500 hover:text-slate-700 uppercase tracking-wide"
+            >
+              Schowaj
+            </button>
+          </div>
+          {draftResult.researchSummary && (
+            <p className="text-[11px] text-slate-700">
+              <strong className="text-slate-900">Co AI wyczytało z sieci:</strong>{" "}
+              {draftResult.researchSummary}
+            </p>
+          )}
+          {draftResult.missingInfo.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1">
+                <AlertCircle className="size-3" />
+                Brakujące dane (uzupełnij ręcznie):
+              </p>
+              <ul className="list-disc list-inside text-[11px] text-amber-900 space-y-0.5 pl-1">
+                {draftResult.missingInfo.map((m, i) => (
+                  <li key={i}>{m}</li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-slate-500">
+                Te informacje znajdziesz w sekcjach jako placeholdery{" "}
+                <code className="bg-white px-1 rounded">[BRAK: ...]</code>.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="tpl-select" className="text-sm">

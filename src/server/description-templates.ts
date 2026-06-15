@@ -455,3 +455,269 @@ export async function setProductDescriptionContentAction(
   revalidatePath(`/sprzedaz/produkty/${productId}`);
   return { ok: true as const };
 }
+
+// ─── AI auto-draft: research + szablon + content w 1 wywolaniu ─────────
+
+/**
+ * Klucze layout-u do walidacji w JSON schema.
+ */
+const LAYOUT_VALUES = ["TEXT_TEXT", "IMAGE_TEXT", "TEXT_IMAGE", "IMAGE_IMAGE"] as const;
+type LayoutT = (typeof LAYOUT_VALUES)[number];
+
+/**
+ * Wywoluje Claude Sonnet z web_search_20250305 + tool_use o nazwie submit_draft.
+ * Claude:
+ *  1. Szuka w sieci podobnych produktow (max 3 zapytania)
+ *  2. Projektuje szablon (3-7 sekcji) pod konkretny produkt
+ *  3. Generuje gotowy content per sekcja (tekst sformatowany markdownem)
+ *  4. Marker `[BRAK: opis czego]` dla danych ktorych nie zna
+ *  5. Zwraca tez `missingInfo` — pytania do operatora co warto uzupelnic
+ *
+ * Po stronie naszej: tworzymy DescriptionTemplate + sekcje, przypisujemy
+ * do produktu, zapisujemy content JSON. Zwracamy templateId + missingInfo.
+ */
+export async function aiGenerateSalesDraftForProductAction(
+  productId: string,
+): Promise<
+  | { ok: true; templateId: string; templateName: string; missingInfo: string[]; researchSummary: string }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return {
+        ok: false,
+        error: "Brak ANTHROPIC_API_KEY w env — generowanie wymaga klucza Claude.",
+      };
+    }
+
+    const product = await db.product.findFirst({
+      where: { id: productId, companyId },
+      select: {
+        id: true,
+        name: true,
+        productCode: true,
+        eanCode: true,
+        color: true,
+        colorCode: true,
+        weightKg: true,
+        shortDescription: true,
+        category: { select: { name: true } },
+      },
+    });
+    if (!product) return { ok: false, error: "Produkt nie istnieje." };
+
+    const company = await db.company.findFirst({
+      where: { id: companyId },
+      select: { name: true },
+    });
+
+    const productCtx = [
+      `Name: ${product.name}`,
+      product.productCode && `SKU: ${product.productCode}`,
+      product.eanCode && `EAN: ${product.eanCode}`,
+      product.category?.name && `Category: ${product.category.name}`,
+      product.color && `Color: ${product.color}`,
+      product.colorCode && `Color code: ${product.colorCode}`,
+      product.weightKg && `Weight: ${product.weightKg} kg`,
+      product.shortDescription && `Existing short description: ${product.shortDescription}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const userPrompt = [
+      `You are a senior Polish e-commerce copywriter and product page architect.`,
+      `Your job is to design a TAILORED description template for the following product, and fill it with ready-to-use Polish copy.`,
+      ``,
+      `## Product`,
+      productCtx,
+      company?.name ? `Store: ${company.name}` : null,
+      ``,
+      `## Steps you MUST follow`,
+      `1. Use the web_search tool (max 3 queries) to research similar products sold online in Poland or globally.`,
+      `   - Identify: typical buyer questions, common selling points, what details customers expect to see, frequent objections.`,
+      `   - Look for direct competitors of THIS specific product if recognizable.`,
+      `2. Based on research + product data, decide on a custom set of 4-7 description sections that will sell THIS product well.`,
+      `   - Each section has a 2-column layout from: TEXT_TEXT, IMAGE_TEXT, TEXT_IMAGE, IMAGE_IMAGE.`,
+      `   - Be strategic: hero, korzysci, specyfikacja, dla kogo, uzycie, FAQ, CTA — wybierz co pasuje, nie wszystko.`,
+      `   - Mix image and text — visual products need more IMAGE slots, technical ones more TEXT.`,
+      `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise English photography brief (used later by Nano Banana Pro).`,
+      `4. For each TEXT slot fill 'leftTextPrompt' or 'rightTextPrompt' with a Claude prompt for regenerating that copy on demand.`,
+      `5. Also fill 'content.leftText' / 'content.rightText' with READY-TO-USE Polish copy for the operator. Use simple markdown for readability:`,
+      `   - Use bullets (- ) or numbered lists where helpful.`,
+      `   - Use **bold** for key benefits.`,
+      `   - Short paragraphs (2-3 sentences max).`,
+      `6. When you DO NOT KNOW a specific factual detail about this product (exact dimensions, material composition, certifications, warranty period etc.), write '[BRAK: <co dokladnie potrzeba>]' inline AND add the question to 'missingInfo' array. Do NOT make up specs.`,
+      `7. The 'templateName' should be human readable in Polish: e.g. "Szablon: <kategoria produktu>".`,
+      `8. Provide a 'researchSummary' (2-3 zdania po polsku) summarising what you learned about this product type from the web research.`,
+      ``,
+      `## Output`,
+      `When ready, call the 'submit_draft' tool with the full structured output. Do NOT respond with plain text — only via tool call.`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const sectionSchema = {
+      type: "object" as const,
+      properties: {
+        name: { type: "string" as const, description: "Display name (Polish)" },
+        layout: { type: "string" as const, enum: LAYOUT_VALUES as readonly string[] },
+        leftHint: { type: ["string", "null"] as const, description: "Operator hint for left slot" },
+        rightHint: { type: ["string", "null"] as const, description: "Operator hint for right slot" },
+        leftImagePrompt: { type: ["string", "null"] as const },
+        rightImagePrompt: { type: ["string", "null"] as const },
+        leftTextPrompt: { type: ["string", "null"] as const },
+        rightTextPrompt: { type: ["string", "null"] as const },
+        content: {
+          type: "object" as const,
+          properties: {
+            leftText: { type: ["string", "null"] as const },
+            rightText: { type: ["string", "null"] as const },
+          },
+        },
+      },
+      required: ["name", "layout"],
+    };
+
+    const msg = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 12000,
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 3,
+        },
+        {
+          name: "submit_draft",
+          description: "Submit the final tailored description template + ready content + missingInfo.",
+          input_schema: {
+            type: "object",
+            properties: {
+              templateName: { type: "string" },
+              researchSummary: { type: "string" },
+              sections: {
+                type: "array",
+                minItems: 3,
+                maxItems: 8,
+                items: sectionSchema,
+              },
+              missingInfo: {
+                type: "array",
+                items: { type: "string" },
+                description: "List of questions / data points the operator must provide because they were unknown to AI",
+              },
+            },
+            required: ["templateName", "sections", "missingInfo", "researchSummary"],
+          },
+        },
+      ],
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    type DraftSection = {
+      name: string;
+      layout: LayoutT;
+      leftHint?: string | null;
+      rightHint?: string | null;
+      leftImagePrompt?: string | null;
+      rightImagePrompt?: string | null;
+      leftTextPrompt?: string | null;
+      rightTextPrompt?: string | null;
+      content?: {
+        leftText?: string | null;
+        rightText?: string | null;
+      };
+    };
+    type Draft = {
+      templateName: string;
+      researchSummary: string;
+      sections: DraftSection[];
+      missingInfo: string[];
+    };
+
+    const draftBlock = msg.content.find(
+      (c): c is Extract<typeof c, { type: "tool_use" }> =>
+        c.type === "tool_use" && c.name === "submit_draft",
+    );
+    if (!draftBlock) {
+      return {
+        ok: false,
+        error:
+          "Claude nie wywolal submit_draft. Sprobuj jeszcze raz lub sprawdz logi.",
+      };
+    }
+    const draft = draftBlock.input as Draft;
+    if (!draft?.sections || draft.sections.length === 0) {
+      return { ok: false, error: "AI zwrocilo pusty draft." };
+    }
+
+    const cleanLayout = (l: string): LayoutT =>
+      (LAYOUT_VALUES as readonly string[]).includes(l) ? (l as LayoutT) : "TEXT_TEXT";
+
+    const template = await db.descriptionTemplate.create({
+      data: {
+        companyId,
+        name: draft.templateName?.trim().slice(0, 120) || `AI dla: ${product.name}`,
+        sections: {
+          create: draft.sections.map((s, i) => ({
+            name: s.name?.trim().slice(0, 120) || `Sekcja ${i + 1}`,
+            layout: cleanLayout(s.layout),
+            sortOrder: i,
+            leftHint: s.leftHint?.trim() || null,
+            rightHint: s.rightHint?.trim() || null,
+            leftImagePrompt: s.leftImagePrompt?.trim() || null,
+            rightImagePrompt: s.rightImagePrompt?.trim() || null,
+            leftTextPrompt: s.leftTextPrompt?.trim() || null,
+            rightTextPrompt: s.rightTextPrompt?.trim() || null,
+          })),
+        },
+      },
+      include: {
+        sections: { orderBy: { sortOrder: "asc" } },
+      },
+    });
+
+    const content: Record<
+      string,
+      { leftText?: string | null; rightText?: string | null }
+    > = {};
+    template.sections.forEach((dbSec, i) => {
+      const draftSec = draft.sections[i];
+      if (draftSec?.content) {
+        content[dbSec.id] = {
+          leftText: draftSec.content.leftText ?? null,
+          rightText: draftSec.content.rightText ?? null,
+        };
+      }
+    });
+
+    await db.product.update({
+      where: { id: productId },
+      data: {
+        descriptionTemplateId: template.id,
+        descriptionContentJson: content,
+      },
+    });
+
+    revalidatePath(`/sprzedaz/produkty/${productId}`);
+    revalidatePath("/sprzedaz/szablony-opisu");
+
+    return {
+      ok: true,
+      templateId: template.id,
+      templateName: template.name,
+      missingInfo: Array.isArray(draft.missingInfo) ? draft.missingInfo : [],
+      researchSummary: draft.researchSummary ?? "",
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Blad AI.",
+    };
+  }
+}
