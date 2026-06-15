@@ -479,10 +479,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   // ─── Logo firmy fixed w prawym górnym rogu każdej strony ───
-  fixedLogo: {
+  // Wrapper z białym tłem + paddingiem — SVG / PNG z przezroczystym tłem
+  // zachowuje kontrast na kolorowym/ciemnym headerze. Bez wrappera czytaliśmy
+  // ciemne ikony na ciemnym tle (acro4f logo to figurki na kolorowych kółkach,
+  // pomiędzy nimi przezroczystość showed-through cover BG).
+  fixedLogoWrapper: {
     position: "absolute",
     top: 16,
     right: 16,
+    backgroundColor: "#ffffff",
+    padding: 4,
+    borderRadius: 4,
+  },
+  fixedLogo: {
     width: 80,
     height: 32,
     objectFit: "contain",
@@ -601,11 +610,12 @@ export function OrderPlPdf(
       {/* ───────── Strona 1 — okładka: zamawiający + opis zamówienia ───────── */}
       <Page size="A4" style={styles.coverPage}>
         {props.companyLogoDataUri && (
-          <PdfImage
-            src={props.companyLogoDataUri}
-            style={styles.fixedLogo}
-            fixed
-          />
+          <View style={styles.fixedLogoWrapper} fixed>
+            <PdfImage
+              src={props.companyLogoDataUri}
+              style={styles.fixedLogo}
+            />
+          </View>
         )}
         <Text style={styles.coverTitle}>Zamówienie {props.orderNumber}</Text>
         <Text style={styles.coverSubtitle}>
@@ -727,11 +737,12 @@ export function OrderPlPdf(
       {/* ───────── Strona pozycje + belki (po sekcjach) ───────── */}
       <Page size="A4" style={styles.page}>
         {props.companyLogoDataUri && (
-          <PdfImage
-            src={props.companyLogoDataUri}
-            style={styles.fixedLogo}
-            fixed
-          />
+          <View style={styles.fixedLogoWrapper} fixed>
+            <PdfImage
+              src={props.companyLogoDataUri}
+              style={styles.fixedLogo}
+            />
+          </View>
         )}
         {/* Header */}
         <View style={styles.header}>
@@ -1207,11 +1218,12 @@ function SectionPage({
   return (
     <Page size="A4" style={styles.sectionPage}>
       {companyLogoDataUri && (
-        <PdfImage
-          src={companyLogoDataUri}
-          style={styles.fixedLogo}
-          fixed
-        />
+        <View style={styles.fixedLogoWrapper} fixed>
+          <PdfImage
+            src={companyLogoDataUri}
+            style={styles.fixedLogo}
+          />
+        </View>
       )}
       <View style={styles.sectionTopBar}>
         <Text style={styles.sectionPageOrder}>
