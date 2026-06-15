@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { formatPln, formatUsd } from "@/lib/usd-to-pln";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -362,8 +363,9 @@ export function AddCustomPhotoButton({
             </div>
 
             <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
-              <strong>Koszt:</strong> {shots.length} × $0.134 = $
-              {(shots.length * 0.134).toFixed(3)} (Nano Banana Pro 2K).
+              <strong>Koszt:</strong> {shots.length} × {formatUsd(0.134, 3)} ={" "}
+              <strong>{formatUsd(shots.length * 0.134, 3)}</strong>{" "}
+              (~{formatPln(shots.length * 0.134)}) (Nano Banana Pro 2K).
               Generowanie leci w tle — możesz zamknąć dialog, zdjęcia pojawią
               się w galerii za 30-90 s.
             </div>

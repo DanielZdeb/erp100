@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { formatPln, formatUsd } from "@/lib/usd-to-pln";
 import {
   Dialog,
   DialogContent,
@@ -638,6 +639,11 @@ function EditAiDialog({
             setExtraRefs={setExtraRefs}
             disabled={pending}
           />
+
+          <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
+            <strong>Koszt:</strong> {formatUsd(0.134, 3)} (~{formatPln(0.134)}) /
+            edycja (Nano Banana Pro 2K)
+          </div>
         </div>
 
         <DialogFooter className="px-5 py-3 border-t">
@@ -750,8 +756,11 @@ function BulkEditDialog({
               autoFocus
             />
             <p className="text-[10px] text-slate-500">
-              Koszt: ~$0.134 × {selectedIds.length} ={" "}
-              <strong>~${(0.134 * selectedIds.length).toFixed(2)}</strong>
+              Koszt: ~{formatUsd(0.134, 3)} × {selectedIds.length} ={" "}
+              <strong>
+                ~{formatUsd(0.134 * selectedIds.length, 2)} (
+                {formatPln(0.134 * selectedIds.length)})
+              </strong>
             </p>
           </div>
 

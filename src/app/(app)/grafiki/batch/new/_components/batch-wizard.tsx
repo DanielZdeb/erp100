@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { formatPln } from "@/lib/usd-to-pln";
 import {
   LibraryDrillPicker,
   type LibraryDrillItem,
@@ -401,6 +402,9 @@ export function BatchWizard({
             </div>
             <div className="text-sm font-bold tabular-nums text-violet-700">
               {totalImages} zdjęć · ${estimatedCost.toFixed(2)}
+            </div>
+            <div className="text-[10px] tabular-nums text-emerald-700 font-semibold">
+              ~{formatPln(estimatedCost)}
             </div>
           </div>
         </div>

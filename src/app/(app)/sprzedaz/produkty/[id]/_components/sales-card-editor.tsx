@@ -25,6 +25,7 @@ import {
   generateSectionImageAction,
   aiGenerateSalesDraftForProductAction,
 } from "@/server/description-templates";
+import { formatPln, formatUsd } from "@/lib/usd-to-pln";
 
 type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
 
@@ -113,7 +114,7 @@ export function SalesCardEditor({
           cost: r.cost,
         });
         toast.success(
-          `Wygenerowano szablon "${r.templateName}" za $${r.cost.usd.toFixed(4)}`,
+          `Wygenerowano szablon "${r.templateName}" za ${formatUsd(r.cost.usd, 4)} (~${formatPln(r.cost.usd)})`,
           { duration: 8000 },
         );
         router.refresh();
@@ -241,7 +242,11 @@ export function SalesCardEditor({
           )}
           <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-600 bg-white/60 rounded px-2 py-1 ring-1 ring-violet-100">
             <span className="font-semibold text-violet-900">
-              Koszt: ${draftResult.cost.usd.toFixed(4)}
+              Koszt: {formatUsd(draftResult.cost.usd, 4)}
+            </span>
+            <span className="text-slate-400">·</span>
+            <span className="font-semibold text-emerald-700">
+              ~{formatPln(draftResult.cost.usd)}
             </span>
             <span className="text-slate-400">·</span>
             <span>
