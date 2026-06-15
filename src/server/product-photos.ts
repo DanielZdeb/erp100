@@ -736,6 +736,30 @@ export async function editProductImageWithAiAction(
   }
 }
 
+/**
+ * Jesli produkt nie ma jeszcze zdjecia oznaczonego isPrimary (a wiec
+ * nie pokazuje sie nic w listach), promujemy pierwsze READY niearchiwalne
+ * zdjecie wg sortOrder asc na primary. Idempotentne — no-op jesli primary
+ * juz jest.
+ */
+async function ensureProductHasPrimaryImage(productId: string) {
+  const hasPrimary = await db.productImage.findFirst({
+    where: { productId, isPrimary: true, archived: false, status: "READY" },
+    select: { id: true },
+  });
+  if (hasPrimary) return;
+  const candidate = await db.productImage.findFirst({
+    where: { productId, archived: false, status: "READY" },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true },
+  });
+  if (!candidate) return;
+  await db.productImage.update({
+    where: { id: candidate.id },
+    data: { isPrimary: true },
+  });
+}
+
 async function runEditInBackground(params: {
   pendingImageId: string;
   productId: string;
@@ -795,6 +819,7 @@ async function runEditInBackground(params: {
         status: "READY",
       },
     });
+    await ensureProductHasPrimaryImage(params.productId).catch(() => undefined);
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
     await db.productImage
@@ -972,6 +997,9 @@ async function runCustomGenerationInBackground(params: {
           status: "READY",
         },
       });
+      await ensureProductHasPrimaryImage(params.productId).catch(
+        () => undefined,
+      );
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       console.error(
@@ -1296,6 +1324,7 @@ export async function saveImageToProductAction(
       select: { id: true },
     });
 
+    await ensureProductHasPrimaryImage(img.productId).catch(() => undefined);
     revalidateProductPaths(img.productId);
     return { ok: true as const, productImageId: created.id };
   } catch (e) {

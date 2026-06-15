@@ -52,9 +52,10 @@ export default async function SprzedazProduktyPage({
       compositionMode: true,
       category: { select: { name: true } },
       images: {
-        where: { isPrimary: true },
+        where: { archived: false, status: "READY" },
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
         take: 1,
-        select: { thumbnailWebpUrl: true, alt: true },
+        select: { url: true, thumbnailWebpUrl: true, alt: true },
       },
       descriptionTemplate: { select: { id: true, name: true } },
     },
@@ -126,10 +127,10 @@ export default async function SprzedazProduktyPage({
                         href={`/sprzedaz/produkty/${p.id}`}
                         className="block"
                       >
-                        {p.images[0]?.thumbnailWebpUrl ? (
+                        {p.images[0] ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={p.images[0].thumbnailWebpUrl}
+                            src={p.images[0].thumbnailWebpUrl ?? p.images[0].url}
                             alt={p.images[0].alt ?? p.name}
                             width={36}
                             height={36}

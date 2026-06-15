@@ -121,7 +121,8 @@ const getWizardLibrary = unstable_cache(
             defaultUnitPriceCny: true,
             defaultUnitPricePln: true,
             images: {
-              where: { isPrimary: true },
+              where: { archived: false, status: "READY" },
+              orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
               take: 1,
               select: { url: true, thumbnailWebpUrl: true },
             },
@@ -401,7 +402,8 @@ export default async function ProduktyPage({
     include: {
       category: { select: { id: true, name: true } },
       images: {
-        where: { isPrimary: true },
+        where: { archived: false, status: "READY" },
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
         take: 1,
         select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
       },
@@ -469,7 +471,8 @@ export default async function ProduktyPage({
               defaultUnitPriceCny: true,
               defaultUnitPricePln: true,
               images: {
-                where: { isPrimary: true },
+                where: { archived: false, status: "READY" },
+                orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                 take: 1,
                 select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
               },
@@ -1275,14 +1278,16 @@ export default async function ProduktyPage({
                           taki sam wzorzec jak items-tab w zamówieniu) */}
                       <td className="px-2 py-2 align-top w-[200px] max-w-[200px]">
                         <div className="flex items-start gap-2">
-                          {p.images[0]?.thumbnailWebpUrl ? (
+                          {p.images[0] ? (
                             // 144×144 WebP miniaturka (~5 KB) — zwykła <img>
                             // wystarczy, bo plik jest już zoptymalizowany.
-                            // Pomijamy next/image (sharp on-demand cache problem
-                            // z lokalnymi /uploads/).
+                            // Fallback: jeśli brak thumb (np. AI-gen sprzed dorobienia
+                            // sharp lub legacy) — używamy pełnego URL.
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={p.images[0].thumbnailWebpUrl}
+                              src={
+                                p.images[0].thumbnailWebpUrl ?? p.images[0].url
+                              }
                               alt={p.images[0].alt ?? p.name}
                               width={36}
                               height={36}
@@ -1291,9 +1296,6 @@ export default async function ProduktyPage({
                               className="size-9 rounded object-cover bg-muted shrink-0 ring-1 ring-border"
                             />
                           ) : (
-                            // Legacy upload sprzed thumbnail feature'a — placeholder.
-                            // Batch-script (`generate-all-thumbnails.ts`) dorobi
-                            // thumb i to się zniknie.
                             <div className="size-9 rounded bg-muted shrink-0 ring-1 ring-border" />
                           )}
                           <div className="min-w-0 flex-1">
@@ -2120,10 +2122,13 @@ export default async function ProduktyPage({
                                 <span className="text-[10px] text-blue-400 select-none">
                                   ↳
                                 </span>
-                                {pc.component.images[0]?.thumbnailWebpUrl ? (
+                                {pc.component.images[0] ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={pc.component.images[0].thumbnailWebpUrl}
+                                    src={
+                                      pc.component.images[0].thumbnailWebpUrl ??
+                                      pc.component.images[0].url
+                                    }
                                     alt={
                                       pc.component.images[0].alt ??
                                       pc.component.name
