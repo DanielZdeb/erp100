@@ -378,12 +378,59 @@ export async function uploadPhotoReferenceAction(
  * Synchroniczne (długie!) — w prod wynieść do background job (np. cron).
  * Na razie running w server action — dla małych batchów (do ~20 obrazów) OK.
  */
+/**
+ * Startuje generowanie batcha w TLE — zwraca natychmiast po oznaczeniu
+ * statusu RUNNING. Faktyczne przetwarzanie leci w Node event loop po
+ * odpowiedzi (fire-and-forget) i aktualizuje DB per-obraz. User może
+ * zamknąć stronę i wrócić później — `batch-results-grid` poll-uje status.
+ *
+ * Wymaga persistent Node process (Docker/Coolify OK; serverless NIE,
+ * bo Vercel zabija proces po response — tam musiałby być queue + worker).
+ */
 export async function startPhotoBatchAction(batchId: string) {
   await requireUser();
   const companyId = await getCurrentCompanyId();
 
   const batch = await db.productPhotoBatch.findFirst({
     where: { id: batchId, companyId },
+    select: {
+      id: true,
+      status: true,
+      _count: { select: { images: { where: { status: "PENDING" } } } },
+    },
+  });
+  if (!batch) throw new Error("Batch nie istnieje");
+  if (batch.status === "RUNNING") {
+    throw new Error("Batch już się generuje");
+  }
+  if (batch._count.images === 0) {
+    return { ok: true as const, message: "Nic do generowania (brak PENDING)", queued: 0 };
+  }
+
+  // Status batcha → RUNNING natychmiast — UI widzi że poszedł
+  await db.productPhotoBatch.update({
+    where: { id: batchId },
+    data: { status: "RUNNING", startedAt: new Date() },
+  });
+
+  // Fire-and-forget — proces leci w tle, response wraca od razu.
+  // `void` + .catch zabezpiecza przed unhandled rejection w event loop.
+  void processBatchInBackground(batchId).catch((e) => {
+    console.error(`[batch ${batchId}] background processing error:`, e);
+  });
+
+  revalidatePath(`/grafiki/batch/${batchId}`);
+  return {
+    ok: true as const,
+    queued: batch._count.images,
+    message: `Generowanie ${batch._count.images} obrazów w tle. Możesz zamknąć kartę — wrócisz później.`,
+  };
+}
+
+/** Faktyczne przetwarzanie batcha — long-running, leci w tle. */
+async function processBatchInBackground(batchId: string) {
+  const batch = await db.productPhotoBatch.findFirst({
+    where: { id: batchId },
     include: {
       template: true,
       images: {
@@ -392,19 +439,7 @@ export async function startPhotoBatchAction(batchId: string) {
       },
     },
   });
-  if (!batch) throw new Error("Batch nie istnieje");
-  if (batch.status === "RUNNING") {
-    throw new Error("Batch już się generuje");
-  }
-  if (batch.images.length === 0) {
-    return { ok: true as const, message: "Nic do generowania (brak PENDING)" };
-  }
-
-  // Status batcha → RUNNING
-  await db.productPhotoBatch.update({
-    where: { id: batchId },
-    data: { status: "RUNNING", startedAt: new Date() },
-  });
+  if (!batch) return;
 
   // Pobierz produkty + ich primary images (do reference dla koloru)
   const products = await db.product.findMany({
@@ -548,12 +583,11 @@ export async function startPhotoBatchAction(batchId: string) {
   });
 
   revalidatePath(`/grafiki/batch/${batchId}`);
-  return {
-    ok: true as const,
-    okCount,
-    failCount,
-    costUsd: costSum,
-  };
+  // Funkcja background — nie ma `return` do klienta, ale logujemy do konsoli
+  // żeby było widać w `docker logs` jak skończyło.
+  console.info(
+    `[batch ${batchId}] done: ok=${okCount} fail=${failCount} cost=$${costSum.toFixed(3)}`,
+  );
 }
 
 /**

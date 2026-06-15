@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as Icons from "lucide-react";
 import {
@@ -103,20 +103,30 @@ export function BatchResultsGrid({
   function startGeneration() {
     startBatch(async () => {
       try {
-        toast.loading("Generuję obrazy…", { id: "gen" });
         const result = await startPhotoBatchAction(batchId);
         toast.success(
-          `Wygenerowano ${result.okCount}, błędów ${result.failCount}`,
-          { id: "gen" },
+          result.message ?? `Wystartowano (${"queued" in result ? result.queued : 0} w kolejce)`,
+          { duration: 8000 },
         );
         router.refresh();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Błąd generowania", {
-          id: "gen",
-        });
+        toast.error(e instanceof Error ? e.message : "Błąd startowania");
       }
     });
   }
+
+  // ─── Auto-polling gdy batch trwa ─────────────────────────────────────
+  // Generowanie leci w tle na serwerze (fire-and-forget). UI sprawdza status
+  // co 5 s przez `router.refresh()` — Next.js RSC pobiera świeże dane z DB,
+  // wyświetla nowo wygenerowane obrazki i progress. Polling zatrzymujemy
+  // gdy status batcha != RUNNING (COMPLETED / PARTIAL / FAILED).
+  useEffect(() => {
+    if (batchStatus !== "RUNNING") return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [batchStatus, router]);
 
   function openEdit(img: ImgRow) {
     setEditingImage(img);

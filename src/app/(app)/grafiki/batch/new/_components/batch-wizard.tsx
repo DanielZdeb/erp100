@@ -327,11 +327,10 @@ export function BatchWizard({
         });
         toast.success("Kampania utworzona");
         if (startNow) {
-          toast.loading("Generuję obrazy…", { id: "gen" });
           const result = await startPhotoBatchAction(res.id);
           toast.success(
-            `Wygenerowano ${result.okCount}, błędów ${result.failCount}`,
-            { id: "gen" },
+            result.message ?? "Generowanie wystartowane",
+            { duration: 6000 },
           );
         }
         router.push(`/grafiki/batch/${res.id}`);
