@@ -1250,7 +1250,14 @@ export default async function ProduktyPage({
                     : 1;
                   return (
                     <Fragment key={p.id}>
-                    <tr className="border-b hover:bg-muted/20">
+                    <tr
+                      className={cn(
+                        "border-b hover:bg-muted/20",
+                        // Grubsza pozioma linia oddziela kolejne ZESTAWy
+                        // wizualnie od siebie (z sub-rows komponentow).
+                        isZestaw && "border-t-4 border-t-slate-300",
+                      )}
+                    >
                       {/* MARKER: pionowy napis "ZESTAW" pokrywający main +
                           wszystkie sub-rows komponentów (rowSpan). */}
                       <td
@@ -1496,9 +1503,16 @@ export default async function ProduktyPage({
                           </PriceCellWithHistory>
                         </span>
                       </td>
-                      {/* WYSYŁKA — Kurier (z silnika InPost+DHL) */}
+                      {/* WYSYŁKA — Kurier (z silnika InPost+DHL).
+                          rowSpan dla ZESTAW: jedna wartosc wyrownana pionowo
+                          przez wszystkie sub-rows komponentow zamiast osobnej
+                          komorki per kazdy komponent. */}
                       <td
-                        className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 align-top min-w-[60px]"
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[60px]",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
                         title={
                           shippingQuote?.primary
                             ? `${shippingQuote.primary.serviceLabel} — najem dla primary box${shippingQuote.primaryIsPreferred ? " (Twoja preferencja)" : ""}`
@@ -1517,7 +1531,13 @@ export default async function ProduktyPage({
                           fmtNum(dpln(shippingFromEngine ?? econ.shippingPerUnit))
                         )}
                       </td>
-                      <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 align-top min-w-[60px]">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[60px]",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <FulfillmentBreakdownPopover
                           breakdown={econ.fulfillmentBreakdown}
                           factor={factor}
@@ -1541,7 +1561,13 @@ export default async function ProduktyPage({
                         ) {
                           const price = p.bundleShippingBox.purchasePricePln;
                           return (
-                            <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r align-top min-w-[60px]">
+                            <td
+                              rowSpan={isZestaw ? markerRowSpan : 1}
+                              className={cn(
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                isZestaw ? "align-middle" : "align-top",
+                              )}
+                            >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   {price != null ? fmtNum(dpln(price)) : "—"}
@@ -1611,7 +1637,13 @@ export default async function ProduktyPage({
                             0,
                           );
                           return (
-                            <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r align-top min-w-[60px]">
+                            <td
+                              rowSpan={isZestaw ? markerRowSpan : 1}
+                              className={cn(
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                isZestaw ? "align-middle" : "align-top",
+                              )}
+                            >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   {totalPerSet > 0
@@ -1683,7 +1715,13 @@ export default async function ProduktyPage({
                             ) ??
                             null;
                           return (
-                            <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r align-top min-w-[60px] text-emerald-700">
+                            <td
+                              rowSpan={isZestaw ? markerRowSpan : 1}
+                              className={cn(
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px] text-emerald-700",
+                                isZestaw ? "align-middle" : "align-top",
+                              )}
+                            >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   0,00
@@ -1722,7 +1760,13 @@ export default async function ProduktyPage({
                         if (econ.boxPricePerUnit != null) {
                           const shipPin = boxWithPriceFor(p);
                           return (
-                            <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r align-top min-w-[60px]">
+                            <td
+                              rowSpan={isZestaw ? markerRowSpan : 1}
+                              className={cn(
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                isZestaw ? "align-middle" : "align-top",
+                              )}
+                            >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   {fmtNum(dpln(econ.boxPricePerUnit))}
@@ -1767,7 +1811,13 @@ export default async function ProduktyPage({
                         // SHIPPING bez ceny zakupu.
                         if (hasShipping) {
                           return (
-                            <td className="px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r align-top min-w-[60px]">
+                            <td
+                              rowSpan={isZestaw ? markerRowSpan : 1}
+                              className={cn(
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                isZestaw ? "align-middle" : "align-top",
+                              )}
+                            >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   —
@@ -1799,7 +1849,13 @@ export default async function ProduktyPage({
                           ? "BOX"
                           : "SAME_AS_IMPORT";
                         return (
-                          <td className="px-1.5 py-2 text-center bg-indigo-50/40 border-r align-top min-w-[60px]">
+                          <td
+                            rowSpan={isZestaw ? markerRowSpan : 1}
+                            className={cn(
+                              "px-1.5 py-2 text-center bg-indigo-50/40 border-r min-w-[60px]",
+                              isZestaw ? "align-middle" : "align-top",
+                            )}
+                          >
                             <QuickPackagingImportButton
                               productId={p.id}
                               productName={p.name}
@@ -1990,8 +2046,14 @@ export default async function ProduktyPage({
                           ? `${econ.sklepMargin.toFixed(1)}%`
                           : "—"}
                       </td>
-                      {/* AKCJE — 6 ikonek */}
-                      <td className="px-2 py-2 align-top">
+                      {/* AKCJE — 6 ikonek. rowSpan dla ZESTAW: wyrownane pionowo. */}
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "px-2",
+                          isZestaw ? "py-0 align-middle" : "py-2 align-top",
+                        )}
+                      >
                         <div className="flex items-center justify-end gap-0.5">
                           <DuplicateProductButton
                             categories={categories}
@@ -2296,8 +2358,10 @@ export default async function ProduktyPage({
                                 </PriceCellWithHistory>
                               </span>
                             </td>
-                            {/* Reszta kolumn (wysyłka 3 + allegro 6 + sklep 6 + akcje 1) — puste */}
-                            <td colSpan={16} className="align-middle" />
+                            {/* Reszta kolumn (allegro 6 + sklep 6) — puste.
+                                Wysylka (3) + akcje (1) sa pokryte przez rowSpan
+                                z main row ZESTAWU. */}
+                            <td colSpan={12} className="align-middle" />
                           </tr>
                         );
                       })}
