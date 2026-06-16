@@ -917,7 +917,7 @@ export default async function ProduktyPage({
                   {/* Pusty marker — pod headerem „Produkt", przykryty przez
                       rowSpan w body (dla ZESTAW) lub pusty (dla pojedynczych). */}
                   <th className="w-4" aria-hidden />
-                  <th className="text-left px-2 py-1 font-medium w-[200px]">
+                  <th className="text-left px-2 py-1 font-medium w-[260px]">
                     Nazwa
                   </th>
                   {/* Sub-headery "Koszty z Chin" — colSpan=5 z flex
@@ -968,7 +968,7 @@ export default async function ProduktyPage({
                   </th>
                   {/* 5 sub-headerów połączonych w 1 colSpan=5 powyżej —
                       reszta usunięta. */}
-                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[60px] align-middle">
+                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[52px] align-middle">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Truck className="size-3.5 text-indigo-700" />
@@ -976,7 +976,7 @@ export default async function ProduktyPage({
                       <TooltipContent>WYSYŁKA</TooltipContent>
                     </Tooltip>
                   </th>
-                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[60px] align-middle">
+                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[52px] align-middle">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Warehouse className="size-3.5 text-indigo-700" />
@@ -984,7 +984,7 @@ export default async function ProduktyPage({
                       <TooltipContent>FULFILLMENT</TooltipContent>
                     </Tooltip>
                   </th>
-                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 border-r min-w-[60px] align-middle">
+                  <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 border-r min-w-[52px] align-middle">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Package className="size-3.5 text-indigo-700" />
@@ -1283,7 +1283,7 @@ export default async function ProduktyPage({
                       </td>
                       {/* PRODUKT: Nazwa (skrót + tooltip z pełnymi danymi —
                           taki sam wzorzec jak items-tab w zamówieniu) */}
-                      <td className="px-2 py-2 align-top w-[200px] max-w-[200px]">
+                      <td className="px-2 py-2 align-top w-[260px] max-w-[260px]">
                         <div className="flex items-start gap-2">
                           {p.images[0] ? (
                             // 144×144 WebP miniaturka (~5 KB) — zwykła <img>
@@ -1308,7 +1308,7 @@ export default async function ProduktyPage({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Tooltip>
-                                <TooltipTrigger className="block max-w-[160px] cursor-help py-1">
+                                <TooltipTrigger className="block max-w-[220px] cursor-help py-1">
                                   <Link
                                     href={`/produkty/${p.id}`}
                                     className="font-medium text-xs hover:underline truncate block text-left w-full"
@@ -1510,7 +1510,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[60px]",
+                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[52px]",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                         title={
@@ -1534,7 +1534,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[60px]",
+                          "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 min-w-[52px]",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -1564,7 +1564,7 @@ export default async function ProduktyPage({
                             <td
                               rowSpan={isZestaw ? markerRowSpan : 1}
                               className={cn(
-                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[52px]",
                                 isZestaw ? "align-middle" : "align-top",
                               )}
                             >
@@ -1640,7 +1640,7 @@ export default async function ProduktyPage({
                             <td
                               rowSpan={isZestaw ? markerRowSpan : 1}
                               className={cn(
-                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[52px]",
                                 isZestaw ? "align-middle" : "align-top",
                               )}
                             >
@@ -1718,7 +1718,7 @@ export default async function ProduktyPage({
                             <td
                               rowSpan={isZestaw ? markerRowSpan : 1}
                               className={cn(
-                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px] text-emerald-700",
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[52px] text-emerald-700",
                                 isZestaw ? "align-middle" : "align-top",
                               )}
                             >
@@ -1763,7 +1763,7 @@ export default async function ProduktyPage({
                             <td
                               rowSpan={isZestaw ? markerRowSpan : 1}
                               className={cn(
-                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[52px]",
                                 isZestaw ? "align-middle" : "align-top",
                               )}
                             >
@@ -1814,7 +1814,7 @@ export default async function ProduktyPage({
                             <td
                               rowSpan={isZestaw ? markerRowSpan : 1}
                               className={cn(
-                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[60px]",
+                                "px-1.5 py-2 text-center tabular-nums bg-indigo-50/40 border-r min-w-[52px]",
                                 isZestaw ? "align-middle" : "align-top",
                               )}
                             >
@@ -1852,7 +1852,7 @@ export default async function ProduktyPage({
                           <td
                             rowSpan={isZestaw ? markerRowSpan : 1}
                             className={cn(
-                              "px-1.5 py-2 text-center bg-indigo-50/40 border-r min-w-[60px]",
+                              "px-1.5 py-2 text-center bg-indigo-50/40 border-r min-w-[52px]",
                               isZestaw ? "align-middle" : "align-top",
                             )}
                           >
@@ -1889,7 +1889,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-allegro px-0.5 py-2 bg-amber-50/40 font-medium min-w-[60px] text-center",
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 font-medium min-w-[52px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -1905,7 +1905,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -1921,7 +1921,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -1937,7 +1937,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -2003,7 +2003,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 font-medium min-w-[60px] text-center",
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 font-medium min-w-[52px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -2019,7 +2019,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -2035,7 +2035,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -2051,7 +2051,7 @@ export default async function ProduktyPage({
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[44px] text-center",
                           isZestaw ? "align-middle" : "align-top",
                         )}
                       >
@@ -2269,7 +2269,7 @@ export default async function ProduktyPage({
                                   <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
                                 )}
                                 <Tooltip>
-                                  <TooltipTrigger className="block max-w-[140px] cursor-help py-1">
+                                  <TooltipTrigger className="block max-w-[200px] cursor-help py-1">
                                     <Link
                                       href={`/produkty/${pc.component.id}`}
                                       className="text-[11px] font-medium text-foreground hover:underline truncate block text-left w-full"
