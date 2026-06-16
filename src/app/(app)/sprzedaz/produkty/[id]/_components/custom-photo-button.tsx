@@ -105,28 +105,59 @@ export function AddCustomPhotoButton({
   }
 
   async function uploadGroupRef(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error(`To nie jest obraz (${file.type || "nieznany typ"})`);
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Plik za duzy (max 20 MB)");
+      return;
+    }
+    const toastId = toast.loading(`Wgrywam ${file.name}...`);
     try {
       const fd = new FormData();
       fd.set("file", file);
       const res = await uploadPhotoReferenceAction(fd);
       setGroupRefUrls((r) => [...r, res.url]);
-      toast.success("Referencja grupy dodana");
+      toast.success("Referencja grupy dodana", { id: toastId });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Błąd uploadu");
+      console.error("[uploadGroupRef]", e);
+      toast.error(
+        e instanceof Error
+          ? `Blad uploadu: ${e.message}`
+          : "Blad uploadu (sprawdz console / odswiez Ctrl+Shift+R)",
+        { id: toastId },
+      );
     }
   }
   async function uploadShotRef(shotId: string, file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error(`To nie jest obraz (${file.type || "nieznany typ"})`);
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Plik za duzy (max 20 MB)");
+      return;
+    }
+    const toastId = toast.loading(`Wgrywam ${file.name}...`);
     try {
       const fd = new FormData();
       fd.set("file", file);
       const res = await uploadPhotoReferenceAction(fd);
-      const shot = shots.find((s) => s.id === shotId);
-      if (shot) {
-        updateShot(shotId, { refUrls: [...shot.refUrls, res.url] });
-      }
-      toast.success("Referencja ujęcia dodana");
+      setShots((curr) =>
+        curr.map((s) =>
+          s.id === shotId ? { ...s, refUrls: [...s.refUrls, res.url] } : s,
+        ),
+      );
+      toast.success("Referencja ujęcia dodana", { id: toastId });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Błąd uploadu");
+      console.error("[uploadShotRef]", e);
+      toast.error(
+        e instanceof Error
+          ? `Blad uploadu: ${e.message}`
+          : "Blad uploadu (sprawdz console / odswiez Ctrl+Shift+R)",
+        { id: toastId },
+      );
     }
   }
 
@@ -195,7 +226,7 @@ export function AddCustomPhotoButton({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl w-[calc(100%-2rem)] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2">
               <Sparkles className="size-4 text-violet-600" />
