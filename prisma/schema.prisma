@@ -1157,6 +1157,10 @@ model ImportOrder {
   arrivedWarehouseAt DateTime?
   closedAt           DateTime?
 
+  /// Adres dostawy nadpisuje Company.deliveryAddress (adres magazynu firmy)
+  /// na PDF tego zamowienia. Puste = uzywamy adresu magazynu firmy.
+  deliveryAddressOverride String?
+
   estimatedProductionDays Int?
 
   // Link do śledzenia kontenera (np. tracking armatora) — nie wyświetlamy URL,

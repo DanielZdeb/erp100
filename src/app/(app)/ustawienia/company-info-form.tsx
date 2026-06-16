@@ -18,8 +18,6 @@ export type CompanyInfoInitial = {
   krs: string | null;
   representativeName: string | null;
   deliveryAddress: string | null;
-  deliveryAddressFabryka: string | null;
-  deliveryAddressSzwalnia: string | null;
 };
 
 export function CompanyInfoForm({
@@ -39,12 +37,6 @@ export function CompanyInfoForm({
   const [deliveryAddress, setDeliveryAddress] = useState(
     initial.deliveryAddress ?? "",
   );
-  const [deliveryAddressFabryka, setDeliveryAddressFabryka] = useState(
-    initial.deliveryAddressFabryka ?? "",
-  );
-  const [deliveryAddressSzwalnia, setDeliveryAddressSzwalnia] = useState(
-    initial.deliveryAddressSzwalnia ?? "",
-  );
   const [pending, startTransition] = useTransition();
 
   const dirty =
@@ -55,9 +47,7 @@ export function CompanyInfoForm({
     nip !== (initial.nip ?? "") ||
     krs !== (initial.krs ?? "") ||
     representativeName !== (initial.representativeName ?? "") ||
-    deliveryAddress !== (initial.deliveryAddress ?? "") ||
-    deliveryAddressFabryka !== (initial.deliveryAddressFabryka ?? "") ||
-    deliveryAddressSzwalnia !== (initial.deliveryAddressSzwalnia ?? "");
+    deliveryAddress !== (initial.deliveryAddress ?? "");
 
   function save() {
     startTransition(async () => {
@@ -71,8 +61,6 @@ export function CompanyInfoForm({
           krs,
           representativeName,
           deliveryAddress,
-          deliveryAddressFabryka,
-          deliveryAddressSzwalnia,
         });
         toast.success("Zapisano dane firmy");
       } catch (e) {
@@ -147,63 +135,23 @@ export function CompanyInfoForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryAddressFabryka" className="text-xs font-medium">
-            Adres dostawy — FABRYKA (Chiny → PL)
-          </Label>
-          <p className="text-[10px] text-muted-foreground -mt-1">
-            Dokąd fabryka ma wysłać materiały / produkty. Pojawi się na PDF
-            zamówień typu fabryka.
-          </p>
-          <textarea
-            id="deliveryAddressFabryka"
-            value={deliveryAddressFabryka}
-            onChange={(e) => setDeliveryAddressFabryka(e.target.value)}
-            placeholder={"np. ACRO4F sp. z o.o.\nMagazyn — ul. Towarowa 5\n02-100 Warszawa"}
-            rows={4}
-            className="w-full text-sm rounded-md ring-1 ring-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryAddressSzwalnia" className="text-xs font-medium">
-            Adres dostawy — SZWALNIA / KRAJALNIA
-          </Label>
-          <p className="text-[10px] text-muted-foreground -mt-1">
-            Dokąd szwalnia ma wysłać gotowe produkty. Pojawi się na PDF
-            zamówień typu szwalnia.
-          </p>
-          <textarea
-            id="deliveryAddressSzwalnia"
-            value={deliveryAddressSzwalnia}
-            onChange={(e) => setDeliveryAddressSzwalnia(e.target.value)}
-            placeholder={"np. ACRO4F sp. z o.o.\nStefana Batorego 18/108\n02-591 Warszawa"}
-            rows={4}
-            className="w-full text-sm rounded-md ring-1 ring-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
-          />
-        </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="deliveryAddress" className="text-xs font-medium">
+          Adres magazynu firmy
+        </Label>
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          Domyślny adres dostawy dla wszystkich zamówień. W konkretnym zamówieniu
+          można nadpisać własnym adresem (np. dropshipping bezpośrednio do klienta).
+        </p>
+        <textarea
+          id="deliveryAddress"
+          value={deliveryAddress}
+          onChange={(e) => setDeliveryAddress(e.target.value)}
+          placeholder={"np. ACRO4F sp. z o.o.\nMagazyn — Stefana Batorego 18/108\n02-591 Warszawa"}
+          rows={4}
+          className="w-full text-sm rounded-md ring-1 ring-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+        />
       </div>
-
-      <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer hover:text-slate-700">
-          Legacy: adres dostawy (fallback gdy specyficzne puste)
-        </summary>
-        <div className="space-y-1.5 mt-2">
-          <p className="text-[10px] -mt-1">
-            Używany na starych PDF-ach. Nowe pola powyżej go nadpisują dla danego
-            typu zamówienia. Możesz zostawić puste jeśli wypełniłeś oba powyższe.
-          </p>
-          <textarea
-            id="deliveryAddress"
-            value={deliveryAddress}
-            onChange={(e) => setDeliveryAddress(e.target.value)}
-            placeholder={"Legacy adres (fallback)"}
-            rows={3}
-            className="w-full text-sm rounded-md ring-1 ring-slate-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
-          />
-        </div>
-      </details>
 
       <div className="flex justify-end gap-2">
         <Button

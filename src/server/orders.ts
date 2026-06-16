@@ -598,6 +598,29 @@ export async function updateOrderMetaAction(
  * Pusty/whitespace string zapisujemy jako null, by PDF nie pokazywał
  * pustej sekcji.
  */
+/**
+ * Aktualizuje pole `deliveryAddressOverride` zamowienia.
+ * Pusty / whitespace -> null (PDF uzyje wtedy Company.deliveryAddress — adresu
+ * magazynu firmy).
+ */
+export async function updateOrderDeliveryAddressOverrideAction(
+  id: string,
+  deliveryAddressOverride: string | null,
+) {
+  await requireUser();
+  const val =
+    typeof deliveryAddressOverride === "string"
+      ? deliveryAddressOverride.trim()
+      : null;
+  await db.importOrder.update({
+    where: { id },
+    data: { deliveryAddressOverride: val ? val : null },
+  });
+  revalidatePath(`/zamowienia/${id}`);
+  revalidatePath(`/zamowienia/z-polski/${id}`);
+  return { ok: true as const };
+}
+
 export async function updateOrderPdfDescriptionAction(
   id: string,
   pdfDescription: string | null,

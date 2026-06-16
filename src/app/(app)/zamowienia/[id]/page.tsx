@@ -56,6 +56,7 @@ export default async function ZamowienieDetailPage({
         select: {
           name: true,
           address: true,
+          deliveryAddress: true,
           defaultKrojeniePerSztPln: true,
           defaultSzwalniaPerSztPln: true,
         },
@@ -1050,6 +1051,8 @@ export default async function ZamowienieDetailPage({
                   orderNumber={order.orderNumber}
                   orderHasItems={order.items.length > 0}
                   pdfDescription={order.pdfDescription ?? null}
+                  deliveryAddressOverride={order.deliveryAddressOverride ?? null}
+                  companyDeliveryAddress={order.company?.deliveryAddress ?? null}
                   barcodeItems={order.items.map((it) => ({
                     productCode: it.product.productCode,
                     productName: it.product.name,
@@ -1096,6 +1099,8 @@ export default async function ZamowienieDetailPage({
                   orderNumber={order.orderNumber}
                   orderHasItems={order.items.length > 0}
                   pdfDescription={order.pdfDescription ?? null}
+                  deliveryAddressOverride={order.deliveryAddressOverride ?? null}
+                  companyDeliveryAddress={order.company?.deliveryAddress ?? null}
                   barcodeItems={order.items.map((it) => ({
                     productCode: it.product.productCode,
                     productName: it.product.name,

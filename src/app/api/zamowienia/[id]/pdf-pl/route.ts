@@ -80,6 +80,7 @@ export async function GET(
       orderNumber: true,
       name: true,
       pdfDescription: true,
+      deliveryAddressOverride: true,
       notes: true,
       createdAt: true,
       country: true,
@@ -95,8 +96,6 @@ export async function GET(
           krs: true,
           representativeName: true,
           deliveryAddress: true,
-          deliveryAddressFabryka: true,
-          deliveryAddressSzwalnia: true,
           logoColorUrl: true,
         },
       },
@@ -294,14 +293,11 @@ export async function GET(
         nip: order.company?.nip ?? null,
         krs: order.company?.krs ?? null,
         representativeName: order.company?.representativeName ?? null,
-        // Wybor adresu dostawy wg trybu PDF:
-        //   mode='fabryka'    -> deliveryAddressFabryka
-        //   mode='krajalnia'  -> deliveryAddressSzwalnia (szwalnia/krajalnia)
-        // Z fallback do legacy deliveryAddress gdy specyficzny pusty.
+        // Adres dostawy: priorytet
+        //   1. per-order override (deliveryAddressOverride) - jeśli ustawione
+        //   2. adres magazynu firmy (Company.deliveryAddress)
         deliveryAddress:
-          (mode === "fabryka"
-            ? order.company?.deliveryAddressFabryka
-            : order.company?.deliveryAddressSzwalnia) ||
+          order.deliveryAddressOverride ||
           order.company?.deliveryAddress ||
           null,
       },

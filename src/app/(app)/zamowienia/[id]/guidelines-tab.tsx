@@ -54,6 +54,8 @@ export function GuidelinesTab({
   orderNumber,
   orderHasItems,
   pdfDescription,
+  deliveryAddressOverride,
+  companyDeliveryAddress,
   initialSections,
   templateSections,
   barcodeItems,
@@ -64,6 +66,10 @@ export function GuidelinesTab({
   orderHasItems: boolean;
   /** Opis zamówienia (cover page). Edytowalny tutaj. */
   pdfDescription: string | null;
+  /** Nadpisanie adresu dostawy dla tego zamowienia (puste = adres magazynu firmy). */
+  deliveryAddressOverride: string | null;
+  /** Adres magazynu firmy (domyslny dla wszystkich zamowien). Tylko podglad. */
+  companyDeliveryAddress: string | null;
   initialSections: PdfSection[];
   /** Aktualne sekcje szablonu firmy — do edycji w dialogu inline. */
   templateSections: TemplateSection[];
@@ -88,6 +94,12 @@ export function GuidelinesTab({
         <PdfHeaderBlock
           orderId={orderId}
           pdfDescription={pdfDescription}
+        />
+
+        <DeliveryAddressOverrideBlock
+          orderId={orderId}
+          deliveryAddressOverride={deliveryAddressOverride}
+          companyDeliveryAddress={companyDeliveryAddress}
         />
 
         {/* Podgląd sekcji — tylko-do-odczytu. Edycja idzie przez „Edytuj
@@ -295,6 +307,94 @@ function ReadOnlySectionCard({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sekcja edycji deliveryAddressOverride — nadpisuje adres magazynu firmy
+ * dla tego konkretnego zamowienia (np. dropshipping do klienta).
+ */
+function DeliveryAddressOverrideBlock({
+  orderId,
+  deliveryAddressOverride,
+  companyDeliveryAddress,
+}: {
+  orderId: string;
+  deliveryAddressOverride: string | null;
+  companyDeliveryAddress: string | null;
+}) {
+  const [draft, setDraft] = useState(deliveryAddressOverride ?? "");
+  const [savedValue, setSavedValue] = useState(deliveryAddressOverride ?? "");
+  const [pending, startTransition] = useTransition();
+  const dirty = draft !== savedValue;
+  const usingDefault = !draft.trim();
+
+  function save() {
+    startTransition(async () => {
+      try {
+        const { updateOrderDeliveryAddressOverrideAction } = await import(
+          "@/server/orders"
+        );
+        await updateOrderDeliveryAddressOverrideAction(orderId, draft);
+        setSavedValue(draft);
+        toast.success(
+          usingDefault
+            ? "Cofnięto do adresu magazynu firmy"
+            : "Zapisano niestandardowy adres",
+        );
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Nie udało się");
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <FileText className="size-4 text-amber-600" />
+        <h3 className="text-sm font-semibold text-amber-900">
+          Adres dostawy (nadpisuje adres magazynu firmy)
+        </h3>
+      </div>
+      <p className="text-xs text-amber-800/80">
+        Puste = użyje adresu magazynu firmy z Ustawień. Wypełnij jeśli to
+        zamówienie ma jechać gdzieś indziej (np. bezpośrednio do klienta).
+      </p>
+      {usingDefault && companyDeliveryAddress && (
+        <div className="rounded p-2 text-[11px] bg-white ring-1 ring-amber-200">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+            Domyślnie użyje (adres magazynu firmy):
+          </span>
+          <p className="text-slate-700 whitespace-pre-wrap mt-1">
+            {companyDeliveryAddress}
+          </p>
+        </div>
+      )}
+      <Textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="np. Klient ABC sp. z o.o.\nul. Krótka 5\n00-001 Warszawa\n\n(zostaw puste żeby użyć adresu firmy)"
+        rows={4}
+        className="bg-white text-sm"
+      />
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          onClick={save}
+          disabled={!dirty || pending}
+          variant={dirty ? "default" : "secondary"}
+        >
+          {pending
+            ? "Zapisuję…"
+            : dirty
+              ? usingDefault
+                ? "Cofnij do adresu firmy"
+                : "Zapisz adres"
+              : "Zapisano"}
+        </Button>
       </div>
     </div>
   );
