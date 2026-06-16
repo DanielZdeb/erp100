@@ -1308,7 +1308,7 @@ export default async function ProduktyPage({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Tooltip>
-                                <TooltipTrigger className="block max-w-[130px] cursor-help">
+                                <TooltipTrigger className="block max-w-[160px] cursor-help py-1">
                                   <Link
                                     href={`/produkty/${p.id}`}
                                     className="font-medium text-xs hover:underline truncate block text-left w-full"
@@ -2269,7 +2269,7 @@ export default async function ProduktyPage({
                                   <div className="size-6 rounded bg-muted shrink-0 ring-1 ring-border" />
                                 )}
                                 <Tooltip>
-                                  <TooltipTrigger className="block max-w-[110px] cursor-help">
+                                  <TooltipTrigger className="block max-w-[140px] cursor-help py-1">
                                     <Link
                                       href={`/produkty/${pc.component.id}`}
                                       className="text-[11px] font-medium text-foreground hover:underline truncate block text-left w-full"
