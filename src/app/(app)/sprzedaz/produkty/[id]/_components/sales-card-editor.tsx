@@ -402,7 +402,7 @@ export function SalesCardEditor({
                   </div>
                   <h3 className="font-semibold text-sm">{s.name}</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 items-stretch">
                   <SlotEditor
                     productId={productId}
                     sectionId={s.id}
@@ -882,7 +882,7 @@ function SlotEditor({
   if (kind === "TEXT") {
     return (
       <>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 flex flex-col h-full">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
               <FileText className="size-3" /> Tekst
@@ -904,11 +904,13 @@ function SlotEditor({
               </Button>
             ) : null}
           </div>
-          <RichTextEditor
-            value={value ?? ""}
-            onChange={(html) => onChange(html || null)}
-            placeholder={hint ?? "Wpisz tekst opisu..."}
-          />
+          <div className="flex-1 flex flex-col min-h-0">
+            <RichTextEditor
+              value={value ?? ""}
+              onChange={(html) => onChange(html || null)}
+              placeholder={hint ?? "Wpisz tekst opisu..."}
+            />
+          </div>
           {hint ? (
             <p className="text-[10px] text-slate-400">Hint: {hint}</p>
           ) : null}
@@ -958,9 +960,16 @@ function SlotEditor({
           ) : null}
         </div>
         {value ? (
-          <div className="group relative rounded ring-1 ring-slate-200 overflow-hidden aspect-video bg-slate-50">
+          <div className="group relative rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50">
+            {/* Obraz dyktuje wysokosc (h-auto) i mieści sie caly bez przyciecia.
+                Sasiad-textarea sam sie rozsiagnie do tej samej wysokosci dzieki
+                grid items-stretch. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={value} alt="" className="size-full object-cover" />
+            <img
+              src={value}
+              alt=""
+              className="block w-full h-auto"
+            />
             <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/50 transition-colors grid place-items-center">
               {aiImagePrompt && (
                 <button

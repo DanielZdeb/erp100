@@ -57,7 +57,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-sm max-w-none min-h-[140px] p-3 outline-none",
+          "prose prose-sm max-w-none min-h-[140px] flex-1 p-3 outline-none",
           // Style listy widoczne — domyślnie Tailwind preflight je gasi
           "[&_ul]:list-disc [&_ul]:pl-5",
           "[&_ol]:list-decimal [&_ol]:pl-5",
@@ -86,12 +86,14 @@ export function RichTextEditor({
   return (
     <div
       className={cn(
-        "rounded-md ring-1 ring-slate-300 bg-white",
+        "rounded-md ring-1 ring-slate-300 bg-white flex flex-col h-full min-h-[180px]",
         disabled && "opacity-60 pointer-events-none",
       )}
     >
       <Toolbar editor={editor} />
-      <EditorContent editor={editor} placeholder={placeholder} />
+      <div className="flex-1 flex flex-col">
+        <EditorContent editor={editor} placeholder={placeholder} />
+      </div>
     </div>
   );
 }
