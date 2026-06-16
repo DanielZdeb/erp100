@@ -28,6 +28,10 @@ COPY . .
 RUN npx prisma generate
 # Telemetria off (mniejszy hałas w logach, brak wychodzącego ruchu).
 ENV NEXT_TELEMETRY_DISABLED=1
+# Limit V8 heap dla node — bez tego next build z Turbopack potrafi przekroczyc
+# dostepny RAM (Hetzner CX22 ma 3.7GB, runtime app rownolegle trzyma ~1.5GB)
+# i kontener dostaje OOM kill. 3 GB heap + swap = bezpieczna gora.
+ENV NODE_OPTIONS=--max-old-space-size=3072
 RUN npm run build
 
 # ─── Stage 3: runner ──────────────────────────────────────
