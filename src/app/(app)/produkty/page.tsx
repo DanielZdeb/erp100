@@ -1886,7 +1886,13 @@ export default async function ProduktyPage({
                         );
                       })()}
                       {/* ALLEGRO */}
-                      <td className="cv-allegro px-0.5 py-2 bg-amber-50/40 font-medium align-top min-w-[60px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 font-medium min-w-[60px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultSalePriceAllegroPln"
@@ -1896,7 +1902,13 @@ export default async function ProduktyPage({
                           tone="price-chip"
                         />
                       </td>
-                      <td className="cv-allegro px-0.5 py-2 bg-amber-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultAllegroCommissionPct"
@@ -1906,7 +1918,13 @@ export default async function ProduktyPage({
                           tone="cost"
                         />
                       </td>
-                      <td className="cv-allegro px-0.5 py-2 bg-amber-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultAllegroCustomerShippingPln"
@@ -1916,7 +1934,13 @@ export default async function ProduktyPage({
                           tone="revenue"
                         />
                       </td>
-                      <td className="cv-allegro px-0.5 py-2 bg-amber-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-allegro px-0.5 py-2 bg-amber-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultAllegroOtherCostPln"
@@ -1926,7 +1950,13 @@ export default async function ProduktyPage({
                           tone="cost"
                         />
                       </td>
-                      <td className="cv-allegro px-1.5 py-2 text-center tabular-nums bg-amber-50/40 align-top whitespace-nowrap">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-allegro px-1.5 py-2 text-center tabular-nums bg-amber-50/40 whitespace-nowrap",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         {econ.allegroProfit != null ? (
                           <span
                             className={cn(
@@ -1958,8 +1988,10 @@ export default async function ProduktyPage({
                         )}
                       </td>
                       <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-allegro px-2 py-2 text-center tabular-nums bg-amber-50/40 border-r font-medium align-top",
+                          "cv-allegro px-2 py-2 text-center tabular-nums bg-amber-50/40 border-r font-medium",
+                          isZestaw ? "align-middle" : "align-top",
                           marginColor(econ.allegroMargin),
                         )}
                       >
@@ -1968,7 +2000,13 @@ export default async function ProduktyPage({
                           : "—"}
                       </td>
                       {/* SKLEP */}
-                      <td className="cv-sklep px-0.5 py-2 bg-emerald-50/40 font-medium align-top min-w-[60px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 font-medium min-w-[60px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultSalePriceSklepPln"
@@ -1978,7 +2016,13 @@ export default async function ProduktyPage({
                           tone="price-chip"
                         />
                       </td>
-                      <td className="cv-sklep px-0.5 py-2 bg-emerald-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultSklepCommissionPct"
@@ -1988,7 +2032,13 @@ export default async function ProduktyPage({
                           tone="cost"
                         />
                       </td>
-                      <td className="cv-sklep px-0.5 py-2 bg-emerald-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultSklepCustomerShippingPln"
@@ -1998,7 +2048,13 @@ export default async function ProduktyPage({
                           tone="revenue"
                         />
                       </td>
-                      <td className="cv-sklep px-0.5 py-2 bg-emerald-50/40 align-top min-w-[52px] text-center">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-sklep px-0.5 py-2 bg-emerald-50/40 min-w-[52px] text-center",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         <EditableSaleCell
                           productId={p.id}
                           field="defaultSklepAdCostPln"
@@ -2008,7 +2064,13 @@ export default async function ProduktyPage({
                           tone="cost"
                         />
                       </td>
-                      <td className="cv-sklep px-1.5 py-2 text-center tabular-nums bg-emerald-50/40 align-top whitespace-nowrap">
+                      <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
+                        className={cn(
+                          "cv-sklep px-1.5 py-2 text-center tabular-nums bg-emerald-50/40 whitespace-nowrap",
+                          isZestaw ? "align-middle" : "align-top",
+                        )}
+                      >
                         {econ.sklepProfit != null ? (
                           <span
                             className={cn(
@@ -2037,8 +2099,10 @@ export default async function ProduktyPage({
                         )}
                       </td>
                       <td
+                        rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
-                          "cv-sklep px-2 py-2 text-center tabular-nums bg-emerald-50/40 border-r font-medium align-top",
+                          "cv-sklep px-2 py-2 text-center tabular-nums bg-emerald-50/40 border-r font-medium",
+                          isZestaw ? "align-middle" : "align-top",
                           marginColor(econ.sklepMargin),
                         )}
                       >
@@ -2358,10 +2422,10 @@ export default async function ProduktyPage({
                                 </PriceCellWithHistory>
                               </span>
                             </td>
-                            {/* Reszta kolumn (allegro 6 + sklep 6) — puste.
-                                Wysylka (3) + akcje (1) sa pokryte przez rowSpan
-                                z main row ZESTAWU. */}
-                            <td colSpan={12} className="align-middle" />
+                            {/* Wszystkie pozostale kolumny (wysylka 3 + allegro
+                                6 + sklep 6 + akcje 1) sa pokryte przez rowSpan
+                                z main row ZESTAWU — sub-row nie potrzebuje
+                                placeholderow. */}
                           </tr>
                         );
                       })}
