@@ -1192,6 +1192,14 @@ function OtherProductPicker({
       try {
         const res = await listProductsForRefPickerAction(query);
         if (!cancelled) setProducts(res.products);
+      } catch (e) {
+        if (cancelled) return;
+        toast.error(
+          e instanceof Error
+            ? `Blad pobierania: ${e.message}`
+            : "Blad pobierania produktow (odswiez strone Ctrl+Shift+R)",
+        );
+        setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

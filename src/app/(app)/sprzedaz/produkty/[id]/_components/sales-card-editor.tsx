@@ -643,6 +643,14 @@ function CopyTemplateDialog({
         if (!cancelled) {
           setProducts(res.products.filter((p) => p.id !== destProductId));
         }
+      } catch (e) {
+        if (cancelled) return;
+        toast.error(
+          e instanceof Error
+            ? `Blad: ${e.message}`
+            : "Blad pobierania szablonow (Ctrl+Shift+R)",
+        );
+        setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

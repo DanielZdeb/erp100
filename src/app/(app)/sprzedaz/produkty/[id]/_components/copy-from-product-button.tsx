@@ -82,10 +82,17 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
     const t = setTimeout(async () => {
       try {
         const res = await listProductsForRefPickerAction(query);
-        if (!cancelled) {
-          // Filtruj sam edytowany produkt — nie ma sensu kopiowac z siebie
-          setProducts(res.products.filter((p) => p.id !== productId));
-        }
+        if (cancelled) return;
+        // Filtruj sam edytowany produkt — nie ma sensu kopiowac z siebie
+        setProducts(res.products.filter((p) => p.id !== productId));
+      } catch (e) {
+        if (cancelled) return;
+        toast.error(
+          e instanceof Error
+            ? `Nie udalo sie pobrac produktow: ${e.message}`
+            : "Nie udalo sie pobrac produktow (odswiez strone Ctrl+Shift+R)",
+        );
+        setProducts([]);
       } finally {
         if (!cancelled) setLoadingList(false);
       }
