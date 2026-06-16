@@ -543,20 +543,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionPageImage: {
-    // 3 w rzędzie: width fixed na 32% szerokosci PAGE-padding (~ 165pt)
+    // 3 w rzędzie: width fixed na 32% szerokosci PAGE-padding (~165pt)
     // Width zamiast flexBasis - react-pdf wczesniej mial problem z flex
     // interpretation height-vs-width.
     width: "32%",
     height: 150,
+    objectFit: "contain",
     borderWidth: 0.5,
     borderColor: COLORS.border,
   },
   sectionPageSingleImage: {
+    // Pojedynczy obraz: zajmuje cala szerokosc, max ~600pt wysokosci (zostawia
+    // miejsce na tytul + tekst). Wczesniej '100%' powodowal pusta strone bo
+    // react-pdf nie mial referencji do procentowania bez fixed parent height.
     width: "100%",
-    height: "100%",
+    maxHeight: 600,
+    objectFit: "contain",
     borderWidth: 0.5,
     borderColor: COLORS.border,
-    objectFit: "contain",
   },
 });
 
@@ -1232,22 +1236,17 @@ function SectionPage({
               style={styles.sectionPageSingleImage}
             />
           ) : (
+            // Multi: kazde zdjecie ma fixed width/height (32% szerokosci, 150pt
+            // wysokosci) wiec react-pdf wie ile zarezerwowac i automatycznie
+            // paginuje gdy nie miesci sie na stronie. Bez wrap={false} — z
+            // wrap{false} pojawialy sie puste strony bo react-pdf przedlcial
+            // za agresywnie.
             images.map((img, i) => (
-              // wrap={false} - nie roznoc zdjecia miedzy stronami przy auto-paginacji
-              <View
+              <PdfImage
                 key={i}
+                src={img.dataUri}
                 style={styles.sectionPageImage}
-                wrap={false}
-              >
-                <PdfImage
-                  src={img.dataUri}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-              </View>
+              />
             ))
           )}
         </View>
