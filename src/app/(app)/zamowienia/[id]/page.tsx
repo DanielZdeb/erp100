@@ -1051,7 +1051,8 @@ export default async function ZamowienieDetailPage({
                   orderNumber={order.orderNumber}
                   orderHasItems={order.items.length > 0}
                   pdfDescription={order.pdfDescription ?? null}
-                  deliveryAddressOverride={order.deliveryAddressOverride ?? null}
+                  deliveryAddressOverrideFabryka={order.deliveryAddressOverrideFabryka ?? null}
+                  deliveryAddressOverrideKrajalnia={order.deliveryAddressOverrideKrajalnia ?? null}
                   companyDeliveryAddress={order.company?.deliveryAddress ?? null}
                   barcodeItems={order.items.map((it) => ({
                     productCode: it.product.productCode,
@@ -1099,7 +1100,8 @@ export default async function ZamowienieDetailPage({
                   orderNumber={order.orderNumber}
                   orderHasItems={order.items.length > 0}
                   pdfDescription={order.pdfDescription ?? null}
-                  deliveryAddressOverride={order.deliveryAddressOverride ?? null}
+                  deliveryAddressOverrideFabryka={order.deliveryAddressOverrideFabryka ?? null}
+                  deliveryAddressOverrideKrajalnia={order.deliveryAddressOverrideKrajalnia ?? null}
                   companyDeliveryAddress={order.company?.deliveryAddress ?? null}
                   barcodeItems={order.items.map((it) => ({
                     productCode: it.product.productCode,

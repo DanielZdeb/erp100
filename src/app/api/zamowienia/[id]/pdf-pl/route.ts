@@ -81,6 +81,8 @@ export async function GET(
       name: true,
       pdfDescription: true,
       deliveryAddressOverride: true,
+      deliveryAddressOverrideFabryka: true,
+      deliveryAddressOverrideKrajalnia: true,
       notes: true,
       createdAt: true,
       country: true,
@@ -272,48 +274,65 @@ export async function GET(
 
   await ensureFontsRegistered();
 
-  const pdfBuffer = await renderToBuffer(
-    OrderPlPdf({
-      mode,
-      orderNumber: order.orderNumber,
-      orderName: order.name ?? null,
-      createdAt: order.createdAt,
-      companyName: order.company?.name ?? "",
-      companyLogoDataUri: await loadImage(
-        order.company?.logoColorUrl ?? undefined,
-        // Logo to zwykle PNG/SVG z transparency. JPEG nie wspiera alpha —
-        // bez flatten transparentne piksele staja sie CZARNE w PDF.
-        { flattenBg: "#ffffff" },
-      ),
-      buyer: {
-        name: order.company?.name ?? "",
-        street: order.company?.street ?? null,
-        postalCode: order.company?.postalCode ?? null,
-        city: order.company?.city ?? null,
-        nip: order.company?.nip ?? null,
-        krs: order.company?.krs ?? null,
-        representativeName: order.company?.representativeName ?? null,
-        // Adres dostawy: priorytet
-        //   1. per-order override (deliveryAddressOverride) - jeśli ustawione
-        //   2. adres magazynu firmy (Company.deliveryAddress)
-        deliveryAddress:
-          order.deliveryAddressOverride ||
-          order.company?.deliveryAddress ||
-          null,
-      },
-      pdfDescription: order.pdfDescription ?? null,
-      sections: sectionsForPdf,
-      items: itemsForPdf,
-      bolts: boltsAnalysis,
-      colorCodes,
-    }),
-  );
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderToBuffer(
+      OrderPlPdf({
+        mode,
+        orderNumber: order.orderNumber,
+        orderName: order.name ?? null,
+        createdAt: order.createdAt,
+        companyName: order.company?.name ?? "",
+        companyLogoDataUri: await loadImage(
+          order.company?.logoColorUrl ?? undefined,
+          // Logo to zwykle PNG/SVG z transparency. JPEG nie wspiera alpha —
+          // bez flatten transparentne piksele staja sie CZARNE w PDF.
+          { flattenBg: "#ffffff" },
+        ),
+        buyer: {
+          name: order.company?.name ?? "",
+          street: order.company?.street ?? null,
+          postalCode: order.company?.postalCode ?? null,
+          city: order.company?.city ?? null,
+          nip: order.company?.nip ?? null,
+          krs: order.company?.krs ?? null,
+          representativeName: order.company?.representativeName ?? null,
+          // Adres dostawy: priorytet
+          //   1. per-order per-mode override (override Fabryka / Krajalnia)
+          //   2. adres magazynu firmy (Company.deliveryAddress)
+          deliveryAddress:
+            (mode === "fabryka"
+              ? order.deliveryAddressOverrideFabryka
+              : order.deliveryAddressOverrideKrajalnia) ||
+            order.deliveryAddressOverride ||
+            order.company?.deliveryAddress ||
+            null,
+        },
+        pdfDescription: order.pdfDescription ?? null,
+        sections: sectionsForPdf,
+        items: itemsForPdf,
+        bolts: boltsAnalysis,
+        colorCodes,
+      }),
+    );
+  } catch (e) {
+    console.error("[pdf-pl] renderToBuffer failed:", e);
+    return new Response(
+      `PDF render failed: ${e instanceof Error ? e.message : String(e)}`,
+      { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+    );
+  }
 
-  const filenameSuffix = mode === "fabryka" ? "-fabryka" : "-krajalnia";
+  // Filename: tylko ASCII + RFC 5987 UTF-8 fallback dla polskich znakow w
+  // orderNumber. Bez tego header parser wywala TypeError ByteString przy
+  // wartosciach > 255.
+  const safeOrderNumber = order.orderNumber.replace(/[^\w.-]/g, "_");
+  const suffix = mode === "fabryka" ? "-fabryka" : "-krajalnia";
+  const filename = `zamowienie-${safeOrderNumber}${suffix}.pdf`;
   return new Response(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="zamowienie-${order.orderNumber}${filenameSuffix}.pdf"`,
+      "Content-Disposition": `inline; filename="${filename}"`,
     },
   });
 }

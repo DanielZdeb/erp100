@@ -599,22 +599,29 @@ export async function updateOrderMetaAction(
  * pustej sekcji.
  */
 /**
- * Aktualizuje pole `deliveryAddressOverride` zamowienia.
- * Pusty / whitespace -> null (PDF uzyje wtedy Company.deliveryAddress — adresu
- * magazynu firmy).
+ * Aktualizuje per-mode override adresu dostawy dla zamowienia.
+ * mode = 'fabryka' | 'krajalnia' | 'legacy' (stare wspolne pole - na fallback).
+ * Pusty / whitespace -> null.
  */
 export async function updateOrderDeliveryAddressOverrideAction(
   id: string,
-  deliveryAddressOverride: string | null,
+  mode: "fabryka" | "krajalnia" | "legacy",
+  value: string | null,
 ) {
   await requireUser();
   const val =
-    typeof deliveryAddressOverride === "string"
-      ? deliveryAddressOverride.trim()
-      : null;
+    typeof value === "string" ? value.trim() : null;
+  const data: Record<string, string | null> = {};
+  if (mode === "fabryka") {
+    data.deliveryAddressOverrideFabryka = val ? val : null;
+  } else if (mode === "krajalnia") {
+    data.deliveryAddressOverrideKrajalnia = val ? val : null;
+  } else {
+    data.deliveryAddressOverride = val ? val : null;
+  }
   await db.importOrder.update({
     where: { id },
-    data: { deliveryAddressOverride: val ? val : null },
+    data,
   });
   revalidatePath(`/zamowienia/${id}`);
   revalidatePath(`/zamowienia/z-polski/${id}`);

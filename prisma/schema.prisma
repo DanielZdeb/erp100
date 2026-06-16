@@ -1159,7 +1159,13 @@ model ImportOrder {
 
   /// Adres dostawy nadpisuje Company.deliveryAddress (adres magazynu firmy)
   /// na PDF tego zamowienia. Puste = uzywamy adresu magazynu firmy.
+  /// LEGACY: zachowane dla wstecznej kompatybilnosci, nowe pola per-mode ponizej.
   deliveryAddressOverride String?
+  /// Per-zamowienie adres dla PDF do FABRYKI. Puste = fallback do
+  /// deliveryAddressOverride lub Company.deliveryAddress.
+  deliveryAddressOverrideFabryka String?
+  /// Per-zamowienie adres dla PDF do SZWALNI/KRAJALNI. Puste = fallback jak wyzej.
+  deliveryAddressOverrideKrajalnia String?
 
   estimatedProductionDays Int?
 

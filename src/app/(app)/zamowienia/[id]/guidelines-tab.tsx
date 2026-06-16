@@ -54,7 +54,8 @@ export function GuidelinesTab({
   orderNumber,
   orderHasItems,
   pdfDescription,
-  deliveryAddressOverride,
+  deliveryAddressOverrideFabryka,
+  deliveryAddressOverrideKrajalnia,
   companyDeliveryAddress,
   initialSections,
   templateSections,
@@ -66,8 +67,10 @@ export function GuidelinesTab({
   orderHasItems: boolean;
   /** Opis zamówienia (cover page). Edytowalny tutaj. */
   pdfDescription: string | null;
-  /** Nadpisanie adresu dostawy dla tego zamowienia (puste = adres magazynu firmy). */
-  deliveryAddressOverride: string | null;
+  /** Nadpisanie adresu dla PDF do FABRYKI (puste = adres magazynu firmy). */
+  deliveryAddressOverrideFabryka: string | null;
+  /** Nadpisanie adresu dla PDF do SZWALNI/KRAJALNI (puste = adres magazynu firmy). */
+  deliveryAddressOverrideKrajalnia: string | null;
   /** Adres magazynu firmy (domyslny dla wszystkich zamowien). Tylko podglad. */
   companyDeliveryAddress: string | null;
   initialSections: PdfSection[];
@@ -98,7 +101,12 @@ export function GuidelinesTab({
 
         <DeliveryAddressOverrideBlock
           orderId={orderId}
-          deliveryAddressOverride={deliveryAddressOverride}
+          mode={pdfMode}
+          deliveryAddressOverride={
+            pdfMode === "fabryka"
+              ? deliveryAddressOverrideFabryka
+              : deliveryAddressOverrideKrajalnia
+          }
           companyDeliveryAddress={companyDeliveryAddress}
         />
 
@@ -318,10 +326,12 @@ function ReadOnlySectionCard({
  */
 function DeliveryAddressOverrideBlock({
   orderId,
+  mode,
   deliveryAddressOverride,
   companyDeliveryAddress,
 }: {
   orderId: string;
+  mode: "fabryka" | "krajalnia";
   deliveryAddressOverride: string | null;
   companyDeliveryAddress: string | null;
 }) {
@@ -330,6 +340,7 @@ function DeliveryAddressOverrideBlock({
   const [pending, startTransition] = useTransition();
   const dirty = draft !== savedValue;
   const usingDefault = !draft.trim();
+  const modeLabel = mode === "fabryka" ? "FABRYKA" : "SZWALNIA / KRAJALNIA";
 
   function save() {
     startTransition(async () => {
@@ -337,7 +348,7 @@ function DeliveryAddressOverrideBlock({
         const { updateOrderDeliveryAddressOverrideAction } = await import(
           "@/server/orders"
         );
-        await updateOrderDeliveryAddressOverrideAction(orderId, draft);
+        await updateOrderDeliveryAddressOverrideAction(orderId, mode, draft);
         setSavedValue(draft);
         toast.success(
           usingDefault
@@ -355,7 +366,7 @@ function DeliveryAddressOverrideBlock({
       <div className="flex items-center gap-2">
         <FileText className="size-4 text-amber-600" />
         <h3 className="text-sm font-semibold text-amber-900">
-          Adres dostawy (nadpisuje adres magazynu firmy)
+          Adres dostawy {modeLabel} (nadpisuje magazyn firmy)
         </h3>
       </div>
       <p className="text-xs text-amber-800/80">

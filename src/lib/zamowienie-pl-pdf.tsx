@@ -543,14 +543,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionPageImage: {
-    // 3 w rzędzie: ~32% + 8pt gap × 2 = ~96% + 16pt → mieści się w szerokości
-    flexBasis: "32%",
-    flexGrow: 0,
-    flexShrink: 0,
-    height: 180,
+    // 3 w rzędzie: width fixed na 32% szerokosci PAGE-padding (~ 165pt)
+    // Width zamiast flexBasis - react-pdf wczesniej mial problem z flex
+    // interpretation height-vs-width.
+    width: "32%",
+    height: 150,
     borderWidth: 0.5,
     borderColor: COLORS.border,
-    objectFit: "contain",
   },
   sectionPageSingleImage: {
     width: "100%",
