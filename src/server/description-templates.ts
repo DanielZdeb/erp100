@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { logProductAiCost } from "@/server/product-ai-costs";
+import { markdownToHtml } from "@/lib/markdown-to-html";
 
 const NANO_BANANA_PRO_USD = 0.134;
 
@@ -360,12 +361,14 @@ export async function generateSectionTextAction(
         },
       ],
     });
-    const text = msg.content
+    const rawText = msg.content
       .filter((c) => c.type === "text")
       .map((c) => (c as { type: "text"; text: string }).text)
       .join("\n")
       .trim();
-    if (!text) return { ok: false, error: "Claude zwrócił pusty tekst." };
+    if (!rawText) return { ok: false, error: "Claude zwrócił pusty tekst." };
+    // Fallback gdy Claude mimo wszystko zwroci markdown.
+    const text = markdownToHtml(rawText);
 
     const inp = msg.usage.input_tokens ?? 0;
     const out = msg.usage.output_tokens ?? 0;
@@ -630,10 +633,13 @@ export async function aiGenerateSalesDraftForProductAction(
       `   - Mix image and text — visual products need more IMAGE slots, technical ones more TEXT.`,
       `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise photography brief WRITTEN IN POLISH (used later by Nano Banana Pro / Gemini, which understands Polish well). Opisz po polsku: styl ujęcia, kadr, oświetlenie, tło, mood. Możesz mieszać polskie zdania z anglojęzycznymi terminami fotograficznymi (np. "studio packshot na białym tle, soft light, top-down, no humans").`,
       `4. For each TEXT slot fill 'leftTextPrompt' or 'rightTextPrompt' with a Claude prompt FOR REGENERATING that copy on demand. Napisz prompt po POLSKU — instrukcję dla Claude jak ma napisać tekst tej sekcji (ton, długość, format, focus).`,
-      `5. Also fill 'content.leftText' / 'content.rightText' with READY-TO-USE Polish copy for the operator. Use simple markdown for readability:`,
-      `   - Use bullets (- ) or numbered lists where helpful.`,
-      `   - Use **bold** for key benefits.`,
-      `   - Short paragraphs (2-3 sentences max).`,
+      `5. Also fill 'content.leftText' / 'content.rightText' with READY-TO-USE Polish copy. CRITICAL: return HTML (not Markdown). Use ONLY these tags: <h1>, <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>, <br>.`,
+      `   - <h2> for main section heading (if any), <h3> for sub-sections.`,
+      `   - <ul><li>...</li></ul> for bullet lists, <ol><li>...</li></ol> for numbered.`,
+      `   - <strong> for key benefits and important phrases, <em> for emphasis.`,
+      `   - Short paragraphs (2-3 sentences each) in <p>...</p>.`,
+      `   - DO NOT use Markdown syntax like #, ##, **, -, *, _. Use only the HTML tags listed above.`,
+      `   - DO NOT include emoji in headings.`,
       `6. When you DO NOT KNOW a specific factual detail about this product (exact dimensions, material composition, certifications, warranty period etc.), write '[BRAK: <co dokladnie potrzeba>]' inline AND add the question to 'missingInfo' array. Do NOT make up specs.`,
       `7. The 'templateName' should be human readable in Polish: e.g. "Szablon: <kategoria produktu>".`,
       `8. Provide a 'researchSummary' (2-3 zdania po polsku) summarising what you learned about this product type from the web research.`,
@@ -772,9 +778,16 @@ export async function aiGenerateSalesDraftForProductAction(
     template.sections.forEach((dbSec, i) => {
       const draftSec = draft.sections[i];
       if (draftSec?.content) {
+        // Belt-and-suspenders: jesli Claude zwrocil markdown mimo instrukcji
+        // HTML, konwertujemy. markdownToHtml jest idempotentny — zostawia
+        // valid HTML bez zmian.
         content[dbSec.id] = {
-          leftText: draftSec.content.leftText ?? null,
-          rightText: draftSec.content.rightText ?? null,
+          leftText: draftSec.content.leftText
+            ? markdownToHtml(draftSec.content.leftText)
+            : null,
+          rightText: draftSec.content.rightText
+            ? markdownToHtml(draftSec.content.rightText)
+            : null,
         };
       }
     });

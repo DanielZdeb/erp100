@@ -30,6 +30,7 @@ import {
 import { formatPln, formatUsd } from "@/lib/usd-to-pln";
 import { Input } from "@/components/ui/input";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import { markdownToHtml } from "@/lib/markdown-to-html";
 import {
   Dialog,
   DialogContent,
@@ -496,7 +497,7 @@ function PreviewDialog({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b">
@@ -515,7 +516,7 @@ function PreviewDialog({
           </button>
         </div>
         <div className="overflow-y-auto px-6 py-6 flex-1 min-h-0 bg-slate-50">
-          <div className="max-w-2xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-6">
             {sections.length === 0 ? (
               <p className="text-center text-sm text-slate-500 py-12">
                 Wybierz szablon i wypełnij sekcje żeby zobaczyć podgląd.
@@ -526,7 +527,7 @@ function PreviewDialog({
                 const [leftKind, rightKind] = layoutToKinds(s.layout);
                 return (
                   <div key={s.id} className="bg-white rounded-lg ring-1 ring-slate-200 p-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
                       <PreviewSlot
                         kind={leftKind}
                         text={cur.leftText}
@@ -569,15 +570,16 @@ function PreviewSlot({
   if (kind === "IMAGE") {
     if (!imageUrl) {
       return (
-        <div className="aspect-[4/3] rounded ring-1 ring-dashed ring-slate-300 grid place-items-center text-[10px] text-slate-400 uppercase tracking-wide">
+        <div className="min-h-[200px] rounded ring-1 ring-dashed ring-slate-300 grid place-items-center text-[10px] text-slate-400 uppercase tracking-wide">
           [pusty slot obraz]
         </div>
       );
     }
     return (
-      <div className="aspect-[4/3] rounded overflow-hidden bg-slate-100 ring-1 ring-slate-200">
+      <div className="rounded overflow-hidden bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center">
+        {/* Obraz w calosci, naturalne proporcje (h-auto), sekcja rosnie z nim. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageUrl} alt="" className="size-full object-cover" />
+        <img src={imageUrl} alt="" className="block w-full h-auto" />
       </div>
     );
   }
@@ -601,7 +603,7 @@ function PreviewSlot({
         "[&_strong]:font-semibold [&_strong]:text-slate-900",
         "[&_u]:underline",
       )}
-      dangerouslySetInnerHTML={{ __html: text }}
+      dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }}
     />
   );
 }
@@ -906,7 +908,7 @@ function SlotEditor({
           </div>
           <div className="flex-1 flex flex-col min-h-0">
             <RichTextEditor
-              value={value ?? ""}
+              value={markdownToHtml(value ?? "")}
               onChange={(html) => onChange(html || null)}
               placeholder={hint ?? "Wpisz tekst opisu..."}
             />
