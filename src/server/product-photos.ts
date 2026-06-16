@@ -1147,15 +1147,31 @@ export async function bulkDeleteProductImagesAction(
     });
     if (imgs.length === 0) return { ok: false, error: "Brak dostepu lub nie istnieja." };
 
-    const { deleteFile } = await import("@/lib/storage");
-    // Kasuj pliki (best effort, ignoruj bledy per plik)
-    await Promise.all(
-      imgs.map((i) => (i.url ? deleteFile(i.url).catch(() => undefined) : undefined)),
-    );
+    const idsToDelete = imgs.map((i) => i.id);
+    const urls = imgs.map((i) => i.url).filter(Boolean);
 
+    // KASUJ rekordy NAJPIERW; potem kasuj pliki tylko gdy zaden inny rekord
+    // ProductImage juz ich nie uzywa (chroni przed osierocaniem URL-i przy
+    // zdjeciach skopiowanych miedzy produktami).
     await db.productImage.deleteMany({
-      where: { id: { in: imgs.map((i) => i.id) } },
+      where: { id: { in: idsToDelete } },
     });
+
+    const stillReferenced = await db.productImage.findMany({
+      where: { url: { in: urls } },
+      select: { url: true },
+    });
+    const referencedSet = new Set(stillReferenced.map((r) => r.url));
+    const urlsToDeleteFromDisk = urls.filter((u) => !referencedSet.has(u));
+
+    if (urlsToDeleteFromDisk.length > 0) {
+      const { deleteFile } = await import("@/lib/storage");
+      await Promise.all(
+        urlsToDeleteFromDisk.map((u) =>
+          deleteFile(u).catch(() => undefined),
+        ),
+      );
+    }
 
     const uniqueProducts = Array.from(new Set(imgs.map((i) => i.productId)));
     for (const pid of uniqueProducts) {
@@ -1179,11 +1195,18 @@ export async function hardDeleteProductImageAction(
       select: { id: true, productId: true, url: true, isPrimary: true },
     });
     if (!img) return { ok: true };
-    if (img.url) {
-      const { deleteFile } = await import("@/lib/storage");
-      await deleteFile(img.url).catch(() => undefined);
-    }
     await db.productImage.delete({ where: { id: img.id } });
+    // Kasuj plik tylko gdy zaden inny rekord nie uzywa tego URL.
+    if (img.url) {
+      const stillUsed = await db.productImage.findFirst({
+        where: { url: img.url },
+        select: { id: true },
+      });
+      if (!stillUsed) {
+        const { deleteFile } = await import("@/lib/storage");
+        await deleteFile(img.url).catch(() => undefined);
+      }
+    }
     if (img.isPrimary) {
       const next = await db.productImage.findFirst({
         where: { productId: img.productId, archived: false, status: "READY" },
