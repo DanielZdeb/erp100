@@ -542,6 +542,78 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  // ─── Strona podpisów (ostatnia strona) ────────────────────────────────
+  signaturesPage: {
+    padding: 40,
+    fontSize: 10,
+    color: COLORS.text,
+    fontFamily: "Roboto",
+  },
+  signaturesTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+  signaturesMeta: {
+    fontSize: 10,
+    color: COLORS.muted,
+    marginBottom: 28,
+  },
+  signaturesGrid: {
+    flexDirection: "row",
+    gap: 20,
+    marginTop: 20,
+  },
+  signatureCol: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  signatureRoleLabel: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: COLORS.primary,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  signatureParty: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  signaturePartyLine: {
+    fontSize: 10,
+    color: COLORS.text,
+    marginBottom: 3,
+    lineHeight: 1.35,
+  },
+  signatureBox: {
+    marginTop: 60,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.text,
+    fontSize: 9,
+    color: COLORS.muted,
+    textAlign: "center",
+  },
+  signaturesClauseBox: {
+    marginTop: 40,
+    padding: 12,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: 4,
+    fontSize: 9,
+    color: COLORS.muted,
+    lineHeight: 1.5,
+  },
+  signaturesDatePlace: {
+    marginTop: 24,
+    fontSize: 10,
+    color: COLORS.text,
+  },
   sectionPageImage: {
     // 3 w rzędzie: width fixed na 32% szerokosci PAGE-padding (~165pt)
     // Width zamiast flexBasis - react-pdf wczesniej mial problem z flex
@@ -682,9 +754,9 @@ export function OrderPlPdf(
             </View>
           </View>
 
-          {/* PRAWA KOLUMNA — Adres dostawy */}
+          {/* PRAWA KOLUMNA — Wykonawca (dane drugiej strony umowy) */}
           <View style={{ flex: 1 }}>
-            <Text style={styles.coverSectionLabel}>Adres dostawy</Text>
+            <Text style={styles.coverSectionLabel}>Wykonawca</Text>
             <View style={styles.buyerCard}>
               {buyer.deliveryAddress ? (
                 buyer.deliveryAddress.split(/\r?\n/).map((line, i) => (
@@ -697,7 +769,8 @@ export function OrderPlPdf(
                 ))
               ) : (
                 <Text style={styles.descPlaceholder}>
-                  Brak adresu dostawy — uzupełnij w Ustawienia → Dane firmy.
+                  Brak danych wykonawcy — uzupełnij na karcie zamówienia w
+                  zakładce „Wytyczne".
                 </Text>
               )}
             </View>
@@ -884,6 +957,94 @@ export function OrderPlPdf(
         )}
           </>
         )}
+
+        <Text
+          style={styles.footer}
+          render={({ pageNumber, totalPages }) =>
+            `${props.companyName} · Zamówienie ${props.orderNumber} · Strona ${pageNumber} z ${totalPages}`
+          }
+          fixed
+        />
+      </Page>
+
+      {/* ───────── Ostatnia strona: podpisy obu stron umowy ───────── */}
+      <Page size="A4" style={styles.signaturesPage}>
+        <Text style={styles.signaturesTitle}>Akceptacja zamówienia</Text>
+        <Text style={styles.signaturesMeta}>
+          Zamówienie {props.orderNumber}
+          {props.orderName ? ` · ${props.orderName}` : ""} · wystawione{" "}
+          {fmtDate(props.createdAt)}
+        </Text>
+
+        <View style={styles.signaturesGrid}>
+          {/* ZAMAWIAJĄCY (dane firmy) */}
+          <View style={styles.signatureCol}>
+            <Text style={styles.signatureRoleLabel}>ZAMAWIAJĄCY</Text>
+            <Text style={styles.signatureParty}>{props.buyer.name}</Text>
+            {props.buyer.street && (
+              <Text style={styles.signaturePartyLine}>
+                {props.buyer.street}
+              </Text>
+            )}
+            {(props.buyer.postalCode || props.buyer.city) && (
+              <Text style={styles.signaturePartyLine}>
+                {[props.buyer.postalCode, props.buyer.city]
+                  .filter(Boolean)
+                  .join(" ")}
+              </Text>
+            )}
+            {props.buyer.nip && (
+              <Text style={styles.signaturePartyLine}>
+                NIP: {props.buyer.nip}
+              </Text>
+            )}
+            {props.buyer.krs && (
+              <Text style={styles.signaturePartyLine}>
+                KRS: {props.buyer.krs}
+              </Text>
+            )}
+            {props.buyer.representativeName && (
+              <Text style={styles.signaturePartyLine}>
+                Reprezentant: {props.buyer.representativeName}
+              </Text>
+            )}
+            <Text style={styles.signatureBox}>
+              Data i podpis Zamawiającego
+            </Text>
+          </View>
+
+          {/* WYKONAWCA (dane drugiej strony) */}
+          <View style={styles.signatureCol}>
+            <Text style={styles.signatureRoleLabel}>WYKONAWCA</Text>
+            {props.buyer.deliveryAddress ? (
+              props.buyer.deliveryAddress.split(/\r?\n/).map((line, i) => (
+                <Text
+                  key={i}
+                  style={i === 0 ? styles.signatureParty : styles.signaturePartyLine}
+                >
+                  {line}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.signaturePartyLine}>
+                Brak danych wykonawcy — uzupełnij na karcie zamówienia.
+              </Text>
+            )}
+            <Text style={styles.signatureBox}>
+              Data i podpis Wykonawcy
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.signaturesClauseBox}>
+          <Text>
+            Strony potwierdzają zapoznanie się z treścią niniejszego zamówienia
+            (specyfikacja, ilości, terminy, parametry materiału) oraz wszystkimi
+            wytycznymi zawartymi w poprzedzających sekcjach. Akceptacja powyższym
+            podpisem jest równoznaczna z przyjęciem zamówienia do realizacji na
+            zawartych warunkach.
+          </Text>
+        </View>
 
         <Text
           style={styles.footer}

@@ -352,8 +352,8 @@ function DeliveryAddressOverrideBlock({
         setSavedValue(draft);
         toast.success(
           usingDefault
-            ? "Cofnięto do adresu magazynu firmy"
-            : "Zapisano niestandardowy adres",
+            ? "Wyczyszczono dane wykonawcy"
+            : "Zapisano dane wykonawcy",
         );
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Nie udało się");
@@ -366,29 +366,22 @@ function DeliveryAddressOverrideBlock({
       <div className="flex items-center gap-2">
         <FileText className="size-4 text-amber-600" />
         <h3 className="text-sm font-semibold text-amber-900">
-          Adres dostawy {modeLabel} (nadpisuje magazyn firmy)
+          Wykonawca — {modeLabel}
         </h3>
       </div>
       <p className="text-xs text-amber-800/80">
-        Puste = użyje adresu magazynu firmy z Ustawień. Wypełnij jeśli to
-        zamówienie ma jechać gdzieś indziej (np. bezpośrednio do klienta).
+        Dane drugiej strony umowy (wykonawca podwykonawca). Pojawią się na
+        cover'ze PDF obok danych Zamawiającego i na ostatniej stronie przy
+        miejscu na podpis.
       </p>
-      {usingDefault && companyDeliveryAddress && (
-        <div className="rounded p-2 text-[11px] bg-white ring-1 ring-amber-200">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
-            Domyślnie użyje (adres magazynu firmy):
-          </span>
-          <p className="text-slate-700 whitespace-pre-wrap mt-1">
-            {companyDeliveryAddress}
-          </p>
-        </div>
-      )}
       <Textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="np. Klient ABC sp. z o.o.\nul. Krótka 5\n00-001 Warszawa\n\n(zostaw puste żeby użyć adresu firmy)"
-        rows={4}
-        className="bg-white text-sm"
+        placeholder={
+          "np. Firma XYZ sp. z o.o.\nul. Krótka 5\n00-001 Warszawa\nNIP: 1234567890 · KRS: 0000111222\nReprezentant: Jan Kowalski"
+        }
+        rows={6}
+        className="bg-white text-sm font-mono"
       />
       <div className="flex justify-end">
         <Button
@@ -402,8 +395,8 @@ function DeliveryAddressOverrideBlock({
             ? "Zapisuję…"
             : dirty
               ? usingDefault
-                ? "Cofnij do adresu firmy"
-                : "Zapisz adres"
+                ? "Wyczyść dane wykonawcy"
+                : "Zapisz wykonawcę"
               : "Zapisano"}
         </Button>
       </div>
