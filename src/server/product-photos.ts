@@ -1094,6 +1094,47 @@ export async function restoreProductImageAction(
 }
 
 /**
+ * Reorder zdjec w galerii produktu — przyjmuje pelna liste ID w nowej
+ * kolejnosci. Wykonuje update sortOrder w transakcji.
+ */
+export async function reorderProductImagesAction(
+  productId: string,
+  orderedImageIds: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+
+    // Verify all IDs naleza do tego produktu w naszej firmie
+    const imgs = await db.productImage.findMany({
+      where: {
+        id: { in: orderedImageIds },
+        productId,
+        product: { companyId },
+      },
+      select: { id: true },
+    });
+    if (imgs.length !== orderedImageIds.length) {
+      return { ok: false, error: "Niektore zdjecia nie naleza do tego produktu." };
+    }
+
+    await db.$transaction(
+      orderedImageIds.map((id, idx) =>
+        db.productImage.update({
+          where: { id },
+          data: { sortOrder: idx },
+        }),
+      ),
+    );
+
+    revalidateProductPaths(productId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+/**
  * Bulk archive/restore/delete dla wielu zaznaczonych zdjec.
  * Bezpieczna granica 100 sztuk na raz.
  */

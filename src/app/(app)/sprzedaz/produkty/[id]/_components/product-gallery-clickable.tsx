@@ -59,6 +59,7 @@ import {
   bulkEditProductImagesAiAction,
   bulkArchiveProductImagesAction,
   bulkDeleteProductImagesAction,
+  reorderProductImagesAction,
   archiveProductImageAction,
   restoreProductImageAction,
   hardDeleteProductImageAction,
@@ -92,6 +93,11 @@ export function ProductGalleryClickable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<ImageItem | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  // Drag and drop reorder
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // Lokalna kolejnosc do optymistycznego UI (nadpisuje server order do refresh)
+  const [localOrder, setLocalOrder] = useState<string[] | null>(null);
   const [pending, startTransition] = useTransition();
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
 
@@ -103,7 +109,19 @@ export function ProductGalleryClickable({
     () => images.filter((i) => i.archived),
     [images],
   );
-  const visible = tab === "active" ? activeImages : archivedImages;
+  const visibleRaw = tab === "active" ? activeImages : archivedImages;
+  // Jesli mamy lokalny re-order (po drag&drop, jeszcze przed odswiezeniem
+  // z serwera), uporzadkuj wg niego — kazda inna pozycja ladauje na koncu
+  // w oryginalnej kolejnosci.
+  const visible = useMemo(() => {
+    if (!localOrder) return visibleRaw;
+    const indexMap = new Map(localOrder.map((id, i) => [id, i]));
+    return [...visibleRaw].sort((a, b) => {
+      const ai = indexMap.has(a.id) ? indexMap.get(a.id)! : Number.MAX_SAFE_INTEGER;
+      const bi = indexMap.has(b.id) ? indexMap.get(b.id)! : Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+  }, [visibleRaw, localOrder]);
   const readyVisible = useMemo(
     () => visible.filter((i) => i.status === "READY"),
     [visible],
@@ -182,6 +200,44 @@ export function ProductGalleryClickable({
       } else toast.error(r.error);
     });
   }
+  // Reset lokalnej kolejnosci gdy server przysle nowe dane
+  useEffect(() => {
+    setLocalOrder(null);
+  }, [images]);
+
+  function handleDrop(targetId: string) {
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+    // Aktualna kolejnosc visible
+    const ids = visible.map((i) => i.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+    const reordered = [...ids];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    setLocalOrder(reordered);
+    setDraggedId(null);
+    setDragOverId(null);
+    // Persist na serwer
+    startTransition(async () => {
+      const r = await reorderProductImagesAction(productId, reordered);
+      if (!r.ok) {
+        toast.error(r.error || "Nie udalo sie zmienic kolejnosci");
+        setLocalOrder(null);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
   function bulkArchive(restoreInstead = false) {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -423,22 +479,55 @@ export function ProductGalleryClickable({
           // READY
           const readyIdx = readyVisible.findIndex((r) => r.id === img.id);
           const selected = selectedIds.has(img.id);
+          const isDragging = draggedId === img.id;
+          const isDragOver = dragOverId === img.id && draggedId !== img.id;
           return (
             <div
               key={img.id}
+              draggable={!selectMode}
+              onDragStart={(e) => {
+                if (selectMode) return;
+                setDraggedId(img.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", img.id);
+              }}
+              onDragOver={(e) => {
+                if (selectMode || !draggedId) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverId !== img.id) setDragOverId(img.id);
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setDragOverId((curr) => (curr === img.id ? null : curr));
+              }}
+              onDrop={(e) => {
+                if (selectMode) return;
+                e.preventDefault();
+                handleDrop(img.id);
+              }}
+              onDragEnd={() => {
+                setDraggedId(null);
+                setDragOverId(null);
+              }}
               className={cn(
                 "group relative aspect-square rounded ring-1 overflow-hidden bg-slate-50 transition-all",
+                !selectMode && "cursor-grab active:cursor-grabbing",
                 selected
                   ? "ring-2 ring-violet-500"
-                  : "ring-slate-200 hover:ring-2 hover:ring-violet-400",
+                  : isDragOver
+                    ? "ring-2 ring-emerald-500 scale-105"
+                    : "ring-slate-200 hover:ring-2 hover:ring-violet-400",
+                isDragging && "opacity-40",
                 img.archived && "opacity-60",
               )}
+              title={!selectMode ? "Przeciagnij zeby zmienic kolejnosc" : undefined}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={img.thumbnailWebpUrl ?? img.url}
                 alt={img.alt ?? ""}
-                className="size-full object-cover"
+                className="size-full object-cover pointer-events-none"
               />
               {selectMode && (
                 <button
