@@ -546,6 +546,46 @@ export async function updateProductSaleDefaultsAction(
 }
 
 /**
+ * Aktualizacja CENY BAZOWEJ (defaultUnitPricePln / defaultPricePerMeterPln).
+ *
+ *  mode='UNIT'  -> defaultUnitPricePln = amount, defaultPricePerMeterPln=null
+ *  mode='METER' -> defaultPricePerMeterPln = amount, lengthM = length,
+ *                  defaultUnitPricePln = amount * length (auto-przeliczone)
+ *
+ * Pozwala operatorowi przelaczac tryb wyceny produktu po jego utworzeniu.
+ */
+export async function updateProductBasePriceAction(
+  id: string,
+  mode: "UNIT" | "METER",
+  amount: number | null,
+  lengthM: number | null = null,
+) {
+  await requireUser();
+  if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
+    throw new Error("Cena musi być liczbą >= 0.");
+  }
+  const data: Record<string, number | null> = {};
+  if (mode === "UNIT") {
+    data.defaultUnitPricePln = amount ?? null;
+    data.defaultPricePerMeterPln = null;
+  } else {
+    if (lengthM != null && (!Number.isFinite(lengthM) || lengthM <= 0)) {
+      throw new Error("Długość musi być liczbą > 0.");
+    }
+    data.defaultPricePerMeterPln = amount ?? null;
+    data.lengthM = lengthM ?? null;
+    data.defaultUnitPricePln =
+      amount != null && lengthM != null ? amount * lengthM : null;
+  }
+  await db.product.update({ where: { id }, data });
+  revalidatePath("/produkty");
+  revalidateTag("products", "max");
+  revalidatePath(`/produkty/${id}`);
+  revalidatePath(`/produkty/${id}/podstawowe`);
+  return { ok: true as const };
+}
+
+/**
  * Inline-edit pól tekstowych (wytyczne, opis, notatki). Whitelist pól żeby
  * nie dało się przez ten endpoint zmienić name/code/itp.
  */

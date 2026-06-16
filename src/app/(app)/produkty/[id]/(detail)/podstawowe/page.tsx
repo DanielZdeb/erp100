@@ -23,6 +23,7 @@ import { PriceHistoryTab } from "../../price-history-tab";
 import { BasicInfoFormDisplay } from "../../_components/basic-info-form";
 import { productToBasicValues } from "../../_components/basic-info-utils";
 import { ComponentsManager } from "../../_components/components-manager";
+import { BasePriceEditor } from "../../_components/base-price-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -191,6 +192,12 @@ export default async function PodstawowePage({
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-3">
+              <BasePriceEditor
+                productId={product.id}
+                defaultUnitPricePln={product.defaultUnitPricePln}
+                defaultPricePerMeterPln={product.defaultPricePerMeterPln}
+                lengthM={product.lengthM}
+              />
               <div className="rounded-md bg-amber-50/40 ring-1 ring-amber-200 px-3 py-2 text-[11px] text-amber-900 leading-snug">
                 <strong>Trading row</strong> (zakup / logistyka / Allegro /
                 Sklep) z edytowalnymi cenami kanałów, marżą i kosztami produkcji
