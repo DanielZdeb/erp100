@@ -20,13 +20,28 @@ export const dynamic = "force-dynamic";
 export default async function SprzedazProduktyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cat?: string; view?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    cat?: string;
+    view?: string;
+    type?: string;
+    archived?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const categoryId = sp.cat?.trim() || null;
   const view: "params" | "gallery" =
     sp.view === "gallery" ? "gallery" : "params";
+  // Typ produktu: product = tylko produkty, component = tylko komponenty,
+  // all = oba razem (przydatne np. dla baz wiedzy o materialach)
+  const type: "product" | "component" | "all" =
+    sp.type === "component"
+      ? "component"
+      : sp.type === "all"
+        ? "all"
+        : "product";
+  const showArchived = sp.archived === "1";
   const companyId = await getCurrentCompanyId();
 
   // Wszystkie kategorie firmy do dropdowna filtru
@@ -55,11 +70,18 @@ export default async function SprzedazProduktyPage({
     return { categoryId: { in: ids } };
   })();
 
+  const typeFilter =
+    type === "product"
+      ? { isComponent: false }
+      : type === "component"
+        ? { isComponent: true }
+        : {};
+
   const products = await db.product.findMany({
     where: {
       companyId,
-      archived: false,
-      isComponent: false,
+      archived: showArchived,
+      ...typeFilter,
       ...(q
         ? {
             OR: [
@@ -81,6 +103,8 @@ export default async function SprzedazProduktyPage({
       colorCode: true,
       weightKg: true,
       compositionMode: true,
+      isComponent: true,
+      archived: true,
       category: { select: { id: true, name: true } },
       images: {
         // W widoku galeria potrzebujemy WSZYSTKIE READY (max 12), w param. wystarczy 1
@@ -93,12 +117,33 @@ export default async function SprzedazProduktyPage({
     },
   });
 
+  // Liczniki dla zakladki typu (product / component / all) — zawsze nieaktywne
+  // archiwum w licznikach (pokazuj ile aktywnych jest w kazdej kategorii).
+  const [productCount, componentCount, archivedCount] = await Promise.all([
+    db.product.count({
+      where: { companyId, archived: false, isComponent: false },
+    }),
+    db.product.count({
+      where: { companyId, archived: false, isComponent: true },
+    }),
+    db.product.count({
+      where: { companyId, archived: true, ...typeFilter },
+    }),
+  ]);
+
   return (
     <ProductsListClient
       view={view}
       q={q}
       selectedCategoryId={categoryId}
       categories={allCategories}
+      type={type}
+      showArchived={showArchived}
+      counts={{
+        product: productCount,
+        component: componentCount,
+        archived: archivedCount,
+      }}
       products={products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -108,6 +153,8 @@ export default async function SprzedazProduktyPage({
         colorCode: p.colorCode,
         weightKg: p.weightKg,
         compositionMode: p.compositionMode,
+        isComponent: p.isComponent,
+        archived: p.archived,
         categoryName: p.category?.name ?? null,
         templateName: p.descriptionTemplate?.name ?? null,
         images: p.images.map((i) => ({

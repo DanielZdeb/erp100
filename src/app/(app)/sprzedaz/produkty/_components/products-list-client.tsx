@@ -23,6 +23,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Search,
+  Puzzle,
+  Archive,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -52,6 +54,8 @@ interface ProductRow {
   colorCode: string | null;
   weightKg: number | null;
   compositionMode: string;
+  isComponent: boolean;
+  archived: boolean;
   categoryName: string | null;
   templateName: string | null;
   images: ImageItem[];
@@ -62,12 +66,18 @@ export function ProductsListClient({
   q,
   selectedCategoryId,
   categories,
+  type,
+  showArchived,
+  counts,
   products,
 }: {
   view: "params" | "gallery";
   q: string;
   selectedCategoryId: string | null;
   categories: CategoryNode[];
+  type: "product" | "component" | "all";
+  showArchived: boolean;
+  counts: { product: number; component: number; archived: number };
   products: ProductRow[];
 }) {
   const router = useRouter();
@@ -95,6 +105,10 @@ export function ProductsListClient({
 
   const setView = (next: "params" | "gallery") => setQueryParam("view", next);
   const setCategory = (next: string | null) => setQueryParam("cat", next);
+  const setType = (next: "product" | "component" | "all") =>
+    setQueryParam("type", next === "product" ? null : next);
+  const setArchived = (next: boolean) =>
+    setQueryParam("archived", next ? "1" : null);
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setQueryParam("q", searchInput);
@@ -153,6 +167,83 @@ export function ProductsListClient({
           </p>
         </div>
       </header>
+
+      {/* Typ produktu + archiwum */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="inline-flex p-0.5 rounded-md bg-slate-100 ring-1 ring-slate-200">
+          <button
+            type="button"
+            onClick={() => setType("product")}
+            disabled={pending}
+            className={cn(
+              "px-3 py-1.5 text-xs font-semibold rounded transition-colors flex items-center gap-1.5",
+              type === "product"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            <Package className="size-3.5" />
+            Produkty
+            <span className="text-[10px] font-mono text-slate-400">
+              {counts.product}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setType("component")}
+            disabled={pending}
+            className={cn(
+              "px-3 py-1.5 text-xs font-semibold rounded transition-colors flex items-center gap-1.5",
+              type === "component"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            <Puzzle className="size-3.5" />
+            Komponenty
+            <span className="text-[10px] font-mono text-slate-400">
+              {counts.component}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setType("all")}
+            disabled={pending}
+            className={cn(
+              "px-3 py-1.5 text-xs font-semibold rounded transition-colors flex items-center gap-1.5",
+              type === "all"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            Wszystkie
+            <span className="text-[10px] font-mono text-slate-400">
+              {counts.product + counts.component}
+            </span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setArchived(!showArchived)}
+          disabled={pending}
+          className={cn(
+            "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ring-1",
+            showArchived
+              ? "bg-amber-100 text-amber-900 ring-amber-300"
+              : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+          )}
+          title="Pokaż zarchiwizowane produkty"
+        >
+          <Archive className="size-3.5" />
+          Archiwum
+          {counts.archived > 0 && (
+            <span className="text-[10px] font-mono opacity-70">
+              {counts.archived}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* Pasek narzędzi: toggle widoku + kategoria + szukajka */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -394,6 +485,16 @@ function ParamsView({ products, q }: { products: ProductRow[]; q: string }) {
                     {p.compositionMode === "ZESTAW" && (
                       <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-violet-100 text-violet-700 font-semibold">
                         <Layers className="size-2.5" /> ZESTAW
+                      </span>
+                    )}
+                    {p.isComponent && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-cyan-100 text-cyan-700 font-semibold">
+                        KOMPONENT
+                      </span>
+                    )}
+                    {p.archived && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">
+                        ARCHIWUM
                       </span>
                     )}
                   </td>
