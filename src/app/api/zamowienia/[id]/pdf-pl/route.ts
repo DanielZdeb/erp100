@@ -129,18 +129,36 @@ export async function GET(
   // Załaduj miniaturę produktu jako data URI (PdfImage potrzebuje DataURI
   // albo absolutnego URL — local file path nie zawsze działa w prod buildzie).
   const projectRoot = process.cwd();
-  async function loadImage(url: string | undefined): Promise<string | null> {
+  async function loadImage(
+    url: string | undefined,
+    opts: { large?: boolean; flattenBg?: string } = {},
+  ): Promise<string | null> {
     if (!url || !url.startsWith("/uploads/")) return null;
     const filePath = path.join(projectRoot, "public", url);
     try {
       const buffer = await fs.readFile(filePath);
       // @react-pdf/renderer (libpng) wywala się na 16-bit / interlaced /
       // progressive PNG-ach ("Incomplete or corrupt PNG file") i nie wspiera
-      // WebP. Przepuszczamy więc WSZYSTKO przez sharp: resize do max 400 px +
-      // konwersja do JPG q=80. Drobne (~30 KB), bezpieczne dla pdf-rendererki.
-      const jpgBuffer = await sharp(buffer, { failOn: "none" })
-        .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+      // WebP. Przepuszczamy więc WSZYSTKO przez sharp.
+      //
+      // Rozmiar:
+      //   - large (grafiki sekcji w PDF, np. zdjęcia kroków produkcji): 1400 px
+      //     i q=88 — w pełnej szerokości A4 to ~150 DPI, ostry detal
+      //   - default (miniatury produktów, logo itp.): 400 px, q=80, ~30 KB
+      // flattenBg: gdy PNG ma transparency a JPEG nie wspiera alpha — sharp
+      // bez flatten zmienia transparent na CZARNY. Dla loga ustawiamy biały.
+      const maxSize = opts.large ? 1400 : 400;
+      const quality = opts.large ? 88 : 80;
+      let pipeline = sharp(buffer, { failOn: "none" });
+      if (opts.flattenBg) {
+        pipeline = pipeline.flatten({ background: opts.flattenBg });
+      }
+      const jpgBuffer = await pipeline
+        .resize(maxSize, maxSize, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality })
         .toBuffer();
       return `data:image/jpeg;base64,${jpgBuffer.toString("base64")}`;
     } catch {
@@ -195,7 +213,9 @@ export async function GET(
       images: (
         await Promise.all(
           s.images.map(async (img) => {
-            const dataUri = await loadImage(img.url);
+            // Grafiki sekcji renderowane sa na pelnej szerokosci A4 — wymagaja
+            // wyzszej rozdzielczosci niz default 400 px (rozmazuja sie).
+            const dataUri = await loadImage(img.url, { large: true });
             return dataUri
               ? { dataUri, alt: img.alt ?? null }
               : null;
@@ -260,6 +280,9 @@ export async function GET(
       companyName: order.company?.name ?? "",
       companyLogoDataUri: await loadImage(
         order.company?.logoColorUrl ?? undefined,
+        // Logo to zwykle PNG/SVG z transparency. JPEG nie wspiera alpha —
+        // bez flatten transparentne piksele staja sie CZARNE w PDF.
+        { flattenBg: "#ffffff" },
       ),
       buyer: {
         name: order.company?.name ?? "",

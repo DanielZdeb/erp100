@@ -735,15 +735,8 @@ export function OrderPlPdf(
       ))}
 
       {/* ───────── Strona pozycje + belki (po sekcjach) ───────── */}
+      {/* Logo NIE jest powtarzane — pokazujemy tylko na okladce (str. 1). */}
       <Page size="A4" style={styles.page}>
-        {props.companyLogoDataUri && (
-          <View style={styles.fixedLogoWrapper} fixed>
-            <PdfImage
-              src={props.companyLogoDataUri}
-              style={styles.fixedLogo}
-            />
-          </View>
-        )}
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -1217,14 +1210,7 @@ function SectionPage({
 
   return (
     <Page size="A4" style={styles.sectionPage}>
-      {companyLogoDataUri && (
-        <View style={styles.fixedLogoWrapper} fixed>
-          <PdfImage
-            src={companyLogoDataUri}
-            style={styles.fixedLogo}
-          />
-        </View>
-      )}
+      {/* Logo nie jest renderowane na sekcjach — tylko na okladce (str. 1). */}
       <View style={styles.sectionTopBar}>
         <Text style={styles.sectionPageOrder}>
           Wytyczne i składanie zamówienia ({index + 1}/{total})
