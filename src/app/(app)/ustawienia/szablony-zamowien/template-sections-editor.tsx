@@ -275,6 +275,10 @@ function TemplateSectionCard({
   async function uploadBatch(files: File[]) {
     setUploading(true);
     let added = 0;
+    // BUG fix: section.images z closure'a nie aktualizuje sie miedzy iteracjami
+    // po onPatch (dopiero po re-renderze rodzica). Akumulujemy lokalnie i robimy
+    // jeden onPatch po kazdym sukcesie z pelnym 'accumulated'.
+    const accumulated = [...section.images];
     try {
       for (const file of files) {
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -288,17 +292,13 @@ function TemplateSectionCard({
             dataUri,
             alt: file.name,
           });
-          onPatch({
-            images: [
-              ...section.images,
-              {
-                id: res.id,
-                url: res.url,
-                alt: file.name,
-                sortOrder: section.images.length + added,
-              },
-            ],
+          accumulated.push({
+            id: res.id,
+            url: res.url,
+            alt: file.name,
+            sortOrder: section.images.length + added,
           });
+          onPatch({ images: [...accumulated] });
           added++;
         } catch (err) {
           toast.error(
