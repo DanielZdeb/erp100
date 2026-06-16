@@ -533,18 +533,21 @@ const styles = StyleSheet.create({
   // ~90% przestrzeni roboczej strony A4 (po odjęciu paddingów, nagłówka,
   // tytułu i krótkiej treści). 650pt zostawia minimum miejsca na header
   // strony i tytuł sekcji, a obraz wypełnia praktycznie całą resztę kartki.
+  // Galeria grafik sekcji — bez fixed height, react-pdf sam paginuje na
+  // kolejne strony gdy nie mieszczą się. Każde zdjęcie jest wrap={false}
+  // żeby nie było rozcięte między stronami.
   sectionPageImagesWrap: {
     marginTop: 12,
-    height: 650,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    alignContent: "stretch",
+    gap: 8,
   },
   sectionPageImage: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    minHeight: 220,
+    // 3 w rzędzie: ~32% + 8pt gap × 2 = ~96% + 16pt → mieści się w szerokości
+    flexBasis: "32%",
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 180,
     borderWidth: 0.5,
     borderColor: COLORS.border,
     objectFit: "contain",
@@ -1231,11 +1234,21 @@ function SectionPage({
             />
           ) : (
             images.map((img, i) => (
-              <PdfImage
+              // wrap={false} - nie roznoc zdjecia miedzy stronami przy auto-paginacji
+              <View
                 key={i}
-                src={img.dataUri}
                 style={styles.sectionPageImage}
-              />
+                wrap={false}
+              >
+                <PdfImage
+                  src={img.dataUri}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </View>
             ))
           )}
         </View>
