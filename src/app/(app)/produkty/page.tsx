@@ -393,10 +393,26 @@ export default async function ProduktyPage({
       : {}),
   };
 
+  // Lazy load: jesli user nie wybral kategorii ANI nie szuka ANI nie wlaczyl
+  // archiwum, NIE wczytuj 350+ produktow z relacjami. Skipnij przez fake-where
+  // ktore zwraca 0 wynikow w mikrosekundach (index lookup po nieistniejacym id).
+  // Caly downstream (snapshoty, economy, calc kontenera) operuje na pustej liscie.
+  // Router prefetch w Next.js Link sciaga sasiednie kategorie w tle.
+  const shouldLoadProducts = !!(
+    categoryId ||
+    q ||
+    showArchived ||
+    activeStatus !== "AKTYWNY"
+  );
+  const skipFilter = shouldLoadProducts
+    ? {}
+    : { id: { equals: "__skip_no_filter__" } };
+
   const products = await db.product.findMany({
     where: {
       ...baseWhere,
       ...(activeStatus !== ALL_STATUSES ? { status: activeStatus } : {}),
+      ...skipFilter,
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -865,10 +881,28 @@ export default async function ProduktyPage({
       <ChannelViewSwitcher>
       <Card className="p-0 overflow-hidden">
         {products.length === 0 ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">
-            {q || categoryId
-              ? "Brak produktów dla podanych filtrów."
-              : "Brak produktów w tej kategorii statusu."}
+          <div className="p-10 text-center text-sm text-muted-foreground space-y-2">
+            {!shouldLoadProducts ? (
+              <>
+                <p className="font-medium text-foreground">
+                  Wybierz kategorię żeby zobaczyć produkty
+                </p>
+                <p className="text-xs">
+                  Lista nie ładuje się od razu, bo masz {totalProductCount}{" "}
+                  produktów. Klik na kategorię w panelu powyżej (kategorie się
+                  prefetchują w tle — przełączanie powinno być natychmiastowe
+                  po pierwszym wczytaniu).
+                </p>
+                <p className="text-xs">
+                  Alternatywnie: użyj <strong>szukajki</strong> lub włącz{" "}
+                  <strong>archiwum</strong> żeby wymusić załadowanie.
+                </p>
+              </>
+            ) : q || categoryId ? (
+              "Brak produktów dla podanych filtrów."
+            ) : (
+              "Brak produktów w tej kategorii statusu."
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
