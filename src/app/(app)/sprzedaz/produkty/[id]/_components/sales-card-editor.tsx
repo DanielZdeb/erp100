@@ -11,7 +11,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle, ChevronDown, Copy } from "lucide-react";
+import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle, ChevronDown, Copy, Eye, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,7 @@ export function SalesCardEditor({
     };
   } | null>(null);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   async function generateAiDraft() {
     if (
@@ -258,6 +259,16 @@ export function SalesCardEditor({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!templateId || sections.length === 0}
+            className="gap-1.5"
+            title="Podgląd opisu jak go zobaczy klient"
+          >
+            <Eye className="size-3.5" /> Podgląd opisu
+          </Button>
           <Button
             onClick={saveContent}
             disabled={pending || !templateId}
@@ -451,7 +462,147 @@ export function SalesCardEditor({
           }}
         />
       )}
+
+      {previewOpen && (
+        <PreviewDialog
+          sections={sections}
+          content={content}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </Card>
+  );
+}
+
+function PreviewDialog({
+  sections,
+  content,
+  onClose,
+}: {
+  sections: SectionView[];
+  content: Record<string, SectionContent>;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm grid place-items-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <Eye className="size-4 text-slate-600" />
+            Podgląd opisu (jak zobaczy klient)
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-7 rounded grid place-items-center hover:bg-slate-100"
+            aria-label="Zamknij"
+            title="Esc"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-6 py-6 flex-1 min-h-0 bg-slate-50">
+          <div className="max-w-2xl mx-auto space-y-6">
+            {sections.length === 0 ? (
+              <p className="text-center text-sm text-slate-500 py-12">
+                Wybierz szablon i wypełnij sekcje żeby zobaczyć podgląd.
+              </p>
+            ) : (
+              sections.map((s) => {
+                const cur = content[s.id] ?? {};
+                const [leftKind, rightKind] = layoutToKinds(s.layout);
+                return (
+                  <div key={s.id} className="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
+                      <PreviewSlot
+                        kind={leftKind}
+                        text={cur.leftText}
+                        imageUrl={cur.leftImageUrl}
+                      />
+                      <PreviewSlot
+                        kind={rightKind}
+                        text={cur.rightText}
+                        imageUrl={cur.rightImageUrl}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t flex items-center justify-between bg-white">
+          <span className="text-[10px] text-slate-500">
+            {sections.length} sekcji · podgląd nie zapisuje zmian
+          </span>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Zamknij
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewSlot({
+  kind,
+  text,
+  imageUrl,
+}: {
+  kind: "TEXT" | "IMAGE";
+  text?: string | null;
+  imageUrl?: string | null;
+}) {
+  if (kind === "IMAGE") {
+    if (!imageUrl) {
+      return (
+        <div className="aspect-[4/3] rounded ring-1 ring-dashed ring-slate-300 grid place-items-center text-[10px] text-slate-400 uppercase tracking-wide">
+          [pusty slot obraz]
+        </div>
+      );
+    }
+    return (
+      <div className="aspect-[4/3] rounded overflow-hidden bg-slate-100 ring-1 ring-slate-200">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt="" className="size-full object-cover" />
+      </div>
+    );
+  }
+  if (!text || !text.trim()) {
+    return (
+      <div className="rounded ring-1 ring-dashed ring-slate-300 p-4 text-[10px] text-slate-400 uppercase tracking-wide text-center">
+        [pusty slot tekst]
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "prose prose-sm max-w-none text-slate-800",
+        "[&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-2 [&_h1]:mb-1.5",
+        "[&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1",
+        "[&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-1.5 [&_h3]:mb-1",
+        "[&_p]:my-1.5 [&_p]:leading-relaxed",
+        "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5",
+        "[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5",
+        "[&_strong]:font-semibold [&_strong]:text-slate-900",
+        "[&_u]:underline",
+      )}
+      dangerouslySetInnerHTML={{ __html: text }}
+    />
   );
 }
 
