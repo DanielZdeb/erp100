@@ -57,6 +57,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   editProductImageWithAiAction,
   bulkEditProductImagesAiAction,
+  bulkArchiveProductImagesAction,
+  bulkDeleteProductImagesAction,
   archiveProductImageAction,
   restoreProductImageAction,
   hardDeleteProductImageAction,
@@ -180,6 +182,44 @@ export function ProductGalleryClickable({
       } else toast.error(r.error);
     });
   }
+  function bulkArchive(restoreInstead = false) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const verb = restoreInstead ? "Przywrocic" : "Przeniesc do archiwum";
+    if (!confirm(`${verb} ${ids.length} zdjec?`)) return;
+    startTransition(async () => {
+      const r = await bulkArchiveProductImagesAction(ids, !restoreInstead);
+      if (r.ok) {
+        toast.success(
+          restoreInstead
+            ? `Przywrocono ${r.count} zdjec`
+            : `Przeniesiono ${r.count} zdjec do archiwum`,
+        );
+        clearSelection();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function bulkHardDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Trwale usunac ${ids.length} zdjec? Tej operacji nie da sie cofnac.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const r = await bulkDeleteProductImagesAction(ids);
+      if (r.ok) {
+        toast.success(`Usunieto ${r.count} zdjec`);
+        clearSelection();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   function hardDelete(id: string) {
     if (!confirm("Trwale usunac zdjecie? Tej operacji nie da sie cofnac.")) return;
     startTransition(async () => {
@@ -228,25 +268,23 @@ export function ProductGalleryClickable({
             Archiwum ({archivedImages.length})
           </button>
         </div>
-        {tab === "active" && (
-          <Button
-            type="button"
-            size="sm"
-            variant={selectMode ? "default" : "outline"}
-            onClick={() => {
-              setSelectMode((m) => !m);
-              if (selectMode) clearSelection();
-            }}
-            className="h-7 gap-1 text-xs"
-          >
-            {selectMode ? (
-              <CheckSquare className="size-3.5" />
-            ) : (
-              <Square className="size-3.5" />
-            )}
-            {selectMode ? "Zaznaczanie: ON" : "Tryb zaznaczania"}
-          </Button>
-        )}
+        <Button
+          type="button"
+          size="sm"
+          variant={selectMode ? "default" : "outline"}
+          onClick={() => {
+            setSelectMode((m) => !m);
+            if (selectMode) clearSelection();
+          }}
+          className="h-7 gap-1 text-xs"
+        >
+          {selectMode ? (
+            <CheckSquare className="size-3.5" />
+          ) : (
+            <Square className="size-3.5" />
+          )}
+          {selectMode ? "Zaznaczanie: ON" : "Tryb zaznaczania"}
+        </Button>
         {selectMode && (
           <>
             <Button
@@ -268,16 +306,51 @@ export function ProductGalleryClickable({
                   type="button"
                   size="sm"
                   onClick={() => setBulkOpen(true)}
+                  disabled={pending}
                   className="h-7 gap-1 text-xs bg-violet-600 hover:bg-violet-700"
                 >
                   <Sparkles className="size-3.5" />
-                  Edytuj zaznaczone AI ({selectedIds.size})
+                  Edytuj AI ({selectedIds.size})
+                </Button>
+                {tab === "active" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => bulkArchive(false)}
+                    disabled={pending}
+                    className="h-7 gap-1 text-xs bg-amber-600 hover:bg-amber-700"
+                  >
+                    <Archive className="size-3.5" />
+                    Archiwum ({selectedIds.size})
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => bulkArchive(true)}
+                    disabled={pending}
+                    className="h-7 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    <ArchiveRestore className="size-3.5" />
+                    Przywroc ({selectedIds.size})
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={bulkHardDelete}
+                  disabled={pending}
+                  className="h-7 gap-1 text-xs bg-rose-600 hover:bg-rose-700"
+                >
+                  <Trash2 className="size-3.5" />
+                  Usun ({selectedIds.size})
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   onClick={clearSelection}
+                  disabled={pending}
                   className="h-7 text-xs"
                 >
                   Wyczysc

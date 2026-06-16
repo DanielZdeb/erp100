@@ -1093,6 +1093,81 @@ export async function restoreProductImageAction(
   }
 }
 
+/**
+ * Bulk archive/restore/delete dla wielu zaznaczonych zdjec.
+ * Bezpieczna granica 100 sztuk na raz.
+ */
+export async function bulkArchiveProductImagesAction(
+  imageIds: string[],
+  archived: boolean,
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    if (imageIds.length === 0) return { ok: false, error: "Brak zaznaczonych." };
+    if (imageIds.length > 100) return { ok: false, error: "Max 100 naraz." };
+
+    const imgs = await db.productImage.findMany({
+      where: { id: { in: imageIds }, product: { companyId } },
+      select: { id: true, productId: true },
+    });
+    if (imgs.length === 0) return { ok: false, error: "Brak dostepu lub nie istnieja." };
+
+    await db.productImage.updateMany({
+      where: { id: { in: imgs.map((i) => i.id) } },
+      data: archived
+        ? { archived: true, isPrimary: false }
+        : { archived: false },
+    });
+
+    // Unique productIds — revaliduj kazdy + ensure primary
+    const uniqueProducts = Array.from(new Set(imgs.map((i) => i.productId)));
+    for (const pid of uniqueProducts) {
+      await ensureProductHasPrimaryImage(pid).catch(() => undefined);
+      revalidateProductPaths(pid);
+    }
+    return { ok: true, count: imgs.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
+export async function bulkDeleteProductImagesAction(
+  imageIds: string[],
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+    if (imageIds.length === 0) return { ok: false, error: "Brak zaznaczonych." };
+    if (imageIds.length > 100) return { ok: false, error: "Max 100 naraz." };
+
+    const imgs = await db.productImage.findMany({
+      where: { id: { in: imageIds }, product: { companyId } },
+      select: { id: true, productId: true, url: true, isPrimary: true },
+    });
+    if (imgs.length === 0) return { ok: false, error: "Brak dostepu lub nie istnieja." };
+
+    const { deleteFile } = await import("@/lib/storage");
+    // Kasuj pliki (best effort, ignoruj bledy per plik)
+    await Promise.all(
+      imgs.map((i) => (i.url ? deleteFile(i.url).catch(() => undefined) : undefined)),
+    );
+
+    await db.productImage.deleteMany({
+      where: { id: { in: imgs.map((i) => i.id) } },
+    });
+
+    const uniqueProducts = Array.from(new Set(imgs.map((i) => i.productId)));
+    for (const pid of uniqueProducts) {
+      await ensureProductHasPrimaryImage(pid).catch(() => undefined);
+      revalidateProductPaths(pid);
+    }
+    return { ok: true, count: imgs.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Blad." };
+  }
+}
+
 export async function hardDeleteProductImageAction(
   imageId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
