@@ -55,6 +55,8 @@ export default async function UstawieniaPage() {
         krs: true,
         representativeName: true,
         deliveryAddress: true,
+        deliveryAddressFabryka: true,
+        deliveryAddressSzwalnia: true,
       },
     }),
   ]);

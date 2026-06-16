@@ -42,7 +42,14 @@ model Company {
   representativeName String?
   /// Adres dostawy (magazyn / odbiór) — pokazywany na PDF zamówień obok
   /// danych zamawiającego. Wielowierszowy tekst (newliny zachowywane).
+  /// Legacy: uzywany jako fallback gdy specyficzne adresy ponizej sa puste.
   deliveryAddress    String?
+  /// Adres dostawy dla zamowien do FABRYKI (chinski dostawca przesyla
+  /// materialy lub produkty na ten adres). Wielowierszowy.
+  deliveryAddressFabryka  String?
+  /// Adres dostawy dla zamowien do SZWALNI/KRAJALNI (polski podwykonawca
+  /// przesyla gotowe produkty na ten adres). Wielowierszowy.
+  deliveryAddressSzwalnia String?
   /// Domyślna stawka KROJENIA za sztukę (PLN). Auto-wypełniana w polu
   /// „Krojenie" w Płatnościach nowego zamówienia PL.
   defaultKrojeniePerSztPln Float?

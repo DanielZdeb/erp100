@@ -96,6 +96,16 @@ const companyInfoSchema = z.object({
     .nullable()
     .optional()
     .transform((v) => v?.trim() || null),
+  deliveryAddressFabryka: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v?.trim() || null),
+  deliveryAddressSzwalnia: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v?.trim() || null),
 });
 
 export async function updateCompanyInfoAction(input: unknown) {
