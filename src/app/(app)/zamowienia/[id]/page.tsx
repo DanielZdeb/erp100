@@ -155,7 +155,8 @@ export default async function ZamowienieDetailPage({
                       category: { select: { id: true, name: true } },
                       cbmPerUnit: true,
                       images: {
-                        where: { isPrimary: true },
+                        where: { archived: false, status: "READY" },
+                        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                         take: 1,
                         select: { url: true, thumbnailWebpUrl: true },
                       },
@@ -183,7 +184,8 @@ export default async function ZamowienieDetailPage({
                 },
               },
               images: {
-                where: { isPrimary: true },
+                where: { archived: false, status: "READY" },
+                orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                 take: 1,
                 select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
               },
@@ -206,7 +208,8 @@ export default async function ZamowienieDetailPage({
                   categoryId: true,
                   cbmPerUnit: true,
                   images: {
-                    where: { isPrimary: true },
+                    where: { archived: false, status: "READY" },
+                    orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                     take: 1,
                     select: { url: true, thumbnailWebpUrl: true },
                   },
@@ -367,7 +370,8 @@ export default async function ZamowienieDetailPage({
                   category: { select: { id: true, name: true } },
                   cbmPerUnit: true,
                   images: {
-                    where: { isPrimary: true },
+                    where: { archived: false, status: "READY" },
+                    orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                     take: 1,
                     select: { url: true, thumbnailWebpUrl: true },
                   },
@@ -395,7 +399,8 @@ export default async function ZamowienieDetailPage({
             },
           },
           images: {
-            where: { isPrimary: true },
+            where: { archived: false, status: "READY" },
+            orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
             take: 1,
             select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
           },
@@ -418,7 +423,8 @@ export default async function ZamowienieDetailPage({
               categoryId: true,
               cbmPerUnit: true,
               images: {
-                where: { isPrimary: true },
+                where: { archived: false, status: "READY" },
+                orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
                 take: 1,
                 select: { url: true, thumbnailWebpUrl: true },
               },
@@ -638,7 +644,8 @@ export default async function ZamowienieDetailPage({
           cbmPerUnit: true,
           unitsPerBox: true,
           images: {
-            where: { isPrimary: true },
+            where: { archived: false, status: "READY" },
+            orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
             take: 1,
             select: { url: true, alt: true, thumbnailWebpUrl: true, thumbnailBlurDataUrl: true },
           },

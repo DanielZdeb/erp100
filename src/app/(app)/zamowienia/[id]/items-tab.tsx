@@ -1090,11 +1090,15 @@ function ItemRow({
             href={`/produkty/${item.product.id}`}
             className="flex items-center gap-2 hover:bg-muted/40 -mx-1 px-1 py-0.5 rounded transition-colors group flex-1 min-w-0"
           >
-            {item.product.images[0]?.thumbnailWebpUrl ? (
-              // WebP miniaturka 144×144 (~5 KB) — zwykły <img> wystarczy.
+            {item.product.images[0] ? (
+              // WebP miniaturka 144×144 (~5 KB) lub fallback do pelnego URL
+              // gdy thumb nie jest jeszcze wygenerowany (AI gen / legacy upload).
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={item.product.images[0].thumbnailWebpUrl}
+                src={
+                  item.product.images[0].thumbnailWebpUrl ??
+                  item.product.images[0].url
+                }
                 alt={item.product.images[0].alt ?? item.product.name}
                 width={28}
                 height={28}
@@ -3906,10 +3910,10 @@ function AddItemDialog({
                         onClick={(e) => e.stopPropagation()}
                         className="size-4 accent-primary shrink-0"
                       />
-                      {p.images[0]?.thumbnailWebpUrl ? (
+                      {p.images[0] ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={p.images[0].thumbnailWebpUrl}
+                          src={p.images[0].thumbnailWebpUrl ?? p.images[0].url}
                           alt={p.images[0].alt ?? p.name}
                           width={40}
                           height={40}
