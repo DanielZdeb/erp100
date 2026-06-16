@@ -272,6 +272,7 @@ export async function generateSectionTextAction(
   sectionId: string,
   side: "left" | "right",
   extraPrompt: string = "",
+  customPromptOverride: string = "",
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     await requireUser();
@@ -307,14 +308,18 @@ export async function generateSectionTextAction(
     if (!product) return { ok: false, error: "Produkt nie istnieje." };
     if (!section) return { ok: false, error: "Sekcja nie istnieje." };
 
-    const sectionPrompt =
-      side === "left" ? section.leftTextPrompt : section.rightTextPrompt;
-    if (!sectionPrompt?.trim()) {
+    const effectivePrompt = customPromptOverride.trim()
+      ? customPromptOverride.trim()
+      : side === "left"
+        ? section.leftTextPrompt
+        : section.rightTextPrompt;
+    if (!effectivePrompt?.trim()) {
       return {
         ok: false,
-        error: "Brak promptu AI dla tego slotu w szablonie. Uzupełnij w edytorze szablonu.",
+        error: "Brak promptu AI dla tego slotu. Uzupełnij w szablonie albo wpisz w polu \"Bazowy prompt\".",
       };
     }
+    const sectionPrompt = effectivePrompt;
 
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -391,6 +396,7 @@ export async function generateSectionImageAction(
   extraPrompt: string = "",
   extraRefUrls: string[] = [],
   regenerateFromUrl: string | null = null,
+  customPromptOverride: string = "",
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
     await requireUser();
@@ -422,14 +428,18 @@ export async function generateSectionImageAction(
     if (!product) return { ok: false, error: "Produkt nie istnieje." };
     if (!section) return { ok: false, error: "Sekcja nie istnieje." };
 
-    const sectionPrompt =
-      side === "left" ? section.leftImagePrompt : section.rightImagePrompt;
-    if (!sectionPrompt?.trim()) {
+    const effectivePrompt = customPromptOverride.trim()
+      ? customPromptOverride.trim()
+      : side === "left"
+        ? section.leftImagePrompt
+        : section.rightImagePrompt;
+    if (!effectivePrompt?.trim()) {
       return {
         ok: false,
-        error: "Brak promptu AI dla tego slotu w szablonie. Uzupełnij w edytorze szablonu.",
+        error: "Brak promptu AI dla tego slotu. Uzupełnij w szablonie albo wpisz w polu \"Bazowy prompt\".",
       };
     }
+    const sectionPrompt = effectivePrompt;
 
     const { generateProductPhoto } = await import("@/lib/photo-gemini");
     const { uploadFile } = await import("@/lib/storage");
@@ -618,8 +628,8 @@ export async function aiGenerateSalesDraftForProductAction(
       `   - Each section has a 2-column layout from: TEXT_TEXT, IMAGE_TEXT, TEXT_IMAGE, IMAGE_IMAGE.`,
       `   - Be strategic: hero, korzysci, specyfikacja, dla kogo, uzycie, FAQ, CTA — wybierz co pasuje, nie wszystko.`,
       `   - Mix image and text — visual products need more IMAGE slots, technical ones more TEXT.`,
-      `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise English photography brief (used later by Nano Banana Pro).`,
-      `4. For each TEXT slot fill 'leftTextPrompt' or 'rightTextPrompt' with a Claude prompt for regenerating that copy on demand.`,
+      `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise photography brief WRITTEN IN POLISH (used later by Nano Banana Pro / Gemini, which understands Polish well). Opisz po polsku: styl ujęcia, kadr, oświetlenie, tło, mood. Możesz mieszać polskie zdania z anglojęzycznymi terminami fotograficznymi (np. "studio packshot na białym tle, soft light, top-down, no humans").`,
+      `4. For each TEXT slot fill 'leftTextPrompt' or 'rightTextPrompt' with a Claude prompt FOR REGENERATING that copy on demand. Napisz prompt po POLSKU — instrukcję dla Claude jak ma napisać tekst tej sekcji (ton, długość, format, focus).`,
       `5. Also fill 'content.leftText' / 'content.rightText' with READY-TO-USE Polish copy for the operator. Use simple markdown for readability:`,
       `   - Use bullets (- ) or numbered lists where helpful.`,
       `   - Use **bold** for key benefits.`,

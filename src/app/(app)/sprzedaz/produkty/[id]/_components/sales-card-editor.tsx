@@ -911,8 +911,10 @@ function SlotGenerationDialog({
   onResult: (value: string) => void;
 }) {
   const [extraPrompt, setExtraPrompt] = useState("");
+  const [editedBasePrompt, setEditedBasePrompt] = useState(basePrompt);
   const [extraRefs, setExtraRefs] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
+  const basePromptModified = editedBasePrompt.trim() !== basePrompt.trim();
 
   function toggleRef(url: string) {
     setExtraRefs((prev) =>
@@ -945,12 +947,14 @@ function SlotGenerationDialog({
   async function submit() {
     setPending(true);
     try {
+      const customOverride = basePromptModified ? editedBasePrompt.trim() : "";
       if (kind === "TEXT") {
         const r = await generateSectionTextAction(
           productId,
           sectionId,
           side,
           extraPrompt.trim(),
+          customOverride,
         );
         if (r.ok) {
           onResult(r.text);
@@ -966,6 +970,7 @@ function SlotGenerationDialog({
           extraPrompt.trim(),
           extraRefs,
           regenerateFromUrl,
+          customOverride,
         );
         if (r.ok) {
           onResult(r.url);
@@ -1008,14 +1013,36 @@ function SlotGenerationDialog({
             </div>
           )}
 
-          {basePrompt && (
-            <div className="rounded p-2 text-[11px] bg-slate-50 ring-1 ring-slate-200">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Bazowy prompt z szablonu
-              </span>
-              <p className="text-slate-700 whitespace-pre-wrap mt-1">{basePrompt}</p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="slot-base" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Bazowy prompt z szablonu (edytowalny)
+              </Label>
+              {basePromptModified && (
+                <button
+                  type="button"
+                  onClick={() => setEditedBasePrompt(basePrompt)}
+                  className="text-[10px] text-violet-600 hover:underline"
+                  title="Przywróć oryginał z szablonu"
+                >
+                  ↺ Przywróć
+                </button>
+              )}
             </div>
-          )}
+            <Textarea
+              id="slot-base"
+              rows={4}
+              value={editedBasePrompt}
+              onChange={(e) => setEditedBasePrompt(e.target.value)}
+              className="text-[11px] bg-slate-50/60"
+              placeholder="np. Studio packshot na białym tle, miękkie światło, kadr top-down..."
+            />
+            <p className="text-[9px] text-slate-500">
+              {basePromptModified
+                ? "Edycja użyta TYLKO dla tej generacji. Nie zapisuje się do szablonu."
+                : "Możesz edytować bazowy prompt — zmiana użyta jednorazowo dla tej generacji."}
+            </p>
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="slot-extra" className="text-sm">
