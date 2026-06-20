@@ -17,6 +17,7 @@ import { SalesCardEditor } from "./_components/sales-card-editor";
 import { ProductGalleryClickable } from "./_components/product-gallery-clickable";
 import { AddCustomPhotoButton } from "./_components/custom-photo-button";
 import { CopyFromProductButton } from "./_components/copy-from-product-button";
+import { UploadFromDiskButton } from "./_components/upload-from-disk-button";
 import { AiCostLog } from "./_components/ai-cost-log";
 
 export const dynamic = "force-dynamic";
@@ -149,7 +150,9 @@ export default async function SprzedazProduktDetailPage({
             )}
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
-            <CopyFromProductButton productId={product.id} />
+            <UploadFromDiskButton productId={product.id} />
+            <CopyFromProductButton productId={product.id} source="others" />
+            <CopyFromProductButton productId={product.id} source="current" />
             <AddCustomPhotoButton
               productId={product.id}
               galleryImages={product.images.map((img) => ({

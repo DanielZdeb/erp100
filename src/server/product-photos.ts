@@ -355,6 +355,89 @@ export async function createShotsFromProductAction(input: {
 }
 
 /**
+ * Upload zdjec produktowych prosto z dysku usera do galerii.
+ * Wspolny endpoint dla buttona "Dodaj z komputera" — moze przyjac wiele
+ * plikow na raz pod kluczem "files". Tworzy ProductImage z status=READY,
+ * dorabia thumbnail + blur i ustawia primary jesli brakuje.
+ */
+export async function uploadProductImagesFromDiskAction(
+  formData: FormData,
+): Promise<
+  | { ok: true; createdCount: number }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireUser();
+    const companyId = await getCurrentCompanyId();
+
+    const productId = formData.get("productId");
+    if (typeof productId !== "string" || !productId) {
+      return { ok: false, error: "Brak productId." };
+    }
+    const product = await db.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) {
+      return { ok: false, error: "Produkt nie istnieje lub nalezy do innej firmy." };
+    }
+
+    const files = formData.getAll("files").filter((f): f is File => f instanceof File);
+    if (files.length === 0) {
+      return { ok: false, error: "Nie wybrano zadnego pliku." };
+    }
+    if (files.length > 20) {
+      return { ok: false, error: "Maksymalnie 20 zdjec naraz." };
+    }
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) {
+        return { ok: false, error: `Plik "${f.name}" nie jest obrazem.` };
+      }
+      if (f.size > 20 * 1024 * 1024) {
+        return { ok: false, error: `Plik "${f.name}" za duzy (max 20 MB).` };
+      }
+    }
+
+    const maxSort = await db.productImage.findFirst({
+      where: { productId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    let nextSort = (maxSort?.sortOrder ?? 0) + 1;
+
+    const uploaded = await Promise.all(
+      files.map((f) => uploadFile(f, { folder: `products/${productId}` })),
+    );
+
+    await db.$transaction(
+      uploaded.map((u) =>
+        db.productImage.create({
+          data: {
+            productId,
+            url: u.url,
+            thumbnailWebpUrl: u.thumbnailWebpUrl,
+            thumbnailBlurDataUrl: u.thumbnailBlurDataUrl,
+            alt: u.filename,
+            sortOrder: nextSort++,
+            status: "READY" as const,
+          },
+        }),
+      ),
+    );
+
+    await ensureProductHasPrimaryImage(productId).catch(() => undefined);
+    revalidateProductPaths(productId);
+
+    return { ok: true as const, createdCount: uploaded.length };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Nieznany blad uploadu.",
+    };
+  }
+}
+
+/**
  * Upload referencyjnego zdjęcia (np. realne foto produktu dla koloru).
  * Używane w wizardzie kampanii — user uploaduje pliki per-produkt.
  */
@@ -1537,12 +1620,14 @@ export async function uploadAiRefAction(
  */
 export async function listProductsForRefPickerAction(
   query: string = "",
+  options: { onlyProductId?: string } = {},
 ): Promise<{
   products: Array<{
     id: string;
     name: string;
     productCode: string | null;
     color: string | null;
+    isComponent: boolean;
     images: Array<{
       id: string;
       url: string;
@@ -1557,6 +1642,7 @@ export async function listProductsForRefPickerAction(
     where: {
       companyId,
       archived: false,
+      ...(options.onlyProductId ? { id: options.onlyProductId } : {}),
       ...(q
         ? {
             OR: [
@@ -1567,13 +1653,16 @@ export async function listProductsForRefPickerAction(
           }
         : {}),
     },
-    orderBy: { name: "asc" },
+    // Komponenty (isComponent=true) sortuj nizej niz produkty, w obrebie kazdej
+    // grupy alfabetycznie po nazwie.
+    orderBy: [{ isComponent: "asc" }, { name: "asc" }],
     take: 200,
     select: {
       id: true,
       name: true,
       productCode: true,
       color: true,
+      isComponent: true,
       images: {
         where: { archived: false, status: "READY" },
         orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],

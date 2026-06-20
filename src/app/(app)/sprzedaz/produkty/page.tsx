@@ -12,6 +12,7 @@
  */
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
+import { CategoryNav, type CategoryNavItem } from "@/components/category-nav";
 
 import { ProductsListClient } from "./_components/products-list-client";
 
@@ -44,11 +45,31 @@ export default async function SprzedazProduktyPage({
   const showArchived = sp.archived === "1";
   const companyId = await getCurrentCompanyId();
 
-  // Wszystkie kategorie firmy do dropdowna filtru
+  // Wszystkie kategorie firmy + bezposrednie liczniki produktow (respektujac
+  // aktualny typeFilter + archived) — uzywane przez CategoryNav (3 kolumny).
   const allCategories = await db.category.findMany({
     where: { companyId },
     orderBy: [{ level: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, parentId: true, level: true },
+    select: {
+      id: true,
+      name: true,
+      parentId: true,
+      level: true,
+      _count: {
+        select: {
+          products: {
+            where: {
+              archived: showArchived,
+              ...(type === "product"
+                ? { isComponent: false }
+                : type === "component"
+                  ? { isComponent: true }
+                  : {}),
+            },
+          },
+        },
+      },
+    },
   });
 
   // Zbierz potomków wybranej kategorii (filtr rozszerza się na wszystkich)
@@ -131,12 +152,66 @@ export default async function SprzedazProduktyPage({
     }),
   ]);
 
+  // Cumulative count per kategoria (subtree).
+  const childrenMap = new Map<string | null, typeof allCategories>();
+  for (const c of allCategories) {
+    const k = c.parentId ?? null;
+    childrenMap.set(k, [...(childrenMap.get(k) ?? []), c]);
+  }
+  const cumulative = new Map<string, number>();
+  function cumCount(id: string): number {
+    const cached = cumulative.get(id);
+    if (cached !== undefined) return cached;
+    const cat = allCategories.find((c) => c.id === id);
+    if (!cat) return 0;
+    let total = cat._count.products;
+    for (const child of childrenMap.get(id) ?? []) total += cumCount(child.id);
+    cumulative.set(id, total);
+    return total;
+  }
+  for (const c of allCategories) cumCount(c.id);
+
+  const navItems: CategoryNavItem[] = allCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    parentId: c.parentId,
+    level: c.level,
+    directCount: c._count.products,
+    cumulativeCount: cumulative.get(c.id) ?? 0,
+  }));
+
+  const totalForNav =
+    type === "product"
+      ? productCount
+      : type === "component"
+        ? componentCount
+        : productCount + componentCount;
+
+  function buildHref(catId: string | null): string {
+    const sp = new URLSearchParams();
+    if (q) sp.set("q", q);
+    if (view !== "params") sp.set("view", view);
+    if (type !== "product") sp.set("type", type);
+    if (showArchived) sp.set("archived", "1");
+    if (catId) sp.set("cat", catId);
+    const qs = sp.toString();
+    return qs ? `/sprzedaz/produkty?${qs}` : "/sprzedaz/produkty";
+  }
+
+  const categoryNavSlot = (
+    <CategoryNav
+      categories={navItems}
+      totalCount={totalForNav}
+      selectedId={categoryId}
+      buildHref={buildHref}
+    />
+  );
+
   return (
     <ProductsListClient
       view={view}
       q={q}
-      selectedCategoryId={categoryId}
-      categories={allCategories}
+      categoryNavSlot={categoryNavSlot}
       type={type}
       showArchived={showArchived}
       counts={{

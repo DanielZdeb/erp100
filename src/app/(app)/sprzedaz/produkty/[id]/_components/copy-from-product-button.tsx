@@ -45,8 +45,15 @@ import {
 } from "@/server/product-photos";
 
 type Mode = "copy" | "ai";
+type Source = "others" | "current";
 
-export function CopyFromProductButton({ productId }: { productId: string }) {
+export function CopyFromProductButton({
+  productId,
+  source = "others",
+}: {
+  productId: string;
+  source?: Source;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -59,6 +66,7 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
       name: string;
       productCode: string | null;
       color: string | null;
+      isComponent: boolean;
       images: Array<{
         id: string;
         url: string;
@@ -81,10 +89,18 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
     setLoadingList(true);
     const t = setTimeout(async () => {
       try {
-        const res = await listProductsForRefPickerAction(query);
+        const res = await listProductsForRefPickerAction(
+          query,
+          source === "current" ? { onlyProductId: productId } : {},
+        );
         if (cancelled) return;
-        // Filtruj sam edytowany produkt — nie ma sensu kopiowac z siebie
-        setProducts(res.products.filter((p) => p.id !== productId));
+        // W trybie "current" zostawiamy aktualny produkt; w trybie "others"
+        // filtrujemy go zeby nie kopiowac z siebie.
+        setProducts(
+          source === "current"
+            ? res.products
+            : res.products.filter((p) => p.id !== productId),
+        );
       } catch (e) {
         if (cancelled) return;
         toast.error(
@@ -101,7 +117,7 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, open, productId]);
+  }, [query, open, productId, source]);
 
   function toggle(
     imageId: string,
@@ -175,7 +191,7 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
         className="gap-1.5 ring-1 ring-violet-200 text-violet-700 hover:bg-violet-50"
       >
         <Copy className="size-3.5" />
-        Z innego produktu
+        {source === "current" ? "Z obecnego produktu" : "Z innego produktu"}
       </Button>
 
       <Dialog
@@ -189,20 +205,24 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
           <DialogHeader className="px-5 pt-5 pb-3 border-b">
             <DialogTitle className="text-base flex items-center gap-2">
               <ImagePlus className="size-4 text-violet-600" />
-              Skopiuj zdjecia z innego produktu
+              {source === "current"
+                ? "Skopiuj zdjecie z obecnego produktu"
+                : "Skopiuj zdjecia z innego produktu"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="px-5 py-3 border-b space-y-3">
-            <div className="relative">
-              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Szukaj po nazwie, SKU, EAN..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-8 h-8 text-sm"
-              />
-            </div>
+            {source === "others" && (
+              <div className="relative">
+                <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Szukaj po nazwie, SKU, EAN..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
+              </div>
+            )}
             {selected.size > 0 && (
               <div className="flex items-center gap-2 text-xs flex-wrap">
                 <span className="font-semibold text-violet-700">
@@ -231,15 +251,31 @@ export function CopyFromProductButton({ productId }: { productId: string }) {
             )}
             {!loadingList && products.length === 0 && (
               <div className="text-center py-8 text-sm text-slate-500">
-                Brak produktow do wyboru.
+                {source === "current"
+                  ? "Ten produkt nie ma jeszcze zadnych zdjec."
+                  : "Brak produktow do wyboru."}
               </div>
             )}
+            {!loadingList &&
+              products.length > 0 &&
+              products.every((p) => p.images.length === 0) && (
+                <div className="text-center py-8 text-sm text-slate-500">
+                  {source === "current"
+                    ? "Ten produkt nie ma jeszcze zadnych zdjec."
+                    : "Zadne z pasujacych produktow nie ma zdjec."}
+                </div>
+              )}
             {!loadingList &&
               products
                 .filter((p) => p.images.length > 0)
                 .map((p) => (
                   <div key={p.id} className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap text-xs">
+                      {p.isComponent && (
+                        <span className="inline-flex items-center rounded px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide ring-1 bg-amber-50 text-amber-800 ring-amber-200">
+                          Komponent
+                        </span>
+                      )}
                       <span className="font-semibold">{p.name}</span>
                       {p.productCode && (
                         <span className="font-mono text-[10px] text-slate-500">

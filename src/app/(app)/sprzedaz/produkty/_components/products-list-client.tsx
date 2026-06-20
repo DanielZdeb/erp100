@@ -31,13 +31,6 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-interface CategoryNode {
-  id: string;
-  name: string;
-  parentId: string | null;
-  level: number;
-}
-
 interface ImageItem {
   id: string;
   url: string;
@@ -64,8 +57,7 @@ interface ProductRow {
 export function ProductsListClient({
   view,
   q,
-  selectedCategoryId,
-  categories,
+  categoryNavSlot,
   type,
   showArchived,
   counts,
@@ -73,8 +65,7 @@ export function ProductsListClient({
 }: {
   view: "params" | "gallery";
   q: string;
-  selectedCategoryId: string | null;
-  categories: CategoryNode[];
+  categoryNavSlot: React.ReactNode;
   type: "product" | "component" | "all";
   showArchived: boolean;
   counts: { product: number; component: number; archived: number };
@@ -104,7 +95,6 @@ export function ProductsListClient({
   );
 
   const setView = (next: "params" | "gallery") => setQueryParam("view", next);
-  const setCategory = (next: string | null) => setQueryParam("cat", next);
   const setType = (next: "product" | "component" | "all") =>
     setQueryParam("type", next === "product" ? null : next);
   const setArchived = (next: boolean) =>
@@ -278,13 +268,6 @@ export function ProductsListClient({
           </button>
         </div>
 
-        <CategoryFilter
-          categories={categories}
-          selected={selectedCategoryId}
-          onChange={setCategory}
-          disabled={pending}
-        />
-
         <form onSubmit={submitSearch} className="flex gap-2 ml-auto">
           <div className="relative">
             <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -305,6 +288,8 @@ export function ProductsListClient({
           </button>
         </form>
       </div>
+
+      {categoryNavSlot}
 
       {view === "params" ? (
         <ParamsView products={products} q={q} />
@@ -387,36 +372,6 @@ export function ProductsListClient({
         </div>
       )}
     </div>
-  );
-}
-
-function CategoryFilter({
-  categories,
-  selected,
-  onChange,
-  disabled,
-}: {
-  categories: CategoryNode[];
-  selected: string | null;
-  onChange: (next: string | null) => void;
-  disabled?: boolean;
-}) {
-  // Indent po level + 2 spacje na poziom dla wizualnej hierarchii
-  return (
-    <select
-      value={selected ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      disabled={disabled}
-      className="px-3 py-1.5 text-sm rounded-md ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none bg-white max-w-xs"
-    >
-      <option value="">Wszystkie kategorie</option>
-      {categories.map((c) => (
-        <option key={c.id} value={c.id}>
-          {"  ".repeat(c.level)}
-          {c.name}
-        </option>
-      ))}
-    </select>
   );
 }
 
