@@ -651,6 +651,94 @@ export async function updateOrderMetaAction(
 }
 
 /**
+ * Aktualizuje pojedynczy ImportOrderContainerLink (numer / url / eta).
+ * Tworzy nowy gdy linkId = null (uzupelnianie pustego slotu z containerCount).
+ */
+export async function updateContainerLinkAction(
+  linkId: string | null,
+  orderId: string,
+  patch: {
+    containerNumber?: string;
+    url?: string;
+    etaDate?: string | null;
+  },
+) {
+  await requireUser();
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+
+  const data: {
+    containerNumber?: string;
+    url?: string;
+    etaDate?: Date | null;
+    etaSource?: string | null;
+    etaFetchedAt?: Date | null;
+  } = {};
+  if (patch.containerNumber !== undefined) {
+    data.containerNumber = patch.containerNumber.trim();
+  }
+  if (patch.url !== undefined) {
+    data.url = patch.url.trim();
+  }
+  if (patch.etaDate !== undefined) {
+    if (patch.etaDate) {
+      data.etaDate = new Date(patch.etaDate);
+      data.etaSource = "manual";
+      data.etaFetchedAt = new Date();
+    } else {
+      data.etaDate = null;
+      data.etaSource = null;
+      data.etaFetchedAt = null;
+    }
+  }
+
+  if (linkId) {
+    await db.importOrderContainerLink.update({
+      where: { id: linkId },
+      data,
+    });
+  } else {
+    // Wymaga przynajmniej numeru lub url
+    if (!data.containerNumber && !data.url && !data.etaDate) {
+      return { ok: false as const, error: "Pusty wiersz — pomijam." };
+    }
+    const maxSort = await db.importOrderContainerLink.findFirst({
+      where: { orderId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    await db.importOrderContainerLink.create({
+      data: {
+        orderId,
+        containerNumber: data.containerNumber ?? "",
+        url: data.url ?? "",
+        etaDate: data.etaDate ?? null,
+        etaSource: data.etaSource ?? null,
+        etaFetchedAt: data.etaFetchedAt ?? null,
+        sortOrder: (maxSort?.sortOrder ?? -1) + 1,
+      },
+    });
+  }
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+/**
+ * Usuwa pojedynczy ImportOrderContainerLink.
+ */
+export async function deleteContainerLinkAction(linkId: string, orderId: string) {
+  await requireUser();
+  await db.importOrderContainerLink.delete({ where: { id: linkId } });
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+/**
  * Aktualizuje przewidywany czas produkcji zamowienia. Dwie wejscia:
  * - 'date' -> ustaw productionEndAt; przeliczamy estimatedProductionDays
  *   jako (date - today) dni (zostaje na 0 gdy data juz minela).

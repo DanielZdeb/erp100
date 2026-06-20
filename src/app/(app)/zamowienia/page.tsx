@@ -24,8 +24,8 @@ import {
 import { effectiveContainerCbm, kalkulujKontener } from "@/lib/kalkulacje";
 import { STATUS_BADGE, STATUS_THEME } from "@/lib/status-colors";
 import { DOC_CATEGORIES } from "@/lib/order-doc-slots";
-import { OrderNumberCell, TrackingCell } from "./order-row-editors";
-import { EtaCell } from "./_components/eta-cell";
+import { OrderNumberCell } from "./order-row-editors";
+import { ContainersList } from "./_components/containers-list";
 import { NewOrderDialog } from "./new-order-dialog";
 import { ClickableOrderRow } from "./order-row-clickable";
 import { ProductsPreviewGrid } from "./_components/products-preview-grid";
@@ -145,7 +145,13 @@ export default async function ZamowieniaPage({
         files: { select: { slot: true } },
         containerLinks: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          select: { id: true, containerNumber: true, url: true },
+          select: {
+            id: true,
+            containerNumber: true,
+            url: true,
+            etaDate: true,
+            etaSource: true,
+          },
         },
       },
     }),
@@ -540,8 +546,7 @@ export default async function ZamowieniaPage({
                 <TableHead>Numer / kontener</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-center">Kontenerów</TableHead>
-                <TableHead className="text-center">Link</TableHead>
-                <TableHead className="text-center">ETA</TableHead>
+                <TableHead className="text-center">Kontenery / Link / ETA</TableHead>
                 <TableHead className="text-center">Płatności</TableHead>
                 <TableHead className="text-right">Dokumenty</TableHead>
                 <TableHead></TableHead>
@@ -633,18 +638,10 @@ export default async function ZamowieniaPage({
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <TrackingCell
+                      <ContainersList
                         orderId={r.id}
-                        legacyTrackingUrl={r.trackingUrl}
                         containerLinks={r.containerLinks}
-                      />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <EtaCell
-                        orderId={r.id}
-                        etaDate={r.etaDate}
-                        etaSource={r.etaSource}
-                        hasContainerNumbers={r.containerLinks.length > 0}
+                        containerCount={r.containerCount}
                       />
                     </TableCell>
                     <TableCell className="text-center">
