@@ -467,22 +467,26 @@ function BundleBreakdownTable({
   );
 
   return (
-    <div className="rounded-md ring-1 ring-emerald-200 bg-emerald-50/20 overflow-hidden">
+    <div className="rounded-md ring-1 ring-emerald-200 bg-emerald-50/20 overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="bg-emerald-100/40 text-[10px] uppercase tracking-wide text-emerald-800">
           <tr>
-            <th className="text-left px-2 py-1.5 font-semibold">Komponent</th>
-            <th className="text-right px-2 py-1.5 font-semibold">Sztuk</th>
-            <th className="text-right px-2 py-1.5 font-semibold">
-              Sztuk / karton
+            <th className="text-left px-1.5 py-1.5 font-semibold">Komponent</th>
+            <th className="text-right px-1.5 py-1.5 font-semibold">Szt.</th>
+            <th
+              className="text-right px-1.5 py-1.5 font-semibold"
+              title="Sztuk produktu w jednym kartonie"
+            >
+              Szt./pud.
             </th>
-            <th className="text-right px-2 py-1.5 font-semibold">Paczek</th>
-            <th className="text-right px-2 py-1.5 font-semibold">
-              Koszt opakowań
+            <th className="text-right px-1.5 py-1.5 font-semibold">Paczek</th>
+            <th
+              className="text-right px-1.5 py-1.5 font-semibold"
+              title="Łączny koszt kartonów (pudełko × liczba paczek)"
+            >
+              Opakow.
             </th>
-            <th className="text-right px-2 py-1.5 font-semibold">
-              Koszt wysyłki
-            </th>
+            <th className="text-right px-1.5 py-1.5 font-semibold">Wysyłka</th>
           </tr>
         </thead>
         <tbody>
@@ -491,11 +495,11 @@ function BundleBreakdownTable({
               key={c.componentId}
               className="border-t border-emerald-100 hover:bg-emerald-50/30"
             >
-              <td className="px-2 py-1.5">
-                <div className="font-medium text-emerald-900 truncate max-w-[200px]">
+              <td className="px-1.5 py-1.5">
+                <div className="font-medium text-emerald-900 truncate max-w-[130px]">
                   {c.componentName}
                 </div>
-                <div className="text-[9px] text-emerald-700/70 tabular-nums">
+                <div className="text-[9px] text-emerald-700/70 tabular-nums truncate max-w-[130px]">
                   {c.componentCode}
                   {c.box && (
                     <>
@@ -507,38 +511,38 @@ function BundleBreakdownTable({
                   )}
                 </div>
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+              <td className="px-1.5 py-1.5 text-right tabular-nums font-medium">
                 {c.qtyPerSet}
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">
+              <td className="px-1.5 py-1.5 text-right tabular-nums">
                 {c.unitsPerBox}
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-emerald-900">
+              <td className="px-1.5 py-1.5 text-right tabular-nums font-semibold text-emerald-900">
                 {c.packagesNeeded}
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">
+              <td className="px-1.5 py-1.5 text-right tabular-nums whitespace-nowrap">
                 <PackagingCostCell c={c} />
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">
+              <td className="px-1.5 py-1.5 text-right tabular-nums whitespace-nowrap">
                 <ShippingCostCell c={c} />
               </td>
             </tr>
           ))}
           <tr className="border-t-2 border-emerald-300 bg-emerald-100/40 font-bold text-emerald-900">
-            <td className="px-2 py-2 text-right" colSpan={3}>
+            <td className="px-1.5 py-2 text-right" colSpan={3}>
               Suma na 1 zestaw
             </td>
-            <td className="px-2 py-2 text-right tabular-nums">
+            <td className="px-1.5 py-2 text-right tabular-nums">
               {breakdown.totalPackagesPerSet}
             </td>
-            <td className="px-2 py-2 text-right tabular-nums">
+            <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">
               {breakdown.totalPackagingCostPerSet != null ? (
                 `${breakdown.totalPackagingCostPerSet.toFixed(2)} zł`
               ) : (
                 <span className="text-amber-700">— (braki cen)</span>
               )}
             </td>
-            <td className="px-2 py-2 text-right tabular-nums">
+            <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">
               {totalShipping > 0 ? (
                 <>
                   {totalShipping.toFixed(2)} zł
@@ -574,9 +578,9 @@ function BundleBreakdownTable({
                   skali z umowy — wgranie tabeli rabatów obniży tę wartość.
                 </div>
               </td>
-              <td className="px-2 py-2 text-right">—</td>
-              <td className="px-2 py-2 text-right">—</td>
-              <td className="px-2 py-2 text-right tabular-nums font-semibold text-emerald-900">
+              <td className="px-1.5 py-2 text-right">—</td>
+              <td className="px-1.5 py-2 text-right">—</td>
+              <td className="px-1.5 py-2 text-right tabular-nums font-semibold text-emerald-900 whitespace-nowrap">
                 {breakdown.bundleShippingQuote.totalNetPln.toFixed(2)} zł
               </td>
             </tr>
