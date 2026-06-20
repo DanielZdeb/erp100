@@ -747,21 +747,21 @@ function PaymentsSummary({
       label="Płatności razem (towar + logistyka)"
       description={`Towar ${fmtPln(goodsPaid)}/${fmtPln(goodsTotal)} (${paidGoodsCount}/${totalGoodsCount}) · Logist. ${fmtPln(logisticsPaid)}/${fmtPln(logisticsTotal)} (${paidLogisticsCount}/${totalLogisticsCount})`}
     >
-      <div className="inline-block min-w-[170px] text-left">
-        <table className="w-full text-[10px] tabular-nums">
+      <div className="inline-block min-w-[200px] text-left">
+        <table className="w-full text-xs tabular-nums">
           <tbody>
             <tr>
-              <td className="text-muted-foreground uppercase tracking-wide font-medium pr-2">
+              <td className="text-muted-foreground uppercase tracking-wide font-medium pr-2 text-[11px]">
                 Razem
               </td>
-              <td className="text-right font-semibold text-foreground/90">
+              <td className="text-right font-semibold text-foreground/90 text-sm">
                 {fmtPlnShort(payTotal)}
               </td>
             </tr>
             <tr>
               <td
                 className={cn(
-                  "uppercase tracking-wide font-medium pr-2",
+                  "uppercase tracking-wide font-medium pr-2 text-[11px]",
                   noneStarted ? "text-muted-foreground" : "text-emerald-700",
                 )}
               >
@@ -769,12 +769,12 @@ function PaymentsSummary({
               </td>
               <td
                 className={cn(
-                  "text-right font-bold",
+                  "text-right font-bold text-sm",
                   noneStarted ? "text-muted-foreground" : "text-emerald-700",
                 )}
               >
                 {fmtPlnShort(payPaid)}{" "}
-                <span className="text-[8px] font-normal text-muted-foreground">
+                <span className="text-[10px] font-normal text-muted-foreground">
                   ({tranchesPaid}/{tranchesTotal})
                 </span>
               </td>
@@ -782,16 +782,16 @@ function PaymentsSummary({
             <tr>
               <td
                 className={cn(
-                  "uppercase tracking-wide font-medium pr-2",
-                  allPaid ? "text-emerald-700" : "text-amber-700",
+                  "uppercase tracking-wide font-medium pr-2 text-[11px]",
+                  allPaid ? "text-emerald-700" : "text-red-600",
                 )}
               >
                 Zostało
               </td>
               <td
                 className={cn(
-                  "text-right font-bold",
-                  allPaid ? "text-emerald-700" : "text-amber-700",
+                  "text-right font-bold text-sm",
+                  allPaid ? "text-emerald-700" : "text-red-600",
                 )}
               >
                 {allPaid ? "—" : fmtPlnShort(payRemaining)}
@@ -799,7 +799,7 @@ function PaymentsSummary({
             </tr>
           </tbody>
         </table>
-        <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
+        <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
           <div
             className={cn(
               "h-full transition-all",
@@ -808,7 +808,7 @@ function PaymentsSummary({
             style={{ width: `${safePct}%` }}
           />
         </div>
-        <div className="mt-0.5 text-right text-[8px] font-semibold text-muted-foreground">
+        <div className="mt-0.5 text-right text-[10px] font-semibold text-muted-foreground">
           {pct.toFixed(0)}%
         </div>
       </div>
