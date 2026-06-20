@@ -48,7 +48,7 @@ const productSchema = z.object({
   categoryId: optionalString,
   status: z.enum(["PLANOWANY", "IMPORTOWANY", "AKTYWNY"]).optional(),
   importMode: z.enum(["KARTON", "LUZEM"]).optional(),
-  compositionMode: z.enum(["CALOSCIOWY", "KOMPONENTOWY"]).optional(),
+  compositionMode: z.enum(["CALOSCIOWY", "KOMPONENTOWY", "ZESTAW"]).optional(),
   /** Wymagana liczba komponentów dla skompletowania produktu KOMPONENTOWEGO. */
   requiredComponentsTotal: optionalInt,
   color: optionalString,
@@ -414,7 +414,7 @@ const basicInfoSchema = z.object({
   eanCode: optionalString,
   categoryId: optionalString,
   /** Tryb składania: CALOSCIOWY / KOMPONENTOWY. */
-  compositionMode: z.enum(["CALOSCIOWY", "KOMPONENTOWY"]).optional(),
+  compositionMode: z.enum(["CALOSCIOWY", "KOMPONENTOWY", "ZESTAW"]).optional(),
   /** Liczba komponentów do skompletowania — gdy KOMPONENTOWY. */
   requiredComponentsTotal: optionalInt,
   /** Waga produktu (kg/szt). */

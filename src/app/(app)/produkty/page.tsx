@@ -442,6 +442,10 @@ export default async function ProduktyPage({
           id: true,
           name: true,
           purchasePricePln: true,
+          widthCm: true,
+          heightCm: true,
+          depthCm: true,
+          weightKg: true,
         },
       },
       components: {
@@ -456,6 +460,7 @@ export default async function ProduktyPage({
               isComponent: true,
               color: true,
               code128: true,
+              weightKg: true,
               // Kategoria komponentu (do tooltipa pod nazwą w sub-row).
               category: { select: { id: true, name: true } },
               // Pudełka wysyłkowe komponentu — do tooltipa „Karton" w
@@ -1155,20 +1160,54 @@ export default async function ProduktyPage({
                     ) ??
                     p.shippingBoxes.find((sb) => sb.purpose === "FACTORY") ??
                     null;
-                  const shippingQuote = primaryShippingPin
+                  // Dla ZESTAW: brak shippingBoxes — uzyj bundleShippingBox
+                  // (SINGLE_CARTON) + sume wag komponentow × quantity.
+                  let bundleQuoteBox: {
+                    widthCm: number;
+                    heightCm: number;
+                    depthCm: number;
+                    weightKg: number | null;
+                  } | null = null;
+                  let bundleQuoteWeight: number | null = null;
+                  if (
+                    p.compositionMode === "ZESTAW" &&
+                    p.bundleShippingMode === "SINGLE_CARTON" &&
+                    p.bundleShippingBox
+                  ) {
+                    bundleQuoteBox = {
+                      widthCm: p.bundleShippingBox.widthCm,
+                      heightCm: p.bundleShippingBox.heightCm,
+                      depthCm: p.bundleShippingBox.depthCm,
+                      weightKg: p.bundleShippingBox.weightKg,
+                    };
+                    bundleQuoteWeight = p.components.reduce(
+                      (s, c) =>
+                        s + (c.component.weightKg ?? 0) * c.quantity,
+                      0,
+                    );
+                  }
+                  const shippingQuote = bundleQuoteBox
                     ? quoteShippingForProduct({
-                        productWeightKg: p.weightKg,
-                        primaryBox: {
-                          widthCm: primaryShippingPin.box.widthCm,
-                          heightCm: primaryShippingPin.box.heightCm,
-                          depthCm: primaryShippingPin.box.depthCm,
-                          weightKg: primaryShippingPin.box.weightKg,
-                        },
+                        productWeightKg: bundleQuoteWeight,
+                        primaryBox: bundleQuoteBox,
                         preferredServiceCodes: p.preferredShippingServices,
                         excludedServiceCodes: p.excludedShippingServices,
                         excludedBrands: p.excludedShippingBrands,
                       })
-                    : null;
+                    : primaryShippingPin
+                      ? quoteShippingForProduct({
+                          productWeightKg: p.weightKg,
+                          primaryBox: {
+                            widthCm: primaryShippingPin.box.widthCm,
+                            heightCm: primaryShippingPin.box.heightCm,
+                            depthCm: primaryShippingPin.box.depthCm,
+                            weightKg: primaryShippingPin.box.weightKg,
+                          },
+                          preferredServiceCodes: p.preferredShippingServices,
+                          excludedServiceCodes: p.excludedShippingServices,
+                          excludedBrands: p.excludedShippingBrands,
+                        })
+                      : null;
                   const shippingFromEngine = shippingQuote?.primary?.totalNetPln ?? null;
                   // Dla ZESTAW — zsumuj ceny zakupu + logistykę z komponentów
                   // (ostatnie z bazy, fallback do defaultUnitPriceUsd) i przekaż
