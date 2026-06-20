@@ -361,6 +361,11 @@ export async function snapshotOrderPricesToHistory(orderId: string) {
           unitPriceIsBrutto: true,
           product: {
             select: {
+              // Fallback dla pozycji ktore nie maja ImportOrderItem.cbmPerUnit
+              // — uzywamy CBM z karty produktu. Bez tego snapshot ladowal 0
+              // logistyki dla pozycji ktorym ktos pozniej uzupelnil CBM
+              // w karcie, ale nie w pozycji.
+              cbmPerUnit: true,
               customsDutyPct: true,
               category: {
                 select: {
@@ -400,7 +405,9 @@ export async function snapshotOrderPricesToHistory(orderId: string) {
     })),
     items: order.items.map((it) => ({
       quantity: it.quantity,
-      cbmPerUnit: it.cbmPerUnit ?? 0,
+      // Fallback do CBM z karty produktu — patrz komentarz przy product.cbmPerUnit
+      // w select. Bez tego snapshot pomijal CBM gdy pozycja go nie miala.
+      cbmPerUnit: it.cbmPerUnit ?? it.product?.cbmPerUnit ?? 0,
       unitPriceUsd: it.unitPriceUsd,
       unitPriceCny: it.unitPriceCny,
       unitPricePln: it.unitPricePln,
@@ -451,7 +458,10 @@ export async function snapshotOrderPricesToHistory(orderId: string) {
       prowizjaPerUnitPln: calcIt.allocatedBrokerCommissionPln / q,
       cloPerUnitPln: calcIt.customsDutyPln / q,
       logisticsPerUnitPln: calcIt.allocatedLogisticsPln / q,
-      cbmPerUnit: it.cbmPerUnit,
+      // Efektywny CBM (z fallback'iem do Product.cbmPerUnit) — patrz mapowanie
+      // items wyzej. Bez fallbacka snapshot zapisywal NULL gdy pozycja nie
+      // miala CBM, mimo ze produkt go ma.
+      cbmPerUnit: it.cbmPerUnit ?? it.product?.cbmPerUnit ?? null,
     };
     if (existing) {
       await db.productPriceHistory.update({
