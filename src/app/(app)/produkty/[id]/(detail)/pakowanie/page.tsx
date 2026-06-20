@@ -225,10 +225,20 @@ export default async function PakowaniePage({
     let bundleShippingQuote: BundlePackagingBreakdown["bundleShippingQuote"] =
       null;
     if (allPackages.length > 0) {
+      // DHL_PARCEL_MAX_* sa pojedyncze duze paczki/palety — nie nadaja sie
+      // jako 'wielopak' (wielopak = jeden numer nadania, wiele paczek razem).
+      // W realnych umowach DHL MAX nie wchodzi do rabatu skalowanego — sa
+      // wykluczone z kalkulacji bundleShippingQuote.
+      const WIELOPAK_EXCLUDED = new Set([
+        "DHL_PARCEL_MAX_PACZKA",
+        "DHL_PARCEL_MAX_POLPALETA",
+        "DHL_PARCEL_MAX_PALETA",
+      ]);
       const bundleServices = priceAllServices(allPackages, {});
       const applicableBundle = bundleServices
         .filter((s) => s.applicable)
-        .filter((s) => !isExcluded(s));
+        .filter((s) => !isExcluded(s))
+        .filter((s) => !WIELOPAK_EXCLUDED.has(s.serviceCode));
       if (applicableBundle.length > 0) {
         applicableBundle.sort((a, b) => a.totalNetPln - b.totalNetPln);
         const cheapestBundle = applicableBundle[0];
