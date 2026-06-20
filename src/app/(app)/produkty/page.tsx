@@ -1,4 +1,4 @@
-﻿import { Fragment } from "react";
+import { Fragment } from "react";
 import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import {
@@ -64,12 +64,12 @@ import { calculateShipping } from "@/lib/shipping-calc";
 
 export const dynamic = "force-dynamic";
 
-// â”€â”€â”€ Cache'owane fragmenty danych â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Dane â€žprawie statyczne" (kategorie, biblioteka pudeĹ‚ek, lista wszystkich
-// produktĂłw do wizardu zestawu) cachujemy na 5 min â€” zmieniajÄ… siÄ™ rzadko,
-// ale kaĹĽde wejĹ›cie na /produkty je pobiera. Po edycji produktu/kategorii
-// odpalamy `revalidateTag("products")` ĹĽeby cache siÄ™ zresetowaĹ‚ (server
-// actions juĹĽ to robiÄ… â€” patrz `src/server/products.ts`).
+// ─── Cache'owane fragmenty danych ─────────────────────────────────
+// Dane „prawie statyczne" (kategorie, biblioteka pudełek, lista wszystkich
+// produktów do wizardu zestawu) cachujemy na 5 min — zmieniają się rzadko,
+// ale każde wejście na /produkty je pobiera. Po edycji produktu/kategorii
+// odpalamy `revalidateTag("products")` żeby cache się zresetował (server
+// actions już to robią — patrz `src/server/products.ts`).
 const getWizardLibrary = unstable_cache(
   async (companyId: string) => {
     const [boxes, categoryDuty, existingComponents, componentRules] =
@@ -152,7 +152,7 @@ type PriceMode = "brutto" | "netto";
 const DEFAULT_VAT_RATE = 0.23;
 
 function parsePriceMode(v: string | undefined): PriceMode {
-  // Konwencja: BRUTTO domyĹ›lnie (zgodnie z preferencjÄ… usera â€” wszystko
+  // Konwencja: BRUTTO domyślnie (zgodnie z preferencją usera — wszystko
   // pokazujemy brutto, edycja konwertuje). Netto = explicit ?mode=netto.
   return v === "netto" ? "netto" : "brutto";
 }
@@ -163,7 +163,7 @@ function parseStatus(v: string | undefined): ProductStatusT | typeof ALL_STATUSE
   if (v && (PRODUCT_STATUSES as readonly string[]).includes(v)) {
     return v as ProductStatusT;
   }
-  return ALL_STATUSES; // domyĹ›lnie wszystkie
+  return ALL_STATUSES; // domyślnie wszystkie
 }
 
 type EntityType = "product" | "component" | "all";
@@ -207,7 +207,7 @@ export default async function ProduktyPage({
     const eType = overrides.type ?? activeType;
     if (eType && eType !== "product") sp.set("type", eType);
     const eMode = overrides.mode ?? priceMode;
-    // Brutto jest defaultem â€” zapisujemy w URL tylko gdy wybrane netto.
+    // Brutto jest defaultem — zapisujemy w URL tylko gdy wybrane netto.
     if (eMode && eMode !== "brutto") sp.set("mode", eMode);
     const qs = sp.toString();
     return qs ? `/produkty?${qs}` : "/produkty";
@@ -220,8 +220,8 @@ export default async function ProduktyPage({
         ? { isComponent: true }
         : {};
 
-  // Liczniki w nawigatorze respektujÄ… aktywny typ + archiwizacjÄ™ (ale nie q/status â€”
-  // to ma byÄ‡ staĹ‚e, niezaleĹĽne od filtrĂłw tekstowych).
+  // Liczniki w nawigatorze respektują aktywny typ + archiwizację (ale nie q/status —
+  // to ma być stałe, niezależne od filtrów tekstowych).
   const navCountWhere = {
     companyId,
     archived: showArchived,
@@ -269,7 +269,7 @@ export default async function ProduktyPage({
     }),
     db.product.count({ where: navCountWhere }),
     getDefaultContainerM3(),
-    // Wizard library â€” cache 5 min, invalidate przez revalidateTag("products"/"boxes"/"categories")
+    // Wizard library — cache 5 min, invalidate przez revalidateTag("products"/"boxes"/"categories")
     getWizardLibrary(companyId),
   ]);
 
@@ -283,7 +283,7 @@ export default async function ProduktyPage({
       wizardCategoryDuty.map((c) => [c.id, c.customsDutyPct ?? null]),
     );
 
-  // SpĹ‚aszcz primary image â€” wizard uĹĽywa pola `primaryImageUrl`
+  // Spłaszcz primary image — wizard używa pola `primaryImageUrl`
   const wizardExistingComponentsFlat = wizardExistingComponents.map((c) => ({
     id: c.id,
     name: c.name,
@@ -294,9 +294,9 @@ export default async function ProduktyPage({
     primaryImageUrl: c.images[0]?.url ?? null,
   }));
 
-  // Biblioteka dla wizardu zestawu â€” produkty i komponenty. Produkty majÄ…
-  // shippingBox* (peĹ‚na kalkulacja kartonĂłw + wagi), komponenty majÄ… tylko
-  // weightKg (doliczane do sumy wagowej, bez osobnych kartonĂłw).
+  // Biblioteka dla wizardu zestawu — produkty i komponenty. Produkty mają
+  // shippingBox* (pełna kalkulacja kartonów + wagi), komponenty mają tylko
+  // weightKg (doliczane do sumy wagowej, bez osobnych kartonów).
   const bundleLibrary = wizardExistingComponents.map((c) => ({
     id: c.id,
     name: c.name,
@@ -314,7 +314,7 @@ export default async function ProduktyPage({
     defaultUnitPriceCny: c.defaultUnitPriceCny,
   }));
 
-  // Kursy NBP (cache 4h) â€” do przeliczeĹ„ USDâ†’PLN i CNYâ†’PLN w wizardzie
+  // Kursy NBP (cache 4h) — do przeliczeń USD→PLN i CNY→PLN w wizardzie
   const [wizardUsdRate, wizardCnyRate] = await Promise.all([
     fetchNbpRate("USD"),
     fetchNbpRate("CNY"),
@@ -333,7 +333,7 @@ export default async function ProduktyPage({
     level: c.level,
   }));
 
-  // Mapa children + cumulatywne liczniki produktĂłw (subtree)
+  // Mapa children + cumulatywne liczniki produktów (subtree)
   const childrenOf = new Map<string | null, typeof categoriesWithCounts>();
   for (const c of categoriesWithCounts) {
     const k = c.parentId ?? null;
@@ -354,7 +354,7 @@ export default async function ProduktyPage({
   }
   for (const c of categoriesWithCounts) computeCum(c.id);
 
-  // Descendant set wybranej kategorii â€” filtr â€žkategoria + jej poddrzewo"
+  // Descendant set wybranej kategorii — filtr „kategoria + jej poddrzewo"
   function descendants(catId: string): string[] {
     const out: string[] = [catId];
     const stack = [catId];
@@ -435,8 +435,8 @@ export default async function ProduktyPage({
           },
         },
       },
-      // Dla ZESTAW: dedykowany karton wysyĹ‚kowy (tryb SINGLE_CARTON) z osobnego
-      // FK na Product. INDIVIDUAL_PACKAGING = pakowanie ze skĹ‚adnikĂłw (z m2m).
+      // Dla ZESTAW: dedykowany karton wysyłkowy (tryb SINGLE_CARTON) z osobnego
+      // FK na Product. INDIVIDUAL_PACKAGING = pakowanie ze składników (z m2m).
       bundleShippingBox: {
         select: {
           id: true,
@@ -456,11 +456,11 @@ export default async function ProduktyPage({
               isComponent: true,
               color: true,
               code128: true,
-              // Kategoria komponentu (do tooltipa pod nazwÄ… w sub-row).
+              // Kategoria komponentu (do tooltipa pod nazwą w sub-row).
               category: { select: { id: true, name: true } },
-              // PudeĹ‚ka wysyĹ‚kowe komponentu â€” do tooltipa â€žKarton" w
-              // wierszu zestawu (INDIVIDUAL_PACKAGING: sumujemy pudeĹ‚ka
-              // poszczegĂłlnych skĹ‚adnikĂłw).
+              // Pudełka wysyłkowe komponentu — do tooltipa „Karton" w
+              // wierszu zestawu (INDIVIDUAL_PACKAGING: sumujemy pudełka
+              // poszczególnych składników).
               shippingBoxes: {
                 orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
                 select: {
@@ -478,7 +478,7 @@ export default async function ProduktyPage({
                   },
                 },
               },
-              // Fallback dla ZESTAW gdy komponent nie ma jeszcze ĹĽadnego zamĂłwienia
+              // Fallback dla ZESTAW gdy komponent nie ma jeszcze żadnego zamówienia
               defaultUnitPriceUsd: true,
               defaultUnitPriceCny: true,
               defaultUnitPricePln: true,
@@ -502,8 +502,8 @@ export default async function ProduktyPage({
     productCount: c._count.products,
   }));
 
-  // Pozycje z zamĂłwieĹ„ â€” tylko te po negocjacji (status â‰Ą DOGADYWANE), ĹĽeby
-  // ceny w â€žKoszty produkcji" odzwierciedlaĹ‚y realnie wynegocjowane wartoĹ›ci,
+  // Pozycje z zamówień — tylko te po negocjacji (status ≥ DOGADYWANE), żeby
+  // ceny w „Koszty produkcji" odzwierciedlały realnie wynegocjowane wartości,
   // a nie szkice z PLANOWANE.
   const productIds = products.map((p) => p.id);
   const NEGOTIATED_STATUSES = [
@@ -524,8 +524,8 @@ export default async function ProduktyPage({
             },
             orderBy: { createdAt: "desc" },
             // Limit: maks. ~10 pozycji per produkt (popover historii i tak
-            // capuje na 10). Dla 130 produktĂłw = 1300 wierszy zamiast wszystkich
-            // dotychczasowych zamĂłwieĹ„. Zysk: 5-10Ă— szybszy query i mniej danych
+            // capuje na 10). Dla 130 produktów = 1300 wierszy zamiast wszystkich
+            // dotychczasowych zamówień. Zysk: 5-10× szybszy query i mniej danych
             // do dalszego processowania w kalkulacji.
             take: productIds.length * 10,
             select: {
@@ -568,9 +568,9 @@ export default async function ProduktyPage({
       historyByProduct.set(it.productId, arr);
     }
   }
-  // lastItem = najnowsza pozycja z WYPEĹNIONÄ„ cenÄ… zakupu (USD lub CNY) i
-  // dostÄ™pnym kursem przeliczeniowym. Pomijamy szkice/sample bez kwot â€”
-  // inaczej kalkulator ekonomiki produktu lÄ…dowaĹ‚ na null nawet gdy realna
+  // lastItem = najnowsza pozycja z WYPEŁNIONĄ ceną zakupu (USD lub CNY) i
+  // dostępnym kursem przeliczeniowym. Pomijamy szkice/sample bez kwot —
+  // inaczej kalkulator ekonomiki produktu lądował na null nawet gdy realna
   // historyczna cena istnieje 1-2 wpisy wstecz.
   const lastItemByProduct = new Map<string, (typeof allItems)[number]>();
   for (const [pid, items] of historyByProduct) {
@@ -587,11 +587,11 @@ export default async function ProduktyPage({
     if (candidate) lastItemByProduct.set(pid, candidate);
   }
 
-  // â”€â”€ Ceny komponentĂłw dla ZESTAWĂ“W (sumujemy do "purchase" zestawu) â”€â”€
-  // ZESTAW to wirtualny produkt â€” nie da siÄ™ go dodaÄ‡ do zamĂłwienia importowego.
-  // Cena zakupu ZESTAWU = ÎŁ (komponent.lastPurchasePrice Ă— qty_w_zestawie).
-  // Bierzemy z dowolnego statusu zamĂłwienia (wĹ‚Ä…cznie z PLANOWANE) â€” ĹĽeby
-  // zestaw pokazywaĹ‚ szkic ceny od razu po planowaniu importu komponentĂłw.
+  // ── Ceny komponentów dla ZESTAWÓW (sumujemy do "purchase" zestawu) ──
+  // ZESTAW to wirtualny produkt — nie da się go dodać do zamówienia importowego.
+  // Cena zakupu ZESTAWU = Σ (komponent.lastPurchasePrice × qty_w_zestawie).
+  // Bierzemy z dowolnego statusu zamówienia (włącznie z PLANOWANE) — żeby
+  // zestaw pokazywał szkic ceny od razu po planowaniu importu komponentów.
   const bundleComponentIds = new Set<string>();
   for (const p of products) {
     if (p.compositionMode === "ZESTAW") {
@@ -631,17 +631,17 @@ export default async function ProduktyPage({
     }
   }
 
-  // â”€â”€ Ekonomika per pozycja â€” SNAPSHOT z ProductPriceHistory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Lista produktĂłw NIE liczy `kalkulujKontener` live. Czyta gotowe wartoĹ›ci
-  // ze snapshotĂłw zapisywanych przy przejĹ›ciu zamĂłwienia w status
+  // ── Ekonomika per pozycja — SNAPSHOT z ProductPriceHistory ──────────
+  // Lista produktów NIE liczy `kalkulujKontener` live. Czyta gotowe wartości
+  // ze snapshotów zapisywanych przy przejściu zamówienia w status
   // W_MAGAZYNIE (snapshotOrderPricesToHistory w server/orders.ts).
-  // Konsekwencja: zmiana cen w aktywnym zamĂłwieniu (DRAFT, DOGADYWANE...)
-  // nie odzwierciedla siÄ™ na liĹ›cie produktĂłw do momentu zamkniÄ™cia
-  // zamĂłwienia. Widok zamĂłwienia natomiast dalej liczy wszystko live.
+  // Konsekwencja: zmiana cen w aktywnym zamówieniu (DRAFT, DOGADYWANE...)
+  // nie odzwierciedla się na liście produktów do momentu zamknięcia
+  // zamówienia. Widok zamówienia natomiast dalej liczy wszystko live.
   //
-  // Skutek wydajnoĹ›ciowy: zamiast 8Ă— `kalkulujKontener` (kaĹĽde z N pozycji
+  // Skutek wydajnościowy: zamiast 8× `kalkulujKontener` (każde z N pozycji
   // + bundle CBM + customs duty resolution) zostaje 1 prosty SELECT.
-  // Strona Ĺ‚aduje siÄ™ <500ms zamiast 5-30s.
+  // Strona ładuje się <500ms zamiast 5-30s.
   type EconRecord = {
     purchasePerUnitPln: number;
     prowizjaPerUnitPln: number;
@@ -656,8 +656,8 @@ export default async function ProduktyPage({
     quantity: number;
   };
   const econByItemId = new Map<string, EconRecord>();
-  // Wszystkie snapshoty dla wyĹ›wietlanych produktĂłw + komponentĂłw ZESTAW
-  // (do bundle aggregation z ostatniego zamkniÄ™cia komponentĂłw).
+  // Wszystkie snapshoty dla wyświetlanych produktów + komponentów ZESTAW
+  // (do bundle aggregation z ostatniego zamknięcia komponentów).
   const allRelevantProductIds = new Set<string>(productIds);
   for (const it of componentItemsAllStatus) {
     allRelevantProductIds.add(it.productId);
@@ -682,14 +682,14 @@ export default async function ProduktyPage({
           },
         })
       : [];
-  // Mapa: orderId â†’ productId â†’ snapshot. UĹĽywamy pĂłĹşniej do podpiÄ™cia
-  // ekonomiki pod `lastItemByProduct` oraz historiÄ™ w popoverze.
-  // Helper ktĂłry mapuje (orderId, productId) â†’ econ uĹĽywamy przez itemId
+  // Mapa: orderId → productId → snapshot. Używamy później do podpięcia
+  // ekonomiki pod `lastItemByProduct` oraz historię w popoverze.
+  // Helper który mapuje (orderId, productId) → econ używamy przez itemId
   // bo to klucz w historyForPopover.
-  // Dla kaĹĽdej pozycji z `allItems` (jest sortowane DESC) prĂłbujemy
-  // znaleĹşÄ‡ snapshot dla (productId, orderId). JeĹ›li istnieje â€” uzupeĹ‚niamy
-  // econByItemId. JeĹ›li nie â€” pozycja po prostu nie bÄ™dzie miaĹ‚a ekonomiki
-  // (popover pokaĹĽe mniej szczegĂłĹ‚Ăłw, ale strona siÄ™ zaĹ‚aduje).
+  // Dla każdej pozycji z `allItems` (jest sortowane DESC) próbujemy
+  // znaleźć snapshot dla (productId, orderId). Jeśli istnieje — uzupełniamy
+  // econByItemId. Jeśli nie — pozycja po prostu nie będzie miała ekonomiki
+  // (popover pokaże mniej szczegółów, ale strona się załaduje).
   const snapshotByOrderProduct = new Map<string, (typeof snapshots)[number]>();
   for (const s of snapshots) {
     if (!s.importOrderId) continue;
@@ -721,7 +721,7 @@ export default async function ProduktyPage({
       quantity: q,
     });
   }
-  // Komponenty ZESTAW â€” to samo mapowanie.
+  // Komponenty ZESTAW — to samo mapowanie.
   for (const it of componentItemsAllStatus) {
     const s = snapshotByOrderProduct.get(`${it.order.id}:${it.productId}`);
     if (!s) continue;
@@ -755,7 +755,7 @@ export default async function ProduktyPage({
             Produkty i komponenty
           </h1>
           <p className="text-sm text-muted-foreground">
-            Katalog produktĂłw i komponentĂłw importowanych z Chin.
+            Katalog produktów i komponentów importowanych z Chin.
           </p>
         </div>
         <div className="flex gap-2">
@@ -782,8 +782,8 @@ export default async function ProduktyPage({
             rates={wizardRates}
             defaultContainerM3={defaultContainerM3}
           />
-          {/* Zestawy sÄ… zawsze dostÄ™pne â€” to nie funkcja opcjonalna firmy,
-              tylko sposĂłb grupowania istniejÄ…cych produktĂłw dla sprzedaĹĽy. */}
+          {/* Zestawy są zawsze dostępne — to nie funkcja opcjonalna firmy,
+              tylko sposób grupowania istniejących produktów dla sprzedaży. */}
           <NewBundleWizardDialog
             categories={categories}
             bundleLibrary={bundleLibrary}
@@ -793,7 +793,7 @@ export default async function ProduktyPage({
         </div>
       </div>
 
-      {/* PrzeĹ‚Ä…cznik typu + tryb cen (netto/brutto) */}
+      {/* Przełącznik typu + tryb cen (netto/brutto) */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex rounded-lg ring-1 ring-border bg-card p-0.5 gap-0.5 w-fit">
           {(
@@ -819,7 +819,7 @@ export default async function ProduktyPage({
         </div>
       </div>
 
-      {/* Nawigator kategorii â€” peĹ‚ne drzewo z licznikami */}
+      {/* Nawigator kategorii — pełne drzewo z licznikami */}
       <CategoryNav
         categories={categoriesWithCounts.map((c) => ({
           id: c.id,
@@ -846,7 +846,7 @@ export default async function ProduktyPage({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             name="q"
-            placeholder="Szukaj po nazwie, kodzie produktu lub EANâ€¦"
+            placeholder="Szukaj po nazwie, kodzie produktu lub EAN…"
             defaultValue={q}
             className="pl-9"
           />
@@ -857,7 +857,7 @@ export default async function ProduktyPage({
             href={buildHref({ q: "", category: "", archived: "" })}
             className={buttonVariants({ variant: "ghost" })}
           >
-            WyczyĹ›Ä‡
+            Wyczyść
           </Link>
         )}
         <div className="ml-auto">
@@ -865,14 +865,14 @@ export default async function ProduktyPage({
             href={buildHref({ archived: showArchived ? "" : "1" })}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >
-            {showArchived ? "PokaĹĽ aktywne" : "PokaĹĽ zarchiwizowane"}
+            {showArchived ? "Pokaż aktywne" : "Pokaż zarchiwizowane"}
           </Link>
         </div>
       </form>
 
-      {/* Brutto/Netto toggle usuniÄ™ty â€” domyĹ›lnie pokazujemy brutto, edycja
-       *  przez popover daje oba pola (netto + brutto) z autosynchronizacjÄ….
-       *  Hover na komĂłrce cenowej pokazuje tooltip z obiema wartoĹ›ciami. */}
+      {/* Brutto/Netto toggle usunięty — domyślnie pokazujemy brutto, edycja
+       *  przez popover daje oba pola (netto + brutto) z autosynchronizacją.
+       *  Hover na komórce cenowej pokazuje tooltip z obiema wartościami. */}
 
       <ChannelViewSwitcher>
       <Card className="p-0 overflow-hidden">
@@ -881,23 +881,23 @@ export default async function ProduktyPage({
             {!shouldLoadProducts ? (
               <>
                 <p className="font-medium text-foreground">
-                  Wybierz kategoriÄ™ ĹĽeby zobaczyÄ‡ produkty
+                  Wybierz kategorię żeby zobaczyć produkty
                 </p>
                 <p className="text-xs">
-                  Lista nie Ĺ‚aduje siÄ™ od razu, bo masz {totalProductCount}{" "}
-                  produktĂłw. Klik na kategoriÄ™ w panelu powyĹĽej (kategorie siÄ™
-                  prefetchujÄ… w tle â€” przeĹ‚Ä…czanie powinno byÄ‡ natychmiastowe
+                  Lista nie ładuje się od razu, bo masz {totalProductCount}{" "}
+                  produktów. Klik na kategorię w panelu powyżej (kategorie się
+                  prefetchują w tle — przełączanie powinno być natychmiastowe
                   po pierwszym wczytaniu).
                 </p>
                 <p className="text-xs">
-                  Alternatywnie: uĹĽyj <strong>szukajki</strong> lub wĹ‚Ä…cz{" "}
-                  <strong>archiwum</strong> ĹĽeby wymusiÄ‡ zaĹ‚adowanie.
+                  Alternatywnie: użyj <strong>szukajki</strong> lub włącz{" "}
+                  <strong>archiwum</strong> żeby wymusić załadowanie.
                 </p>
               </>
             ) : q || categoryId ? (
-              "Brak produktĂłw dla podanych filtrĂłw."
+              "Brak produktów dla podanych filtrów."
             ) : (
-              "Brak produktĂłw w tej kategorii statusu."
+              "Brak produktów w tej kategorii statusu."
             )}
           </div>
         ) : (
@@ -906,15 +906,15 @@ export default async function ProduktyPage({
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/30 border-b">
-                  {/* Marker (pionowy znacznik typu produktu â€” np. ZESTAW).
-                      WÄ…ska kolumna 16px po lewej stronie. */}
+                  {/* Marker (pionowy znacznik typu produktu — np. ZESTAW).
+                      Wąska kolumna 16px po lewej stronie. */}
                   <th
                     colSpan={2}
                     className="text-left px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground"
                   >
                     Produkt
                   </th>
-                  {/* Koszty z Chin: cena + prow + cĹ‚o + log + suma = 5 kolumn */}
+                  {/* Koszty z Chin: cena + prow + cło + log + suma = 5 kolumn */}
                   <th
                     colSpan={5}
                     className="text-center px-2 py-1.5 border-l border-r text-[10px] uppercase tracking-wide text-muted-foreground"
@@ -925,7 +925,7 @@ export default async function ProduktyPage({
                     colSpan={3}
                     className="text-center px-2 py-1.5 border-r bg-indigo-50/60 text-[10px] uppercase tracking-wide text-indigo-700"
                   >
-                    WysyĹ‚ka
+                    Wysyłka
                   </th>
                   <th
                     colSpan={6}
@@ -944,21 +944,21 @@ export default async function ProduktyPage({
                   </th>
                 </tr>
                 <tr className="bg-muted/20 border-b text-[10px] text-muted-foreground uppercase tracking-wide">
-                  {/* Pusty marker â€” pod headerem â€žProdukt", przykryty przez
+                  {/* Pusty marker — pod headerem „Produkt", przykryty przez
                       rowSpan w body (dla ZESTAW) lub pusty (dla pojedynczych). */}
                   <th className="w-4" aria-hidden />
                   <th className="text-left px-2 py-1 font-medium w-[260px]">
                     Nazwa
                   </th>
-                  {/* Sub-headery "Koszty z Chin" â€” colSpan=5 z flex
-                      justify-between ĹĽeby IKONY/NAZWY pokrywaĹ‚y siÄ™ DOKĹADNIE
-                      z wartoĹ›ciami w formule body (ktĂłra uĹĽywa tego samego
-                      flex layoutu). 5 niezaleĹĽnych <th> miaĹ‚o naturalne
-                      szerokoĹ›ci i rozjeĹĽdĹĽaĹ‚y siÄ™ z body. */}
+                  {/* Sub-headery "Koszty z Chin" — colSpan=5 z flex
+                      justify-between żeby IKONY/NAZWY pokrywały się DOKŁADNIE
+                      z wartościami w formule body (która używa tego samego
+                      flex layoutu). 5 niezależnych <th> miało naturalne
+                      szerokości i rozjeżdżały się z body. */}
                   <th colSpan={5} className="px-2 py-1 font-medium border-l border-r">
-                    {/* Identyczny grid jak body td â€” 5 ikon w 1fr-kolumnach
-                        + 4 placeholdery separatorĂłw (opacity-0). DziÄ™ki temu
-                        kaĹĽda ikona jest dokĹ‚adnie nad swojÄ… wartoĹ›ciÄ…. */}
+                    {/* Identyczny grid jak body td — 5 ikon w 1fr-kolumnach
+                        + 4 placeholdery separatorów (opacity-0). Dzięki temu
+                        każda ikona jest dokładnie nad swoją wartością. */}
                     <span className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr_auto_1fr] items-baseline gap-1 w-full [&>*]:flex [&>*]:justify-center">
                       <Tooltip>
                         <TooltipTrigger className="inline-flex">
@@ -971,14 +971,14 @@ export default async function ProduktyPage({
                         <TooltipTrigger className="inline-flex">
                           <Handshake className="size-3.5 text-amber-700" />
                         </TooltipTrigger>
-                        <TooltipContent>PROWIZJA POĹšREDNIKA</TooltipContent>
+                        <TooltipContent>PROWIZJA POŚREDNIKA</TooltipContent>
                       </Tooltip>
                       <span aria-hidden className="opacity-0 select-none">+</span>
                       <Tooltip>
                         <TooltipTrigger className="inline-flex">
                           <Stamp className="size-3.5 text-rose-700" />
                         </TooltipTrigger>
-                        <TooltipContent>CĹO</TooltipContent>
+                        <TooltipContent>CŁO</TooltipContent>
                       </Tooltip>
                       <span aria-hidden className="opacity-0 select-none">+</span>
                       <Tooltip>
@@ -996,14 +996,14 @@ export default async function ProduktyPage({
                       </Tooltip>
                     </span>
                   </th>
-                  {/* 5 sub-headerĂłw poĹ‚Ä…czonych w 1 colSpan=5 powyĹĽej â€”
-                      reszta usuniÄ™ta. */}
+                  {/* 5 sub-headerów połączonych w 1 colSpan=5 powyżej —
+                      reszta usunięta. */}
                   <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[52px] align-middle">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Truck className="size-3.5 text-indigo-700" />
                       </TooltipTrigger>
-                      <TooltipContent>WYSYĹKA</TooltipContent>
+                      <TooltipContent>WYSYŁKA</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="text-center px-2 py-1 font-medium bg-indigo-50/40 min-w-[52px] align-middle">
@@ -1027,7 +1027,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Tag className="size-3.5 text-amber-700" />
                       </TooltipTrigger>
-                      <TooltipContent>CENA SPRZEDAĹ»Y</TooltipContent>
+                      <TooltipContent>CENA SPRZEDAŻY</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="cv-allegro text-center px-2 py-1 font-medium bg-amber-50/40 align-middle">
@@ -1043,7 +1043,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Truck className="size-3.5 text-amber-700" />
                       </TooltipTrigger>
-                      <TooltipContent>WYSYĹKA OD KLIENTA</TooltipContent>
+                      <TooltipContent>WYSYŁKA OD KLIENTA</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="cv-allegro text-center px-2 py-1 font-medium bg-amber-50/40 align-middle">
@@ -1067,7 +1067,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <ChartPie className="size-3.5 text-amber-700" />
                       </TooltipTrigger>
-                      <TooltipContent>MARĹ»A</TooltipContent>
+                      <TooltipContent>MARŻA</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="cv-sklep text-center px-2 py-1 font-medium bg-emerald-50/40 align-middle">
@@ -1075,7 +1075,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Tag className="size-3.5 text-emerald-700" />
                       </TooltipTrigger>
-                      <TooltipContent>CENA SPRZEDAĹ»Y</TooltipContent>
+                      <TooltipContent>CENA SPRZEDAŻY</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="cv-sklep text-center px-2 py-1 font-medium bg-emerald-50/40 align-middle">
@@ -1091,7 +1091,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <Truck className="size-3.5 text-emerald-700" />
                       </TooltipTrigger>
-                      <TooltipContent>WYSYĹKA OD KLIENTA</TooltipContent>
+                      <TooltipContent>WYSYŁKA OD KLIENTA</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="cv-sklep text-center px-2 py-1 font-medium bg-emerald-50/40 align-middle">
@@ -1115,7 +1115,7 @@ export default async function ProduktyPage({
                       <TooltipTrigger className="inline-flex w-full items-center justify-center">
                         <ChartPie className="size-3.5 text-emerald-700" />
                       </TooltipTrigger>
-                      <TooltipContent>MARĹ»A</TooltipContent>
+                      <TooltipContent>MARŻA</TooltipContent>
                     </Tooltip>
                   </th>
                   <th className="text-center px-2 py-1 font-medium">
@@ -1129,9 +1129,9 @@ export default async function ProduktyPage({
                   const logisticsPerUnit = lastItem
                     ? (econByItemId.get(lastItem.id)?.logisticsPerUnitPln ?? null)
                     : null;
-                  // SKU dla fulfillmentu: ZESTAW liczymy sumÄ™ sztuk komponentĂłw
-                  // (zestaw stoĹ‚owy: 1 blat + 1 nogi + 6 krzeseĹ‚ = 8 SKU magazyn).
-                  // KOMPONENTOWY: liczba slotĂłw. CALOSCIOWY: 1.
+                  // SKU dla fulfillmentu: ZESTAW liczymy sumę sztuk komponentów
+                  // (zestaw stołowy: 1 blat + 1 nogi + 6 krzeseł = 8 SKU magazyn).
+                  // KOMPONENTOWY: liczba slotów. CALOSCIOWY: 1.
                   const skuCount =
                     p.compositionMode === "ZESTAW"
                       ? Math.max(
@@ -1142,9 +1142,9 @@ export default async function ProduktyPage({
                           ),
                         )
                       : Math.max(1, p.components.length || 1);
-                  // Wycena wysyĹ‚ki z silnika InPost+DHL â€” preferuj primary
+                  // Wycena wysyłki z silnika InPost+DHL — preferuj primary
                   // SHIPPING, fallback do FACTORY (z Chin) gdy nie ma SHIPPING.
-                  // Produkt z tylko FACTORY i tak jest wysyĹ‚any w tym pudle.
+                  // Produkt z tylko FACTORY i tak jest wysyłany w tym pudle.
                   const primaryShippingPin =
                     p.shippingBoxes.find(
                       (sb) => sb.purpose === "SHIPPING" && sb.isPrimary,
@@ -1170,13 +1170,13 @@ export default async function ProduktyPage({
                       })
                     : null;
                   const shippingFromEngine = shippingQuote?.primary?.totalNetPln ?? null;
-                  // Dla ZESTAW â€” zsumuj ceny zakupu + logistykÄ™ z komponentĂłw
-                  // (ostatnie z bazy, fallback do defaultUnitPriceUsd) i przekaĹĽ
+                  // Dla ZESTAW — zsumuj ceny zakupu + logistykę z komponentów
+                  // (ostatnie z bazy, fallback do defaultUnitPriceUsd) i przekaż
                   // jako override do computeProductEconomics.
-                  // ZESTAW â€” wszystkie skĹ‚adniki kosztĂłw z Chin liczymy
-                  // jako sumÄ™ z komponentĂłw Ă— quantity, na podstawie ich
-                  // OSTATNIEGO zamĂłwienia (econByItemId pochodzi z calc
-                  // kontenera tego zamĂłwienia â†’ spĂłjne z items-tab).
+                  // ZESTAW — wszystkie składniki kosztów z Chin liczymy
+                  // jako sumę z komponentów × quantity, na podstawie ich
+                  // OSTATNIEGO zamówienia (econByItemId pochodzi z calc
+                  // kontenera tego zamówienia → spójne z items-tab).
                   let bundlePurchasePln: number | null = null;
                   let bundleLogisticsPln: number | null = null;
                   let bundleProwizjaPln: number | null = null;
@@ -1208,7 +1208,7 @@ export default async function ProduktyPage({
                       if (cny != null && cnyRate) compPricePln = cny * cnyRate;
                       else if (usd != null && usdRate)
                         compPricePln = usd * usdRate;
-                      // PL (materiaĹ‚ krajowy): cena bezpoĹ›rednio w PLN â€”
+                      // PL (materiał krajowy): cena bezpośrednio w PLN —
                       // fallback z ostatniej pozycji, potem z defaultu.
                       if (compPricePln == null) {
                         const pln =
@@ -1222,8 +1222,8 @@ export default async function ProduktyPage({
                       } else {
                         purchaseSum += compPricePln * c.quantity;
                       }
-                      // Reszta kosztĂłw (logistyka shared, prowizja, cĹ‚o) â€”
-                      // z calc kontenera ostatniego zamĂłwienia komponentu.
+                      // Reszta kosztów (logistyka shared, prowizja, cło) —
+                      // z calc kontenera ostatniego zamówienia komponentu.
                       const compEcon = compLast
                         ? econByItemId.get(compLast.id) ?? null
                         : null;
@@ -1242,11 +1242,11 @@ export default async function ProduktyPage({
                     if (!anyProwizjaMissing) bundleProwizjaPln = prowizjaSum;
                     if (!anyCloMissing) bundleCloPln = cloSum;
                   }
-                  // WyciÄ…gamy prowizjÄ™/cĹ‚o z calc kontenera ostatniego
-                  // zamĂłwienia ĹĽeby marĹĽa i suma â€žkoszty z Chin" byĹ‚y 1:1
-                  // z kalkulatorem zamĂłwienia. Dla ZESTAW â€” uĹĽywamy sumy
-                  // z komponentĂłw (bundle*), bo sam ZESTAW jest produktem
-                  // wirtualnym i nie ma wĹ‚asnego importu.
+                  // Wyciągamy prowizję/cło z calc kontenera ostatniego
+                  // zamówienia żeby marża i suma „koszty z Chin" były 1:1
+                  // z kalkulatorem zamówienia. Dla ZESTAW — używamy sumy
+                  // z komponentów (bundle*), bo sam ZESTAW jest produktem
+                  // wirtualnym i nie ma własnego importu.
                   const lastEcon = lastItem
                     ? econByItemId.get(lastItem.id)
                     : null;
@@ -1268,12 +1268,12 @@ export default async function ProduktyPage({
                     importExtras,
                   );
                   const history = historyByProduct.get(p.id) ?? [];
-                  // Factor: netto domyĹ›lnie, brutto = Ă— (1 + VAT)
+                  // Factor: netto domyślnie, brutto = × (1 + VAT)
                   const factor =
                     priceMode === "brutto" ? 1 + DEFAULT_VAT_RATE : 1;
                   const dpln = (n: number | null | undefined) =>
                     n == null ? n : n * factor;
-                  // ZESTAW: rowSpan markera = 1 (main) + liczba komponentĂłw.
+                  // ZESTAW: rowSpan markera = 1 (main) + liczba komponentów.
                   const isZestaw = p.compositionMode === "ZESTAW";
                   const markerRowSpan = isZestaw
                     ? 1 + p.components.length
@@ -1288,8 +1288,8 @@ export default async function ProduktyPage({
                         isZestaw && "border-t-4 border-t-slate-300",
                       )}
                     >
-                      {/* MARKER: pionowy napis "ZESTAW" pokrywajÄ…cy main +
-                          wszystkie sub-rows komponentĂłw (rowSpan). */}
+                      {/* MARKER: pionowy napis "ZESTAW" pokrywający main +
+                          wszystkie sub-rows komponentów (rowSpan). */}
                       <td
                         rowSpan={markerRowSpan}
                         className={cn(
@@ -1311,15 +1311,15 @@ export default async function ProduktyPage({
                           </span>
                         )}
                       </td>
-                      {/* PRODUKT: Nazwa (skrĂłt + tooltip z peĹ‚nymi danymi â€”
-                          taki sam wzorzec jak items-tab w zamĂłwieniu) */}
+                      {/* PRODUKT: Nazwa (skrót + tooltip z pełnymi danymi —
+                          taki sam wzorzec jak items-tab w zamówieniu) */}
                       <td className="px-2 py-2 align-top w-[260px] max-w-[260px]">
                         <div className="flex items-start gap-2">
                           {p.images[0] ? (
-                            // 144Ă—144 WebP miniaturka (~5 KB) â€” zwykĹ‚a <img>
-                            // wystarczy, bo plik jest juĹĽ zoptymalizowany.
-                            // Fallback: jeĹ›li brak thumb (np. AI-gen sprzed dorobienia
-                            // sharp lub legacy) â€” uĹĽywamy peĹ‚nego URL.
+                            // 144×144 WebP miniaturka (~5 KB) — zwykła <img>
+                            // wystarczy, bo plik jest już zoptymalizowany.
+                            // Fallback: jeśli brak thumb (np. AI-gen sprzed dorobienia
+                            // sharp lub legacy) — używamy pełnego URL.
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={
@@ -1389,14 +1389,14 @@ export default async function ProduktyPage({
                                       p.components.length > 0 && (
                                         <div className="text-[10px] opacity-80 pt-1 border-t mt-1">
                                           <span className="opacity-60">
-                                            SkĹ‚ada siÄ™ z:
+                                            Składa się z:
                                           </span>
                                           <ul className="ml-2 mt-0.5 space-y-0.5">
                                             {p.components.map((pc) => (
                                               <li key={pc.id}>
-                                                â€˘ {pc.component.name}
+                                                • {pc.component.name}
                                                 {pc.quantity > 1 &&
-                                                  ` Ă— ${pc.quantity}`}
+                                                  ` × ${pc.quantity}`}
                                               </li>
                                             ))}
                                           </ul>
@@ -1405,7 +1405,7 @@ export default async function ProduktyPage({
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
-                              {/* â€žzestaw" przeniesiony do pionowego markera
+                              {/* „zestaw" przeniesiony do pionowego markera
                                   po lewej stronie wiersza (kolumna marker
                                   z rowSpan przykrywa main + sub-rows). */}
                               {p.isComponent ? (
@@ -1435,22 +1435,22 @@ export default async function ProduktyPage({
                             <code className="text-[10px] text-muted-foreground">
                               {p.productCode}
                             </code>
-                            {/* Lista komponentĂłw USUNIÄTA z komĂłrki nazwy â€”
+                            {/* Lista komponentów USUNIĘTA z komórki nazwy —
                                 ZESTAW renderuje sub-rows pod main rowem
-                                z peĹ‚nymi danymi (formuĹ‚a + history). */}
+                                z pełnymi danymi (formuła + history). */}
                           </div>
                         </div>
                       </td>
-                      {/* KOSZTY Z CHIN: jedna szeroka komĂłrka z formuĹ‚Ä…
-                          cena + prowizja + cĹ‚o + log = suma/szt
-                          (1:1 z items-tab w zamĂłwieniu, Ĺ‚Ä…cznie z chipem). */}
+                      {/* KOSZTY Z CHIN: jedna szeroka komórka z formułą
+                          cena + prowizja + cło + log = suma/szt
+                          (1:1 z items-tab w zamówieniu, łącznie z chipem). */}
                       <td
                         colSpan={5}
                         className="px-2 py-2 tabular-nums border-l align-top"
                       >
-                        {/* FormuĹ‚a kosztĂłw: cena + prowizja + cĹ‚o + log = suma
+                        {/* Formuła kosztów: cena + prowizja + cło + log = suma
                             Grid 9-kolumn (1fr/auto/.../1fr) identyczny jak
-                            nagĹ‚Ăłwek â€” ikony i wartoĹ›ci pokrywajÄ… siÄ™ 1:1. */}
+                            nagłówek — ikony i wartości pokrywają się 1:1. */}
                         <span className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr_auto_1fr] items-baseline gap-1 w-full [&>*]:text-center">
                           <PriceCellWithHistory
                             history={historyForPopover(history, econByItemId)}
@@ -1462,8 +1462,8 @@ export default async function ProduktyPage({
                             currentQty={lastItem?.quantity ?? null}
                             currentSource={
                               lastItem
-                                ? `Z zamĂłwienia ${lastItem.order.orderNumber}`
-                                : "DomyĹ›lna cena produktu (brak zamĂłwieĹ„)"
+                                ? `Z zamówienia ${lastItem.order.orderNumber}`
+                                : "Domyślna cena produktu (brak zamówień)"
                             }
                             vatRate={DEFAULT_VAT_RATE}
                           >
@@ -1474,7 +1474,7 @@ export default async function ProduktyPage({
                           </span>
                           <span
                             className="text-amber-700"
-                            title="Prowizja poĹ›rednika / szt"
+                            title="Prowizja pośrednika / szt"
                           >
                             {econ.prowizjaPerUnit > 0
                               ? fmtNum(dpln(econ.prowizjaPerUnit))
@@ -1485,7 +1485,7 @@ export default async function ProduktyPage({
                           </span>
                           <span
                             className="text-rose-700"
-                            title="CĹ‚o importowe / szt"
+                            title="Cło importowe / szt"
                           >
                             {econ.cloPerUnit > 0
                               ? fmtNum(econ.cloPerUnit)
@@ -1512,8 +1512,8 @@ export default async function ProduktyPage({
                             currentQty={lastItem?.quantity ?? null}
                             currentSource={
                               lastItem
-                                ? `Zakup + prowizja + cĹ‚o + logistyka â€” ${lastItem.order.orderNumber}`
-                                : "Suma: zakup + prowizja + cĹ‚o + logistyka"
+                                ? `Zakup + prowizja + cło + logistyka — ${lastItem.order.orderNumber}`
+                                : "Suma: zakup + prowizja + cło + logistyka"
                             }
                             vatRate={DEFAULT_VAT_RATE}
                           >
@@ -1527,13 +1527,13 @@ export default async function ProduktyPage({
                             >
                               {fmtNum(dpln(econ.productionSumPerUnit))}
                               <span className="text-[9px] opacity-50 ml-0.5">
-                                zĹ‚
+                                zł
                               </span>
                             </span>
                           </PriceCellWithHistory>
                         </span>
                       </td>
-                      {/* WYSYĹKA â€” Kurier (z silnika InPost+DHL).
+                      {/* WYSYŁKA — Kurier (z silnika InPost+DHL).
                           rowSpan dla ZESTAW: jedna wartosc wyrownana pionowo
                           przez wszystkie sub-rows komponentow zamiast osobnej
                           komorki per kazdy komponent. */}
@@ -1545,8 +1545,8 @@ export default async function ProduktyPage({
                         )}
                         title={
                           shippingQuote?.primary
-                            ? `${shippingQuote.primary.serviceLabel} â€” najem dla primary box${shippingQuote.primaryIsPreferred ? " (Twoja preferencja)" : ""}`
-                            : "Brak wyceny â€” przypisz primary pudeĹ‚ko wysyĹ‚kowe"
+                            ? `${shippingQuote.primary.serviceLabel} — najem dla primary box${shippingQuote.primaryIsPreferred ? " (Twoja preferencja)" : ""}`
+                            : "Brak wyceny — przypisz primary pudełko wysyłkowe"
                         }
                       >
                         {shippingQuote && shippingQuote.applicable.length > 0 ? (
@@ -1583,7 +1583,7 @@ export default async function ProduktyPage({
                         const hasFactory = p.shippingBoxes.some(
                           (pb) => pb.purpose === "FACTORY",
                         );
-                        // ZESTAW SINGLE_CARTON â€” dedykowany karton zestawu.
+                        // ZESTAW SINGLE_CARTON — dedykowany karton zestawu.
                         if (
                           p.compositionMode === "ZESTAW" &&
                           p.bundleShippingMode === "SINGLE_CARTON" &&
@@ -1600,7 +1600,7 @@ export default async function ProduktyPage({
                             >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
-                                  {price != null ? fmtNum(dpln(price)) : "â€”"}
+                                  {price != null ? fmtNum(dpln(price)) : "—"}
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-[320px]">
                                   <div className="space-y-1">
@@ -1608,10 +1608,10 @@ export default async function ProduktyPage({
                                       Karton zestawu
                                     </div>
                                     <div className="text-[11px]">
-                                      â€ž{p.bundleShippingBox.name}"
+                                      „{p.bundleShippingBox.name}"
                                     </div>
                                     <div className="text-[10px] opacity-80 pt-1 border-t">
-                                      Cena: {(price ?? 0).toFixed(2)} zĹ‚/szt
+                                      Cena: {(price ?? 0).toFixed(2)} zł/szt
                                     </div>
                                   </div>
                                 </TooltipContent>
@@ -1619,13 +1619,13 @@ export default async function ProduktyPage({
                             </td>
                           );
                         }
-                        // ZESTAW INDIVIDUAL_PACKAGING â€” pakowanie ze skĹ‚adnikĂłw:
-                        // tooltip pokazuje karton KAĹ»DEGO komponentu + sumÄ™.
+                        // ZESTAW INDIVIDUAL_PACKAGING — pakowanie ze składników:
+                        // tooltip pokazuje karton KAŻDEGO komponentu + sumę.
                         if (
                           p.compositionMode === "ZESTAW" &&
                           p.bundleShippingMode === "INDIVIDUAL_PACKAGING"
                         ) {
-                          // Per-komponent: znajdĹş primary SHIPPING (lub
+                          // Per-komponent: znajdź primary SHIPPING (lub
                           // FACTORY fallback) i policz koszt na zestaw.
                           const compBoxes = p.components.map((pc) => {
                             const c = pc.component;
@@ -1655,7 +1655,7 @@ export default async function ProduktyPage({
                               quantity: pc.quantity,
                               boxName: used?.box.name ?? null,
                               dims: used?.box
-                                ? `${used.box.widthCm}Ă—${used.box.heightCm}Ă—${used.box.depthCm}`
+                                ? `${used.box.widthCm}×${used.box.heightCm}×${used.box.depthCm}`
                                 : null,
                               isFactory: used?.purpose === "FACTORY",
                               perUnit,
@@ -1678,16 +1678,16 @@ export default async function ProduktyPage({
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
                                   {totalPerSet > 0
                                     ? fmtNum(dpln(totalPerSet))
-                                    : "ze skĹ‚."}
+                                    : "ze skł."}
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-[400px]">
                                   <div className="space-y-1.5">
                                     <div className="font-semibold text-[12px]">
-                                      Pakowanie ze skĹ‚adnikĂłw
+                                      Pakowanie ze składników
                                     </div>
                                     <div className="text-[10px] opacity-60">
-                                      Suma kartonĂłw {p.components.length}{" "}
-                                      komponentu/Ăłw
+                                      Suma kartonów {p.components.length}{" "}
+                                      komponentu/ów
                                     </div>
                                     <div className="space-y-1 pt-1 border-t">
                                       {compBoxes.map((cb, i) => (
@@ -1696,21 +1696,21 @@ export default async function ProduktyPage({
                                           className="text-[10px] space-y-0.5"
                                         >
                                           <div className="font-medium">
-                                            â€˘ {cb.componentName}
+                                            • {cb.componentName}
                                             {cb.quantity > 1 &&
-                                              ` Ă— ${cb.quantity}`}
+                                              ` × ${cb.quantity}`}
                                           </div>
                                           {cb.boxName ? (
                                             <div className="ml-3 opacity-80">
-                                              {cb.isFactory && "đźŹ­ "}â€ž
+                                              {cb.isFactory && "🏭 "}„
                                               {cb.boxName}"{" "}
                                               {cb.dims && `(${cb.dims} cm)`}
                                               <div className="opacity-70">
-                                                {cb.perUnit.toFixed(2)} zĹ‚/szt
-                                                Ă—{cb.quantity} ={" "}
+                                                {cb.perUnit.toFixed(2)} zł/szt
+                                                ×{cb.quantity} ={" "}
                                                 <span className="font-semibold">
                                                   {cb.contribution.toFixed(2)}{" "}
-                                                  zĹ‚
+                                                  zł
                                                 </span>
                                               </div>
                                             </div>
@@ -1724,7 +1724,7 @@ export default async function ProduktyPage({
                                     </div>
                                     <div className="text-[11px] font-bold pt-1 border-t">
                                       Razem na zestaw:{" "}
-                                      {totalPerSet.toFixed(2)} zĹ‚
+                                      {totalPerSet.toFixed(2)} zł
                                     </div>
                                   </div>
                                 </TooltipContent>
@@ -1732,7 +1732,7 @@ export default async function ProduktyPage({
                             </td>
                           );
                         }
-                        // FACTORY (z Chin) â€” produkt juĹĽ zapakowany w fabryce.
+                        // FACTORY (z Chin) — produkt już zapakowany w fabryce.
                         if (hasFactory) {
                           const factoryPin =
                             p.shippingBoxes.find(
@@ -1759,16 +1759,16 @@ export default async function ProduktyPage({
                                 <TooltipContent className="max-w-[320px]">
                                   <div className="space-y-1">
                                     <div className="font-semibold text-[12px]">
-                                      đźŹ­ Karton z Chin (FACTORY)
+                                      🏭 Karton z Chin (FACTORY)
                                     </div>
                                     {factoryPin && (
                                       <>
                                         <div className="text-[11px]">
-                                          â€ž{factoryPin.box.name}"
+                                          „{factoryPin.box.name}"
                                         </div>
                                         <div className="text-[10px] opacity-80">
-                                          Wymiary: {factoryPin.box.widthCm}Ă—
-                                          {factoryPin.box.heightCm}Ă—
+                                          Wymiary: {factoryPin.box.widthCm}×
+                                          {factoryPin.box.heightCm}×
                                           {factoryPin.box.depthCm} cm
                                         </div>
                                         <div className="text-[10px] opacity-80">
@@ -1777,8 +1777,8 @@ export default async function ProduktyPage({
                                       </>
                                     )}
                                     <div className="text-[10px] opacity-70 italic pt-1 border-t">
-                                      Produkt przychodzi juĹĽ zapakowany â€”
-                                      koszt kartonu wysyĹ‚kowego = 0 zĹ‚
+                                      Produkt przychodzi już zapakowany —
+                                      koszt kartonu wysyłkowego = 0 zł
                                     </div>
                                   </div>
                                 </TooltipContent>
@@ -1786,7 +1786,7 @@ export default async function ProduktyPage({
                             </td>
                           );
                         }
-                        // SHIPPING box z cenÄ… â€” pokaĹĽ cenÄ™ / szt.
+                        // SHIPPING box z ceną — pokaż cenę / szt.
                         if (econ.boxPricePerUnit != null) {
                           const shipPin = boxWithPriceFor(p);
                           return (
@@ -1804,16 +1804,16 @@ export default async function ProduktyPage({
                                 <TooltipContent className="max-w-[320px]">
                                   <div className="space-y-1">
                                     <div className="font-semibold text-[12px]">
-                                      đź“¦ Karton wysyĹ‚kowy
+                                      📦 Karton wysyłkowy
                                     </div>
                                     {shipPin && (
                                       <>
                                         <div className="text-[11px]">
-                                          â€ž{shipPin.box.name}"
+                                          „{shipPin.box.name}"
                                         </div>
                                         <div className="text-[10px] opacity-80">
-                                          Wymiary: {shipPin.box.widthCm}Ă—
-                                          {shipPin.box.heightCm}Ă—
+                                          Wymiary: {shipPin.box.widthCm}×
+                                          {shipPin.box.heightCm}×
                                           {shipPin.box.depthCm} cm
                                         </div>
                                         <div className="text-[10px] opacity-80">
@@ -1823,11 +1823,11 @@ export default async function ProduktyPage({
                                           {(
                                             shipPin.box.purchasePricePln ?? 0
                                           ).toFixed(2)}{" "}
-                                          zĹ‚/karton Ă· {shipPin.unitsPerBox} szt
+                                          zł/karton ÷ {shipPin.unitsPerBox} szt
                                           ={" "}
                                           <span className="font-semibold">
                                             {econ.boxPricePerUnit.toFixed(2)}{" "}
-                                            zĹ‚/szt
+                                            zł/szt
                                           </span>
                                         </div>
                                       </>
@@ -1850,21 +1850,21 @@ export default async function ProduktyPage({
                             >
                               <Tooltip>
                                 <TooltipTrigger className="cursor-help inline-block w-full text-right">
-                                  â€”
+                                  —
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-[280px]">
                                   <div className="text-[11px]">
-                                    Brak ceny zakupu pudeĹ‚ka. UzupeĹ‚nij w
-                                    katalogu pudeĹ‚ek.
+                                    Brak ceny zakupu pudełka. Uzupełnij w
+                                    katalogu pudełek.
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
                             </td>
                           );
                         }
-                        // Brak SHIPPING pudeĹ‚ka â€” czerwony X otwiera quick-edit
-                        // modal z 2 opcjami: pakowanie wysyĹ‚kowe + import z Chin.
-                        // ZastÄ™puje dawny Link do dedykowanej strony /pakowanie.
+                        // Brak SHIPPING pudełka — czerwony X otwiera quick-edit
+                        // modal z 2 opcjami: pakowanie wysyłkowe + import z Chin.
+                        // Zastępuje dawny Link do dedykowanej strony /pakowanie.
                         const shippingPinsLocal = p.shippingBoxes.filter(
                           (b: typeof p.shippingBoxes[number]) =>
                             b.purpose === "SHIPPING",
@@ -1872,9 +1872,9 @@ export default async function ProduktyPage({
                         const initialShippingPin = shippingPinsLocal.find(
                           (b: typeof p.shippingBoxes[number]) => b.isPrimary,
                         );
-                        // Mode bazujemy na obecnoĹ›ci SHIPPING pina. Foliopak vs Box
-                        // user dograi w modalu â€” wystarczy ĹĽe BOX jest domyĹ›lne
-                        // gdy karton siÄ™ zaĹ‚aduje. Brak pina = SAME_AS_IMPORT.
+                        // Mode bazujemy na obecności SHIPPING pina. Foliopak vs Box
+                        // user dograi w modalu — wystarczy że BOX jest domyślne
+                        // gdy karton się załaduje. Brak pina = SAME_AS_IMPORT.
                         const initialPackagingMode: "BOX" | "FOLIOPAK" | "SAME_AS_IMPORT" = initialShippingPin
                           ? "BOX"
                           : "SAME_AS_IMPORT";
@@ -2010,11 +2010,11 @@ export default async function ProduktyPage({
                           >
                             {fmtNum(dpln(econ.allegroProfit))}
                             <span className="text-[9px] opacity-50 ml-0.5">
-                              zĹ‚
+                              zł
                             </span>
                           </span>
                         ) : (
-                          "â€”"
+                          "—"
                         )}
                       </td>
                       <td
@@ -2027,7 +2027,7 @@ export default async function ProduktyPage({
                       >
                         {econ.allegroMargin != null
                           ? `${econ.allegroMargin.toFixed(1)}%`
-                          : "â€”"}
+                          : "—"}
                       </td>
                       {/* SKLEP */}
                       <td
@@ -2125,7 +2125,7 @@ export default async function ProduktyPage({
                             {fmtNum(dpln(econ.sklepProfit))}
                           </span>
                         ) : (
-                          "â€”"
+                          "—"
                         )}
                       </td>
                       <td
@@ -2138,9 +2138,9 @@ export default async function ProduktyPage({
                       >
                         {econ.sklepMargin != null
                           ? `${econ.sklepMargin.toFixed(1)}%`
-                          : "â€”"}
+                          : "—"}
                       </td>
-                      {/* AKCJE â€” 6 ikonek. rowSpan dla ZESTAW: wyrownane pionowo. */}
+                      {/* AKCJE — 6 ikonek. rowSpan dla ZESTAW: wyrownane pionowo. */}
                       <td
                         rowSpan={isZestaw ? markerRowSpan : 1}
                         className={cn(
@@ -2209,10 +2209,10 @@ export default async function ProduktyPage({
                         </div>
                       </td>
                     </tr>
-                    {/* ZESTAW â€” sub-rows per komponent z formuĹ‚Ä… kosztĂłw.
-                        KaĹĽdy komponent ma wĹ‚asnÄ… cenÄ™ z fabryki + prowizja +
-                        cĹ‚o + logistyka z ostatniego zamĂłwienia (econByItemId).
-                        Liczby klikalne (history popover) â€” taki sam wzorzec
+                    {/* ZESTAW — sub-rows per komponent z formułą kosztów.
+                        Każdy komponent ma własną cenę z fabryki + prowizja +
+                        cło + logistyka z ostatniego zamówienia (econByItemId).
+                        Liczby klikalne (history popover) — taki sam wzorzec
                         jak w items-tab. */}
                     {p.compositionMode === "ZESTAW" &&
                       p.components.length > 0 &&
@@ -2225,7 +2225,7 @@ export default async function ProduktyPage({
                           : null;
                         const compHistory =
                           historyByProduct.get(pc.componentId) ?? [];
-                        // Cena komponentu (CNY/USD Ă— kurs) z ostatniego zamĂłwienia.
+                        // Cena komponentu (CNY/USD × kurs) z ostatniego zamówienia.
                         const cny =
                           compLast?.unitPriceCny ??
                           pc.component.defaultUnitPriceCny ??
@@ -2247,7 +2247,7 @@ export default async function ProduktyPage({
                           compPricePln = cny * cnyRate;
                         else if (usd != null && usdRate)
                           compPricePln = usd * usdRate;
-                        // PL fallback: cena bezpoĹ›rednio w PLN (materiaĹ‚ krajowy).
+                        // PL fallback: cena bezpośrednio w PLN (materiał krajowy).
                         if (compPricePln == null) {
                           const pln =
                             compLast?.unitPricePln ??
@@ -2272,11 +2272,11 @@ export default async function ProduktyPage({
                             key={`${p.id}-${pc.id}`}
                             className="border-b bg-blue-50/30 hover:bg-blue-50/60"
                           >
-                            {/* Nazwa komponentu â€” indent + image */}
+                            {/* Nazwa komponentu — indent + image */}
                             <td className="px-2 py-1.5 pl-6 align-middle">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] text-blue-400 select-none">
-                                  â†ł
+                                  ↳
                                 </span>
                                 {pc.component.images[0] ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -2353,21 +2353,21 @@ export default async function ProduktyPage({
                                         </div>
                                       )}
                                       <div className="text-[10px] opacity-60 italic pt-1 border-t mt-1">
-                                        Komponent zestawu â€ž{p.name}"
+                                        Komponent zestawu „{p.name}"
                                         {pc.quantity > 1 &&
-                                          ` Ă— ${pc.quantity} szt`}
+                                          ` × ${pc.quantity} szt`}
                                       </div>
                                     </div>
                                   </TooltipContent>
                                 </Tooltip>
                                 {pc.quantity > 1 && (
                                   <span className="text-[9px] text-muted-foreground tabular-nums shrink-0">
-                                    Ă— {pc.quantity}
+                                    × {pc.quantity}
                                   </span>
                                 )}
                               </div>
                             </td>
-                            {/* Koszty komponentu â€” uspokojone kolory, mniejszy
+                            {/* Koszty komponentu — uspokojone kolory, mniejszy
                                 font, suma bez krzykliwego stickera. */}
                             <td
                               colSpan={5}
@@ -2388,8 +2388,8 @@ export default async function ProduktyPage({
                                   currentQty={compLast?.quantity ?? null}
                                   currentSource={
                                     compLast
-                                      ? `Z zamĂłwienia komponentu`
-                                      : "DomyĹ›lna cena komponentu (brak zamĂłwieĹ„)"
+                                      ? `Z zamówienia komponentu`
+                                      : "Domyślna cena komponentu (brak zamówień)"
                                   }
                                   vatRate={DEFAULT_VAT_RATE}
                                 >
@@ -2406,7 +2406,7 @@ export default async function ProduktyPage({
                                 <span className="text-muted-foreground/40 select-none text-[10px]">
                                   +
                                 </span>
-                                <span title="CĹ‚o / szt">
+                                <span title="Cło / szt">
                                   {compClo > 0 ? fmtNum(compClo) : "0"}
                                 </span>
                                 <span className="text-muted-foreground/40 select-none text-[10px]">
@@ -2423,7 +2423,7 @@ export default async function ProduktyPage({
                                   currentSource={
                                     compLast
                                       ? `Logistyka z calc kontenera komponentu`
-                                      : "Brak ostatniego zamĂłwienia komponentu"
+                                      : "Brak ostatniego zamówienia komponentu"
                                   }
                                   vatRate={DEFAULT_VAT_RATE}
                                 >
@@ -2440,13 +2440,13 @@ export default async function ProduktyPage({
                                   kind="landed"
                                   currentNetto={compLanded}
                                   currentQty={compLast?.quantity ?? null}
-                                  currentSource="Zakup + prow + cĹ‚o + log per szt komponentu"
+                                  currentSource="Zakup + prow + cło + log per szt komponentu"
                                   vatRate={DEFAULT_VAT_RATE}
                                 >
                                   <span className="font-semibold text-slate-700 px-1 rounded bg-amber-50/60 ring-1 ring-amber-200/60">
                                     {fmtNum(dpln2(compLanded))}
                                     <span className="text-[8px] opacity-50 ml-0.5">
-                                      zĹ‚
+                                      zł
                                     </span>
                                   </span>
                                 </PriceCellWithHistory>
@@ -2454,7 +2454,7 @@ export default async function ProduktyPage({
                             </td>
                             {/* Wszystkie pozostale kolumny (wysylka 3 + allegro
                                 6 + sklep 6 + akcje 1) sa pokryte przez rowSpan
-                                z main row ZESTAWU â€” sub-row nie potrzebuje
+                                z main row ZESTAWU — sub-row nie potrzebuje
                                 placeholderow. */}
                           </tr>
                         );
@@ -2473,7 +2473,7 @@ export default async function ProduktyPage({
   );
 }
 
-// â”€â”€â”€ Helpery ekonomiki produktu (per wiersz listy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpery ekonomiki produktu (per wiersz listy) ──────────────────
 
 type LastItemRecord = {
   quantity: number;
@@ -2492,7 +2492,7 @@ type ProductForEconomics = {
   weightKg: number | null;
   cbmPerUnit: number | null;
   unitsPerPallet: number | null;
-  /** Kategoria produktu â€” uĹĽywana do detekcji dopĹ‚at per kategoria (np. blat). */
+  /** Kategoria produktu — używana do detekcji dopłat per kategoria (np. blat). */
   categoryId: string | null;
   defaultUnitPriceCny: number | null;
   defaultUnitPriceUsd: number | null;
@@ -2506,8 +2506,8 @@ type ProductForEconomics = {
   defaultAllegroCustomerShippingPln: number | null;
   defaultSklepCustomerShippingPln: number | null;
   defaultSklepAdCostPln: number | null;
-  /** Liczba unikalnych SKU w wysyĹ‚ce klientowi:
-   * 1 dla produktĂłw caĹ‚oĹ›ciowych, N dla KOMPONENTOWY (= liczba komponentĂłw). */
+  /** Liczba unikalnych SKU w wysyłce klientowi:
+   * 1 dla produktów całościowych, N dla KOMPONENTOWY (= liczba komponentów). */
   skuCount: number;
   shippingBoxes: {
     box: {
@@ -2543,7 +2543,7 @@ function computeProductEconomics(
   lastItem: LastItemRecord | null,
   courierRates: CourierRateForEconomics[],
   fulfillment: FulfillmentForEconomics,
-  /** DomyĹ›lne wartoĹ›ci kanaĹ‚Ăłw sprzedaĹĽy â€” fallback gdy produkt ma null. */
+  /** Domyślne wartości kanałów sprzedaży — fallback gdy produkt ma null. */
   saleDefaults: {
     allegroCommissionPct: number | null;
     allegroCustomerShippingPln: number | null;
@@ -2553,23 +2553,23 @@ function computeProductEconomics(
     sklepAdCostPln: number | null;
   },
   logisticsPerUnit: number | null = null,
-  /** Override z silnika InPost+DHL â€” gdy ustawione, uĹĽywamy zamiast legacy
+  /** Override z silnika InPost+DHL — gdy ustawione, używamy zamiast legacy
    * calculateShipping z CourierRate. */
   shippingOverridePln: number | null = null,
-  /** Override ceny zakupu w PLN â€” uĹĽywane dla ZESTAW (suma ostatnich cen
-   *  zakupu komponentĂłw). Gdy ustawione, ignorujemy lastItem/defaultPrice. */
+  /** Override ceny zakupu w PLN — używane dla ZESTAW (suma ostatnich cen
+   *  zakupu komponentów). Gdy ustawione, ignorujemy lastItem/defaultPrice. */
   bundlePurchasePlnOverride: number | null = null,
-  /** Dodatkowe komponenty kosztu z calc kontenera ostatniego zamĂłwienia.
-   *  Prowizja poĹ›rednika (per-value) i cĹ‚o importowe (per-product) byĹ‚y
-   *  wczeĹ›niej wliczane do logistyki â€” teraz mamy je osobno. MarĹĽa musi je
-   *  uwzglÄ™dniÄ‡ w totalCostPerUnit. */
+  /** Dodatkowe komponenty kosztu z calc kontenera ostatniego zamówienia.
+   *  Prowizja pośrednika (per-value) i cło importowe (per-product) były
+   *  wcześniej wliczane do logistyki — teraz mamy je osobno. Marża musi je
+   *  uwzględnić w totalCostPerUnit. */
   importExtras: {
     prowizjaPerUnit: number;
     cloPerUnit: number;
   } = { prowizjaPerUnit: 0, cloPerUnit: 0 },
 ) {
-  // Wszystkie wartoĹ›ci PLN traktujemy jako NETTO â€” przeliczenie do brutto
-  // robi warstwa renderu (Ă— factor). Patrz JSX poniĹĽej.
+  // Wszystkie wartości PLN traktujemy jako NETTO — przeliczenie do brutto
+  // robi warstwa renderu (× factor). Patrz JSX poniżej.
   // Cena zakupu
   const cny = lastItem?.unitPriceCny ?? product.defaultUnitPriceCny;
   const usd = lastItem?.unitPriceUsd ?? product.defaultUnitPriceUsd;
@@ -2580,9 +2580,9 @@ function computeProductEconomics(
   let purchasePricePln: number | null = null;
   if (cny != null && cnyRate) purchasePricePln = cny * cnyRate;
   else if (usd != null && usdRate) purchasePricePln = usd * usdRate;
-  // PL (produkcja krajowa): cena bezpoĹ›rednio w PLN â€” nie ma kursu walut.
+  // PL (produkcja krajowa): cena bezpośrednio w PLN — nie ma kursu walut.
   // Najpierw z konkretnej pozycji (ostatnia transakcja), potem fallback
-  // na default produktu (gdy produkt nie byĹ‚ jeszcze zamawiany).
+  // na default produktu (gdy produkt nie był jeszcze zamawiany).
   if (purchasePricePln == null) {
     if (lastItem?.unitPricePln != null && lastItem.unitPricePln > 0) {
       purchasePricePln = lastItem.unitPricePln;
@@ -2593,12 +2593,12 @@ function computeProductEconomics(
       purchasePricePln = product.defaultUnitPricePln;
     }
   }
-  // ZESTAW: nadpisz cenÄ… sumarycznÄ… komponentĂłw
+  // ZESTAW: nadpisz ceną sumaryczną komponentów
   if (bundlePurchasePlnOverride != null) {
     purchasePricePln = bundlePurchasePlnOverride;
   }
 
-  // IloĹ›Ä‡ / CBM z ostatniego zamĂłwienia
+  // Ilość / CBM z ostatniego zamówienia
   const lastQty = lastItem?.quantity ?? null;
   const totalCbm =
     lastQty != null && product.cbmPerUnit != null
@@ -2609,10 +2609,10 @@ function computeProductEconomics(
       ? lastQty * purchasePricePln
       : null;
 
-  // WysyĹ‚ka â€” preferujemy override z silnika InPost+DHL.
-  // Legacy fallback: najtaĹ„szy kurier z pinniÄ™tego box w/g CourierRate.
-  // Preferujemy SHIPPING; gdy brak â€” uĹĽywamy FACTORY (produkt wysyĹ‚any
-  // w tym pudle z Chin, wiÄ™c wymiary sÄ… realne dla kuriera).
+  // Wysyłka — preferujemy override z silnika InPost+DHL.
+  // Legacy fallback: najtańszy kurier z pinniętego box w/g CourierRate.
+  // Preferujemy SHIPPING; gdy brak — używamy FACTORY (produkt wysyłany
+  // w tym pudle z Chin, więc wymiary są realne dla kuriera).
   let shippingPerUnit: number | null = shippingOverridePln;
   if (shippingPerUnit == null) {
     const courierPins = product.shippingBoxes.filter(
@@ -2642,10 +2642,10 @@ function computeProductEconomics(
         : null;
   }
 
-  // Karton wysyĹ‚kowy per szt: cena zakupu primary box / sztuk w pudeĹ‚ku.
-  // Bierzemy primary (jeĹ›li ma `purchasePricePln`), inaczej najtaĹ„sze pudeĹ‚ko
-  // z cenÄ… â€” albo null gdy ĹĽadne nie ma uzupeĹ‚nionej ceny.
-  // TYLKO SHIPPING â€” FACTORY box (z Chin) nie wchodzi w koszt wysyĹ‚ki kurierem.
+  // Karton wysyłkowy per szt: cena zakupu primary box / sztuk w pudełku.
+  // Bierzemy primary (jeśli ma `purchasePricePln`), inaczej najtańsze pudełko
+  // z ceną — albo null gdy żadne nie ma uzupełnionej ceny.
+  // TYLKO SHIPPING — FACTORY box (z Chin) nie wchodzi w koszt wysyłki kurierem.
   const shippingPins = product.shippingBoxes.filter(
     (b) => b.purpose === "SHIPPING",
   );
@@ -2658,10 +2658,10 @@ function computeProductEconomics(
       ? boxWithPrice.box.purchasePricePln / boxWithPrice.unitsPerBox
       : null;
 
-  // Fulfillment per szt â€” model umowy E-Packman (ZaĹ‚Ä…cznik 2):
-  //   otwarcie + perSKU Ă— skuCount + perPiece Ă— 1 + ownCarrier + magazyn
-  // Tryb (maĹ‚e/hurtowe) i typ magazynu (ziemia/regaĹ‚ wysoki) wybiera
-  // user w ustawieniach; tu uĹĽywamy aktywnych stawek.
+  // Fulfillment per szt — model umowy E-Packman (Załącznik 2):
+  //   otwarcie + perSKU × skuCount + perPiece × 1 + ownCarrier + magazyn
+  // Tryb (małe/hurtowe) i typ magazynu (ziemia/regał wysoki) wybiera
+  // user w ustawieniach; tu używamy aktywnych stawek.
   const palletPerUnit =
     product.unitsPerPallet && product.unitsPerPallet > 0
       ? fulfillment.palletStorageCostPerMonth / product.unitsPerPallet
@@ -2689,25 +2689,25 @@ function computeProductEconomics(
       }
     : null;
 
-  // Suma w kolumnie â€žKoszty z Chin" â€” landed per szt:
-  //   zakup + prowizja + cĹ‚o + logistyka shared.
-  // Identyczna logika jak w items-tab zamĂłwienia.
+  // Suma w kolumnie „Koszty z Chin" — landed per szt:
+  //   zakup + prowizja + cło + logistyka shared.
+  // Identyczna logika jak w items-tab zamówienia.
   const productionSumPerUnit =
     (purchasePricePln ?? 0) +
     importExtras.prowizjaPerUnit +
     importExtras.cloPerUnit +
     (logisticsPerUnit ?? 0);
-  // PeĹ‚na suma kosztĂłw per szt (do liczenia marĹĽy Allegro/Sklep).
+  // Pełna suma kosztów per szt (do liczenia marży Allegro/Sklep).
   const totalCostPerUnit =
     productionSumPerUnit +
     (shippingPerUnit ?? 0) +
     (boxPricePerUnit ?? 0) +
     (fulfillmentPerUnit ?? 0);
 
-  // Allegro / Sklep â€” ceny domyĹ›lne traktujemy jako NETTO (zgodnie z
-  // konwencjÄ…: wszÄ™dzie w systemie wpisujemy netto, brutto = Ă— 1.23 przy
+  // Allegro / Sklep — ceny domyślne traktujemy jako NETTO (zgodnie z
+  // konwencją: wszędzie w systemie wpisujemy netto, brutto = × 1.23 przy
   // renderze).
-  // Per-produkt overrides; gdy null â†’ uĹĽyj systemowych wartoĹ›ci domyĹ›lnych.
+  // Per-produkt overrides; gdy null → użyj systemowych wartości domyślnych.
   const allegroPrice = product.defaultSalePriceAllegroPln;
   const allegroPct =
     product.defaultAllegroCommissionPct ?? saleDefaults.allegroCommissionPct;
@@ -2728,8 +2728,8 @@ function computeProductEconomics(
         (allegroOther ?? 0) +
         (allegroCustShip ?? 0)
       : null;
-  // MarĹĽa liczona od BAZOWEJ ceny (bez wysyĹ‚ki klienta), ĹĽeby porĂłwnywaÄ‡ jak
-  // u Allegro: marĹĽa per produkt vs cena produktu.
+  // Marża liczona od BAZOWEJ ceny (bez wysyłki klienta), żeby porównywać jak
+  // u Allegro: marża per produkt vs cena produktu.
   const allegroMargin =
     allegroPrice != null && allegroProfit != null && allegroPrice > 0
       ? (allegroProfit / allegroPrice) * 100
@@ -2840,7 +2840,7 @@ function historyForPopover(
 }
 
 function fmtNum(n: number | null | undefined, digits = 2): string {
-  if (n === null || n === undefined) return "â€”";
+  if (n === null || n === undefined) return "—";
   return n.toLocaleString("pl-PL", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -2855,7 +2855,7 @@ function fmtPlnShort(n: number): string {
 function boxWithPriceFor(p: {
   shippingBoxes: ProductForEconomics["shippingBoxes"];
 }): ProductForEconomics["shippingBoxes"][number] | undefined {
-  // Tylko SHIPPING â€” FACTORY box z Chin nie idzie do kosztĂłw wysyĹ‚ki kurierem.
+  // Tylko SHIPPING — FACTORY box z Chin nie idzie do kosztów wysyłki kurierem.
   const pins = p.shippingBoxes.filter((b) => b.purpose === "SHIPPING");
   const primary = pins.find((b) => b.isPrimary);
   if (primary?.box.purchasePricePln) return primary;

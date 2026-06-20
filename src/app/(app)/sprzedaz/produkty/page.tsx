@@ -98,6 +98,16 @@ export default async function SprzedazProduktyPage({
         ? { isComponent: true }
         : {};
 
+  // Lazy load — przy wejsciu na /sprzedaz/produkty bez zadnego filtra
+  // nie ladujemy 1000+ produktow. Pokazujemy nawigator kategorii i hint
+  // 'Wybierz kategorie'. Next.js Link prefetch sciaga kategorie w tle,
+  // wiec klik po pierwszym zaladowaniu nawigatora jest natychmiastowy.
+  const shouldLoadProducts = !!(
+    categoryId || q || showArchived || type !== "product"
+  );
+  const skipFilter = shouldLoadProducts
+    ? {}
+    : { id: { equals: "__skip_no_filter__" } };
   const products = await db.product.findMany({
     where: {
       companyId,
@@ -113,6 +123,7 @@ export default async function SprzedazProduktyPage({
           }
         : {}),
       ...(categoryFilter ?? {}),
+      ...skipFilter,
     },
     orderBy: [{ compositionMode: "asc" }, { name: "asc" }],
     select: {
@@ -211,6 +222,8 @@ export default async function SprzedazProduktyPage({
     <ProductsListClient
       view={view}
       q={q}
+      shouldLoadProducts={shouldLoadProducts}
+      totalProductCount={totalForNav}
       categoryNavSlot={categoryNavSlot}
       type={type}
       showArchived={showArchived}

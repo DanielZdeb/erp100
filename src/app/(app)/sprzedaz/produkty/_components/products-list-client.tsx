@@ -58,6 +58,8 @@ export function ProductsListClient({
   view,
   q,
   categoryNavSlot,
+  shouldLoadProducts,
+  totalProductCount,
   type,
   showArchived,
   counts,
@@ -66,6 +68,8 @@ export function ProductsListClient({
   view: "params" | "gallery";
   q: string;
   categoryNavSlot: React.ReactNode;
+  shouldLoadProducts: boolean;
+  totalProductCount: number;
   type: "product" | "component" | "all";
   showArchived: boolean;
   counts: { product: number; component: number; archived: number };
@@ -291,7 +295,18 @@ export function ProductsListClient({
 
       {categoryNavSlot}
 
-      {view === "params" ? (
+      {!shouldLoadProducts ? (
+        <div className="rounded-lg ring-1 ring-slate-200 bg-white p-10 text-center text-sm text-slate-500 space-y-2">
+          <p className="font-medium text-slate-700">
+            Lista nie ładuje się od razu, bo masz {totalProductCount} produktów.
+          </p>
+          <p className="text-xs">
+            Wybierz kategorię w nawigatorze powyżej albo wpisz frazę w
+            wyszukiwarce. Kategorie się prefetchują w tle, więc przełączanie
+            powinno być natychmiastowe po pierwszym wczytaniu.
+          </p>
+        </div>
+      ) : view === "params" ? (
         <ParamsView products={products} q={q} />
       ) : (
         <GalleryView
@@ -303,10 +318,12 @@ export function ProductsListClient({
         />
       )}
 
-      <div className="text-[11px] text-slate-500">
-        Razem: <strong>{products.length}</strong> produktów
-        {q ? ` pasujących do „${q}"` : ""}
-      </div>
+      {shouldLoadProducts && (
+        <div className="text-[11px] text-slate-500">
+          Razem: <strong>{products.length}</strong> produktów
+          {q ? ` pasujących do „${q}"` : ""}
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightbox && product && currentImage && (
