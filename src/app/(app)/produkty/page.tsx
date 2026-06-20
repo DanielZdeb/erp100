@@ -1285,37 +1285,35 @@ export default async function ProduktyPage({
                     };
                     const shipLeaves: ShipLeaf[] = [];
                     for (const c of p.components) {
-                      // Zagniezdzony ZESTAW z wlasnym bundleShippingBox
-                      // (np. krzeslo z dedykowanym kartonem 1-szt) — uzyj
-                      // tego pudla, nie splaszczaj do komponentow krzesla.
+                      // Zagniezdzony ZESTAW z wlasnymi ProductShippingBox-ami
+                      // (np. krzeslo TYP A pakowane 4 szt/karton SHIPPING).
+                      // Uzywamy jego pudla wysylkowego — tak samo jak widok
+                      // 'Pakowanie zestawu' liczy paczki dla krzesla.
+                      const hasOwnShipBox =
+                        (c.component.shippingBoxes?.length ?? 0) > 0;
                       if (
                         c.component.compositionMode === "ZESTAW" &&
-                        c.component.bundleShippingMode === "SINGLE_CARTON" &&
-                        c.component.bundleShippingBox
+                        hasOwnShipBox
                       ) {
-                        // Waga 1 paczki = box + suma wag sub-komponentow
-                        // (siedzisko + nogi + montaz).
+                        // Waga produktu w paczce = suma wag sub-komponentow
+                        // krzesla (siedzisko + nogi + montaz).
                         const subWeight = (c.component.components ?? []).reduce(
                           (s, sub) =>
                             s + (sub.component.weightKg ?? 0) * sub.quantity,
                           0,
                         );
                         shipLeaves.push({
-                          weightKg: subWeight,
-                          directBox: {
-                            widthCm: c.component.bundleShippingBox.widthCm,
-                            heightCm: c.component.bundleShippingBox.heightCm,
-                            depthCm: c.component.bundleShippingBox.depthCm,
-                            weightKg: c.component.bundleShippingBox.weightKg,
-                          },
-                          shippingBoxes: [],
+                          weightKg: subWeight || (c.component.weightKg ?? 0),
+                          directBox: null,
+                          shippingBoxes: c.component.shippingBoxes ?? [],
                           qtyInBundle: c.quantity,
                         });
                       } else if (
                         c.component.compositionMode === "ZESTAW" &&
                         (c.component.components?.length ?? 0) > 0
                       ) {
-                        // Zagniezdzony ZESTAW bez wlasnego pudla — splaszcz.
+                        // Zagniezdzony ZESTAW bez wlasnego pudla — splaszcz
+                        // do sub-komponentow (kazdy ma swoje pudlo).
                         for (const sub of c.component.components ?? []) {
                           shipLeaves.push({
                             weightKg: sub.component.weightKg ?? 0,
