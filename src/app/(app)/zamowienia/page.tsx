@@ -571,7 +571,7 @@ export default async function ZamowieniaPage({
                             orderNumber={r.orderNumber}
                           />
                           {r.name && (
-                            <div className="text-[11px] text-foreground/70 truncate max-w-[280px]">
+                            <div className="text-[11px] text-foreground/70 truncate max-w-[220px]">
                               {r.name}
                             </div>
                           )}
@@ -579,23 +579,23 @@ export default async function ZamowieniaPage({
                             {r.createdAt.toLocaleDateString("pl-PL")}
                           </div>
                           {r.categoryBreakdown.length > 0 && (
-                            <div
-                              className="text-[10px] text-violet-700 truncate max-w-[360px]"
-                              title={r.categoryBreakdown
-                                .map(
-                                  (c) =>
-                                    `${c.name}: ${c.sku} SKU × ${c.qty} szt`,
-                                )
-                                .join("\n")}
-                            >
-                              📂{" "}
-                              {r.categoryBreakdown
-                                .map(
-                                  (c) =>
-                                    `${c.name} (${c.qty})`,
-                                )
-                                .join(" · ")}
-                            </div>
+                            <ul className="space-y-0.5 max-w-[220px]">
+                              {r.categoryBreakdown.map((c) => (
+                                <li
+                                  key={c.name}
+                                  className="text-[10px] text-violet-700 truncate flex items-center gap-1"
+                                  title={`${c.name}: ${c.sku} SKU × ${c.qty} szt`}
+                                >
+                                  <span aria-hidden>📂</span>
+                                  <span className="truncate">
+                                    {c.name}{" "}
+                                    <span className="text-violet-500/80 tabular-nums">
+                                      ({c.qty})
+                                    </span>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
                           )}
                           {r.daysToProductionEnd != null && (
                             <DaysToDeadlineBadge
