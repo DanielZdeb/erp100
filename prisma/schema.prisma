@@ -1177,6 +1177,10 @@ model ImportOrder {
   // jako klikalne kafelki (numer kontenera → URL).
   containerLinks ImportOrderContainerLink[]
 
+  // Override miniatury zamowienia w liscie /zamowienia. Null = auto
+  // (uzywamy zdjecia z dominujacej kategorii / pierwszej pozycji).
+  coverImageUrl String?
+
   // ── Awizacja dostawy do magazynu ──
   driverName       String?
   driverPhone      String?

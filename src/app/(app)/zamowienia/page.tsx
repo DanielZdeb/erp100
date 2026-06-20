@@ -86,7 +86,7 @@ export default async function ZamowieniaPage({
                 images: {
                   where: { isPrimary: true },
                   take: 1,
-                  select: { url: true, thumbnailWebpUrl: true },
+                  select: { url: true, thumbnailWebpUrl: true, alt: true },
                 },
                 boxWidthCm: true,
                 boxHeightCm: true,
@@ -406,6 +406,25 @@ export default async function ZamowieniaPage({
       containerSize,
       trackingUrl: o.trackingUrl,
       containerLinks: o.containerLinks,
+      coverImageUrl: o.coverImageUrl,
+      // Wszystkie dostepne zdjecia z pozycji zamowienia — do picker'a cover'a.
+      // Deduplikujemy po URL bo pozycje moga miec to samo zdjecie (warianty).
+      availableImages: Array.from(
+        new Map(
+          o.items
+            .map((it) => {
+              const img = it.product.images?.[0];
+              if (!img) return null;
+              return [
+                img.url,
+                { url: img.url, alt: img.alt ?? it.product.name },
+              ] as const;
+            })
+            .filter((x): x is readonly [string, { url: string; alt: string }] =>
+              x !== null,
+            ),
+        ).values(),
+      ),
       categoryBreakdown,
       previewItems,
       daysToProductionEnd,
@@ -536,6 +555,9 @@ export default async function ZamowieniaPage({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <ProductsPreviewGrid
+                          orderId={r.id}
+                          coverImageUrl={r.coverImageUrl}
+                          availableImages={r.availableImages}
                           items={r.previewItems}
                           fillRate={r.fillRate}
                           containerCount={r.containerCount}

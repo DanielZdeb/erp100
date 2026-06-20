@@ -651,6 +651,30 @@ export async function updateOrderMetaAction(
 }
 
 /**
+ * Ustawia override miniatury (cover image) dla zamowienia. URL = wlasne
+ * zdjecie z pozycji albo upload. Null = auto (cover wybierany z dominujacej
+ * kategorii w liscie zamowien).
+ */
+export async function setOrderCoverImageAction(
+  orderId: string,
+  url: string | null,
+) {
+  await requireUser();
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+  await db.importOrder.update({
+    where: { id: orderId },
+    data: { coverImageUrl: url && url.trim().length > 0 ? url.trim() : null },
+  });
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+/**
  * Zapisuje liste linkow sledzenia kontenerow dla zamowienia. Atomic replace:
  * kasujemy stare rekordy + tworzymy nowe w transakcji. Puste rzedy
  * (brak numeru LUB brak url) sa pomijane. Czysci tez legacy `trackingUrl`
