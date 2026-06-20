@@ -2355,11 +2355,72 @@ export default async function ProduktyPage({
                             null;
                           if (pln != null && pln > 0) compPricePln = pln;
                         }
-                        const compProw =
+                        let compProw =
                           compEcon?.prowizjaPerUnitPln ?? 0;
-                        const compClo = compEcon?.cloPerUnitPln ?? 0;
-                        const compLog =
+                        let compClo = compEcon?.cloPerUnitPln ?? 0;
+                        let compLog =
                           compEcon?.logisticsPerUnitPln ?? 0;
+                        // Jesli komponent jest ZESTAW-em (np. Krzeslo TYP A
+                        // wewnatrz zestawu stol+krzesla), nie ma snapshotu
+                        // importowego — sumujemy z jego sub-komponentow.
+                        if (
+                          pc.component.compositionMode === "ZESTAW" &&
+                          (pc.component.components?.length ?? 0) > 0
+                        ) {
+                          let subPrice = 0;
+                          let subProw = 0;
+                          let subClo = 0;
+                          let subLog = 0;
+                          let anyMissing = false;
+                          for (const sub of pc.component.components ?? []) {
+                            const subLast = componentLastByProduct.get(
+                              sub.componentId,
+                            );
+                            const subEcon = subLast
+                              ? econByItemId.get(subLast.id) ?? null
+                              : null;
+                            const sCny =
+                              subLast?.unitPriceCny ??
+                              sub.component.defaultUnitPriceCny ??
+                              null;
+                            const sUsd =
+                              subLast?.unitPriceUsd ??
+                              sub.component.defaultUnitPriceUsd ??
+                              null;
+                            const sCnyRate =
+                              subLast?.cnyToPlnRate ??
+                              subLast?.order.cnyToPlnRate ??
+                              null;
+                            const sUsdRate =
+                              subLast?.usdToPlnRate ??
+                              subLast?.order.usdToPlnRate ??
+                              null;
+                            let sPricePln: number | null = null;
+                            if (sCny != null && sCnyRate)
+                              sPricePln = sCny * sCnyRate;
+                            else if (sUsd != null && sUsdRate)
+                              sPricePln = sUsd * sUsdRate;
+                            if (sPricePln == null) {
+                              const sPln =
+                                subLast?.unitPricePln ??
+                                sub.component.defaultUnitPricePln ??
+                                null;
+                              if (sPln != null && sPln > 0) sPricePln = sPln;
+                            }
+                            if (sPricePln == null) anyMissing = true;
+                            else subPrice += sPricePln * sub.quantity;
+                            subProw +=
+                              (subEcon?.prowizjaPerUnitPln ?? 0) * sub.quantity;
+                            subClo +=
+                              (subEcon?.cloPerUnitPln ?? 0) * sub.quantity;
+                            subLog +=
+                              (subEcon?.logisticsPerUnitPln ?? 0) * sub.quantity;
+                          }
+                          if (!anyMissing) compPricePln = subPrice;
+                          compProw = subProw;
+                          compClo = subClo;
+                          compLog = subLog;
+                        }
                         const compLanded =
                           (compPricePln ?? 0) +
                           compProw +
