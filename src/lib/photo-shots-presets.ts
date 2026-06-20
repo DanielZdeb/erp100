@@ -134,14 +134,15 @@ export const QUALITY_SPEC: Record<
     // UWAGA: oficjalnie ten preset celuje w Gemini 3 Pro Image, ale w czerwcu
     // 2026 zarowno `gemini-3-pro-image` jak i `-preview` zwracaja
     // UND_ERR_HEADERS_TIMEOUT (>5 min bez response) — Google ma jakis problem
-    // z dostepem do tego modelu na naszym koncie/regionie. Tymczasowo uzywamy
-    // Gemini 2.5 Flash Image (Nano Banana), ktore odpowiada w ~6s i daje
-    // wystarczajaca jakosc edycji (zmiana koloru, tla, drobne korekty).
+    // z dostepem do tego modelu na naszym koncie/regionie. Uzywamy Gemini 3.1
+    // Flash Image (nowsza generacja Flash) — odpowiada w ~15s i daje
+    // znaczaco lepszej jakosci obraz niz 2.5 Flash (4.8MB vs 1.7MB output).
     // Gdy Google naprawi dostep do Pro, mozna wrocic do "gemini-3-pro-image".
-    model: "gemini-2.5-flash-image",
+    model: "gemini-3.1-flash-image",
     costPerImage: 0.039,
-    label: "Nano Banana (Flash)",
+    imageSize: "2K",
+    label: "Nano Banana (Flash 3.1)",
     description:
-      "Gemini 2.5 Flash Image — szybkie generowanie/edycja w ~6s, dobra jakość ($0.039/szt). Pro tymczasowo niedostępny.",
+      "Gemini 3.1 Flash Image — 2K, dobra jakość detali, edycja kolorów i tła w ~15s ($0.039/szt). Pro tymczasowo niedostępny.",
   },
 };

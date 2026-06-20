@@ -215,18 +215,26 @@ async function generateViaGeminiImage(
 
     const data = (await res.json()) as {
       candidates?: Array<{
+        finishReason?: string;
         content?: {
           parts?: Array<{
+            text?: string;
             inlineData?: { mimeType?: string; data?: string };
             inline_data?: { mime_type?: string; data?: string };
           }>;
         };
+        safetyRatings?: Array<{ category: string; probability: string }>;
       }>;
+      promptFeedback?: {
+        blockReason?: string;
+        safetyRatings?: Array<{ category: string; probability: string }>;
+      };
     };
     // Znajdź pierwszy part który ma inlineData (Gemini zwraca camelCase
     // w odpowiedziach mimo, że request używa snake_case w `inline_data`).
     const partsResp = data.candidates?.[0]?.content?.parts ?? [];
     let imageData: { mime: string; b64: string } | null = null;
+    let textResponse = "";
     for (const p of partsResp) {
       const inline:
         | { mimeType?: string; data?: string; mime_type?: string }
@@ -237,11 +245,30 @@ async function generateViaGeminiImage(
         imageData = { mime: m ?? "image/png", b64: d };
         break;
       }
+      if (p.text) textResponse += p.text;
     }
     if (!imageData) {
+      // Diagnostyka: gdy model nie zwrocil obrazu, czesto ma sensowny powod
+      // (safety block, refusal, prompt nie pasuje do edycji). Zlogujmy +
+      // przekazmy uzytkownikowi konkretny komunikat zamiast generycznego.
+      const finishReason = data.candidates?.[0]?.finishReason ?? "?";
+      const blockReason = data.promptFeedback?.blockReason ?? null;
+      const blocked = data.candidates?.[0]?.safetyRatings?.filter(
+        (s) => s.probability === "HIGH" || s.probability === "MEDIUM",
+      );
+      const detail = blockReason
+        ? `safety block: ${blockReason}`
+        : blocked && blocked.length > 0
+          ? `safety: ${blocked.map((b) => `${b.category}=${b.probability}`).join(", ")}`
+          : finishReason !== "STOP"
+            ? `finishReason: ${finishReason}`
+            : textResponse
+              ? `model zwrocil tekst zamiast obrazu: "${textResponse.slice(0, 200)}"`
+              : "model nie zwrocil zadnego content";
+      console.error(`[gemini-image] no image returned —`, detail);
       return {
         ok: false,
-        error: "Gemini Image API: brak inlineData w odpowiedzi",
+        error: `Gemini nie wygenerowal obrazu (${detail}) — sprobuj inny prompt lub powtorz`,
         isMock: false,
       };
     }
