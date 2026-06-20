@@ -1826,7 +1826,11 @@ export default async function ProduktyPage({
                         title={
                           shippingQuote?.primary
                             ? `${shippingQuote.primary.serviceLabel} — najem dla primary box${shippingQuote.primaryIsPreferred ? " (Twoja preferencja)" : ""}`
-                            : "Brak wyceny — przypisz primary pudełko wysyłkowe"
+                            : bundleIndividualShipping != null
+                              ? "Suma per-paczka (najtańsza pasująca usługa per komponent). Wielopak dostępny w widoku Pakowanie."
+                              : shippingFromEngine != null
+                                ? "Wycena z silnika kuriera"
+                                : "Brak wyceny — przypisz primary pudełko wysyłkowe"
                         }
                       >
                         {shippingQuote && shippingQuote.applicable.length > 0 ? (

@@ -572,14 +572,29 @@ function BundleBreakdownTable({
                   <span className="text-[10px] text-emerald-700/80">
                     {breakdown.bundleShippingQuote.serviceLabel}
                   </span>
+                  <span className="text-[9px] text-emerald-700 bg-emerald-100 ring-1 ring-emerald-300 rounded px-1 py-0">
+                    tylko wysyłka
+                  </span>
                 </div>
                 <div className="text-[9px] text-emerald-700/60 italic mt-0.5">
-                  Wycena wszystkich paczek jako jedna przesyłka. Bez rabatu
-                  skali z umowy — wgranie tabeli rabatów obniży tę wartość.
+                  Alternatywna wycena samej WYSYŁKI — wszystkie paczki jako
+                  jedna przesyłka (jeden numer nadania). Nie dotyczy kosztu
+                  opakowań. Bez rabatu skali z umowy — wgranie tabeli rabatów
+                  obniży tę wartość.
                 </div>
               </td>
-              <td className="px-1.5 py-2 text-right">—</td>
-              <td className="px-1.5 py-2 text-right">—</td>
+              <td
+                className="px-1.5 py-2 text-right text-emerald-700/40 italic"
+                title="Liczba paczek juz jest w wierszu wyzej (suma)"
+              >
+                n/d
+              </td>
+              <td
+                className="px-1.5 py-2 text-right text-emerald-700/40 italic"
+                title="Wielopak dotyczy tylko wysylki — opakowania uzywaja sumy per-komponent z wiersza wyzej"
+              >
+                n/d
+              </td>
               <td className="px-1.5 py-2 text-right tabular-nums font-semibold text-emerald-900 whitespace-nowrap">
                 {breakdown.bundleShippingQuote.totalNetPln.toFixed(2)} zł
               </td>
