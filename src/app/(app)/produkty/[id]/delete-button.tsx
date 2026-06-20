@@ -14,8 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 import { deleteProductAction } from "@/server/products";
 
@@ -30,14 +28,16 @@ export function DeleteProductButton({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState("");
+  // Dwa kroki potwierdzenia: pierwszy klik = step 1 (ostrzezenie),
+  // drugi klik = step 2 (zielone swiatlo). User nie musi nic wpisywac.
+  const [step, setStep] = useState<1 | 2>(1);
   const [pending, startTransition] = useTransition();
 
   const noun = isComponent ? "komponent" : "produkt";
 
   function handleDelete() {
-    if (confirm.trim() !== name) {
-      toast.error("Nazwa nie zgadza się — wpisz dokładnie nazwę produktu.");
+    if (step === 1) {
+      setStep(2);
       return;
     }
     startTransition(async () => {
@@ -70,7 +70,7 @@ export function DeleteProductButton({
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          if (!o) setConfirm("");
+          if (!o) setStep(1);
         }}
       >
         <DialogContent>
@@ -84,29 +84,20 @@ export function DeleteProductButton({
           </DialogHeader>
 
           <div className="space-y-3">
+            <div className="rounded-md bg-muted/40 ring-1 ring-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Produkt:</span>{" "}
+              <span className="font-semibold">{name}</span>
+            </div>
             <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs text-amber-900">
               Jeżeli {noun} pojawił się już w zamówieniu albo jest komponentem
               innego produktu — usunięcie zostanie odrzucone. W takim wypadku
               zarchiwizuj zamiast usuwać.
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirm-name" className="text-xs">
-                Wpisz dokładnie{" "}
-                <code className="bg-muted px-1 py-0.5 rounded text-foreground">
-                  {name}
-                </code>
-                , aby potwierdzić
-              </Label>
-              <Input
-                id="confirm-name"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={name}
-                autoFocus
-                autoComplete="off"
-              />
-            </div>
+            {step === 2 && (
+              <div className="rounded-md bg-rose-50 ring-1 ring-rose-300 px-3 py-2 text-xs text-rose-900 font-medium">
+                Na pewno usunąć? Kliknij jeszcze raz „Usuń" aby potwierdzić.
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -122,9 +113,13 @@ export function DeleteProductButton({
               type="button"
               variant="destructive"
               onClick={handleDelete}
-              disabled={pending || confirm.trim() !== name}
+              disabled={pending}
             >
-              {pending ? "Usuwam…" : `Usuń ${noun}`}
+              {pending
+                ? "Usuwam…"
+                : step === 1
+                  ? `Usuń ${noun}`
+                  : "Potwierdzam — usuń"}
             </Button>
           </DialogFooter>
         </DialogContent>
