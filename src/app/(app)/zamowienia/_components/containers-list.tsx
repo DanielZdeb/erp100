@@ -80,7 +80,7 @@ export function ContainersList({
 
   return (
     <>
-      <div className="flex flex-col items-stretch gap-0.5 max-w-[140px] mx-auto">
+      <div className="flex flex-col items-stretch gap-0.5 max-w-[170px] mx-auto">
         {slots.map((slot, idx) => (
           <ContainerRow
             key={slot.kind === "existing" ? slot.link.id : `ph-${idx}`}
@@ -141,38 +141,38 @@ function ContainerRow({
   const isUrgent = days != null && days >= 0 && days <= 7;
 
   return (
-    <div className="rounded ring-1 ring-slate-200 bg-white px-1 py-0.5 flex items-center gap-1 group/row text-[10px] leading-tight">
-      <Container className="size-2.5 text-slate-500 shrink-0" />
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+    <div className="rounded ring-1 ring-slate-200 bg-white px-1.5 py-1 flex items-center gap-1.5 group/row leading-tight">
+      <Container className="size-3 text-slate-500 shrink-0" />
+      <div className="flex-1 min-w-0 flex items-center gap-2">
         {hasUrl && hasNumber ? (
           <a
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-emerald-700 font-mono font-semibold truncate hover:underline"
+            className="text-emerald-700 font-mono text-[10px] font-semibold truncate hover:underline"
             title={`Otwórz ${link.url}`}
           >
             {link.containerNumber}
           </a>
         ) : hasNumber ? (
           <span
-            className="text-slate-700 font-mono truncate"
+            className="text-slate-700 font-mono text-[10px] truncate"
             title="Brak URL"
           >
             {link.containerNumber}
           </span>
         ) : (
-          <span className="text-muted-foreground italic">—</span>
+          <span className="text-[10px] text-muted-foreground italic">—</span>
         )}
         {link.etaDate ? (
           <span
             className={cn(
-              "tabular-nums shrink-0 ml-auto",
+              "tabular-nums shrink-0 ml-auto text-sm font-bold",
               isPast
-                ? "text-rose-600 font-semibold"
+                ? "text-rose-600"
                 : isUrgent
-                  ? "text-amber-700 font-semibold"
+                  ? "text-amber-700"
                   : "text-emerald-700",
             )}
             title={
@@ -191,8 +191,8 @@ function ContainerRow({
             })}
           </span>
         ) : (
-          <span className="text-muted-foreground/60 italic shrink-0 ml-auto text-[9px]">
-            ETA?
+          <span className="text-muted-foreground/60 italic shrink-0 ml-auto text-[10px]">
+            brak ETA
           </span>
         )}
       </div>
@@ -206,7 +206,7 @@ function ContainerRow({
         className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 opacity-0 group-hover/row:opacity-100 transition-opacity"
         title="Edytuj kontener"
       >
-        <Pencil className="size-2.5" />
+        <Pencil className="size-3" />
       </button>
     </div>
   );
