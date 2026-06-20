@@ -1370,11 +1370,16 @@ export default async function ProduktyPage({
                       const q = quoteShippingForProduct({
                         productWeightKg: pkgProductWeight,
                         primaryBox: box,
-                        preferredServiceCodes: p.preferredShippingServices,
+                        // Per-paczka — uzywamy CHEAPEST applicable, nie primary.
+                        // Primary uwzglednia preferred services (np. DHL MAX
+                        // ktore user ustawia dla wielopaka) — nie ma sensu
+                        // nadawac kazdej pojedynczej paczki tak drogo. Spojnie
+                        // z widokiem 'Pakowanie zestawu'.
+                        preferredServiceCodes: [],
                         excludedServiceCodes: p.excludedShippingServices,
                         excludedBrands: p.excludedShippingBrands,
                       });
-                      const cheap = q?.primary?.totalNetPln;
+                      const cheap = q?.cheapest?.totalNetPln;
                       if (cheap == null) continue;
                       total += cheap * packages;
                       leafsCounted++;
