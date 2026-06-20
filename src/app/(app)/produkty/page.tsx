@@ -461,6 +461,24 @@ export default async function ProduktyPage({
               color: true,
               code128: true,
               weightKg: true,
+              // Tryb skladania komponentu — jesli ZESTAW, ponizej mamy jego
+              // zagniezdzone components zeby rekursywnie rozwinac (Krzeslo TYP A
+              // wewnatrz Zestaw stol+krzesla -> siedzisko + nogi + montaz).
+              compositionMode: true,
+              components: {
+                orderBy: { sortOrder: "asc" },
+                include: {
+                  component: {
+                    select: {
+                      id: true,
+                      name: true,
+                      defaultUnitPriceCny: true,
+                      defaultUnitPriceUsd: true,
+                      defaultUnitPricePln: true,
+                    },
+                  },
+                },
+              },
               // Kategoria komponentu (do tooltipa pod nazwą w sub-row).
               category: { select: { id: true, name: true } },
               // Pudełka wysyłkowe komponentu — do tooltipa „Karton" w
@@ -600,7 +618,17 @@ export default async function ProduktyPage({
   const bundleComponentIds = new Set<string>();
   for (const p of products) {
     if (p.compositionMode === "ZESTAW") {
-      for (const c of p.components) bundleComponentIds.add(c.componentId);
+      for (const c of p.components) {
+        bundleComponentIds.add(c.componentId);
+        // Jesli komponent jest zagniezdzonym ZESTAW-em (np. Krzeslo TYP A
+        // wewnatrz Zestaw stol+krzesla), dodajemy tez jego sub-komponenty
+        // — bo finalna cena rozwija sie do prostych produktow importowanych.
+        if (c.component.compositionMode === "ZESTAW") {
+          for (const sub of c.component.components ?? []) {
+            bundleComponentIds.add(sub.componentId);
+          }
+        }
+      }
     }
   }
   const componentItemsAllStatus =
@@ -1229,7 +1257,40 @@ export default async function ProduktyPage({
                     let anyLogisticsMissing = false;
                     let anyProwizjaMissing = false;
                     let anyCloMissing = false;
+                    // Rozwijamy zagniezdzone zestawy do prostych komponentow
+                    // importowanych. Krzeslo TYP A (ZESTAW) w Zestaw stol+krzesla
+                    // -> siedzisko + 2x noga + montaz, kazdy razy 6 krzesel.
+                    type Leaf = {
+                      componentId: string;
+                      component: {
+                        defaultUnitPriceCny: number | null;
+                        defaultUnitPriceUsd: number | null;
+                        defaultUnitPricePln: number | null;
+                      };
+                      quantity: number;
+                    };
+                    const leaves: Leaf[] = [];
                     for (const c of p.components) {
+                      if (
+                        c.component.compositionMode === "ZESTAW" &&
+                        (c.component.components?.length ?? 0) > 0
+                      ) {
+                        for (const sub of c.component.components ?? []) {
+                          leaves.push({
+                            componentId: sub.componentId,
+                            component: sub.component,
+                            quantity: c.quantity * sub.quantity,
+                          });
+                        }
+                      } else {
+                        leaves.push({
+                          componentId: c.componentId,
+                          component: c.component,
+                          quantity: c.quantity,
+                        });
+                      }
+                    }
+                    for (const c of leaves) {
                       const compLast = componentLastByProduct.get(c.componentId);
                       const cny =
                         compLast?.unitPriceCny ?? c.component.defaultUnitPriceCny ?? null;
