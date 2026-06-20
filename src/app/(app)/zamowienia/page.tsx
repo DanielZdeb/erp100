@@ -579,19 +579,27 @@ export default async function ZamowieniaPage({
                             {r.createdAt.toLocaleDateString("pl-PL")}
                           </div>
                           {r.categoryBreakdown.length > 0 && (
-                            <ul className="space-y-0.5 max-w-[220px]">
+                            <ul className="mt-1 space-y-0.5 max-w-[260px]">
                               {r.categoryBreakdown.map((c) => (
                                 <li
                                   key={c.name}
-                                  className="text-[10px] text-violet-700 truncate flex items-center gap-1"
+                                  className="text-xs leading-tight flex items-baseline gap-1.5"
                                   title={`${c.name}: ${c.sku} SKU × ${c.qty} szt`}
                                 >
-                                  <span aria-hidden>📂</span>
-                                  <span className="truncate">
-                                    {c.name}{" "}
-                                    <span className="text-violet-500/80 tabular-nums">
-                                      ({c.qty})
-                                    </span>
+                                  <span
+                                    aria-hidden
+                                    className="text-violet-500 shrink-0"
+                                  >
+                                    📂
+                                  </span>
+                                  <span className="text-violet-900 truncate min-w-0 flex-1">
+                                    {c.name}
+                                  </span>
+                                  <span className="tabular-nums font-bold text-violet-700 shrink-0">
+                                    {c.qty.toLocaleString("pl-PL")}
+                                  </span>
+                                  <span className="text-[9px] text-violet-500/70 shrink-0">
+                                    szt
                                   </span>
                                 </li>
                               ))}
