@@ -855,6 +855,18 @@ async function ensureProductHasPrimaryImage(productId: string) {
   });
 }
 
+// Wspolny hint dla wszystkich generowanych zdjec produktowych (edycja + custom).
+// Domyslnie chcemy czyste biale tlo katalogowe + delikatny realistyczny cien
+// pod produktem (zeby produkt nie "lewitowal" wizualnie). Bez tej instrukcji
+// 3.1 Flash czesto daje plaskie idealne biale ktore wyglada sztucznie.
+const CATALOG_BACKGROUND_HINT =
+  `BACKGROUND: pure white seamless studio background (#FFFFFF). ` +
+  `Add a subtle, realistic soft drop shadow directly underneath the product ` +
+  `to ground it naturally — the shadow must be SOFT, DIFFUSE, and BARELY ` +
+  `noticeable (light grey, not dark, with gentle falloff). NO background ` +
+  `props, textures, gradients, or floor lines. Professional studio product ` +
+  `photography lighting.`;
+
 async function runEditInBackground(params: {
   pendingImageId: string;
   productId: string;
@@ -872,7 +884,8 @@ async function runEditInBackground(params: {
     `You are editing an existing product photo. ` +
     `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
     `Apply this change: ${params.prompt}${extraHint}\n\n` +
-    `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}`;
+    `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}\n\n` +
+    CATALOG_BACKGROUND_HINT;
 
   const result = await generateProductPhoto({
     prompt: editPrompt,
@@ -1058,7 +1071,7 @@ async function runCustomGenerationInBackground(params: {
         ? `\n\nIMPORTANT: The FIRST attached reference image is the composition template — match its camera angle, framing, perspective, lighting, pose EXACTLY. Other images are for color/material/style context only.`
         : "";
     const finalPrompt =
-      `${params.groupPrompt}\n\n${productLine}\n\nShot ${i + 1}: ${shot.prompt}${compositionHint}`;
+      `${params.groupPrompt}\n\n${productLine}\n\nShot ${i + 1}: ${shot.prompt}${compositionHint}\n\n${CATALOG_BACKGROUND_HINT}`;
 
     const refs = [...shot.refUrls, ...params.groupRefUrls];
 
