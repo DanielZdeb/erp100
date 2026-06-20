@@ -465,6 +465,18 @@ export default async function ProduktyPage({
               // zagniezdzone components zeby rekursywnie rozwinac (Krzeslo TYP A
               // wewnatrz Zestaw stol+krzesla -> siedzisko + nogi + montaz).
               compositionMode: true,
+              // Dla komponentu-zestawu (np. krzeslo SINGLE_CARTON) — jego wlasne
+              // pudlo. Ma priorytet nad splaszczeniem do sub-komponentow.
+              bundleShippingMode: true,
+              bundleShippingBox: {
+                select: {
+                  name: true,
+                  widthCm: true,
+                  heightCm: true,
+                  depthCm: true,
+                  weightKg: true,
+                },
+              },
               components: {
                 orderBy: { sortOrder: "asc" },
                 include: {
@@ -476,6 +488,19 @@ export default async function ProduktyPage({
                       defaultUnitPriceCny: true,
                       defaultUnitPriceUsd: true,
                       defaultUnitPricePln: true,
+                      // Dla zagniezdzonych ZESTAW-ow (Krzeslo TYP A jako komponent
+                      // zestawu stolowego) — jesli krzeslo ma wlasne pudlo
+                      // SINGLE_CARTON, uzywamy go zamiast splaszczania.
+                      bundleShippingMode: true,
+                      bundleShippingBox: {
+                        select: {
+                          name: true,
+                          widthCm: true,
+                          heightCm: true,
+                          depthCm: true,
+                          weightKg: true,
+                        },
+                      },
                       shippingBoxes: {
                         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
                         select: {
@@ -1246,18 +1271,55 @@ export default async function ProduktyPage({
                   ) {
                     type ShipLeaf = {
                       weightKg: number;
+                      // Bezposrednie pudlo (gdy komponent jest gotowym produktem
+                      // z wlasnym SINGLE_CARTON, np. krzeslo). Ma priorytet nad
+                      // shippingBoxes — uzywamy go bezposrednio bez szukania pinu.
+                      directBox: {
+                        widthCm: number;
+                        heightCm: number;
+                        depthCm: number;
+                        weightKg: number | null;
+                      } | null;
                       shippingBoxes: typeof p.components[number]["component"]["shippingBoxes"];
                       qtyInBundle: number;
                     };
                     const shipLeaves: ShipLeaf[] = [];
                     for (const c of p.components) {
+                      // Zagniezdzony ZESTAW z wlasnym bundleShippingBox
+                      // (np. krzeslo z dedykowanym kartonem 1-szt) — uzyj
+                      // tego pudla, nie splaszczaj do komponentow krzesla.
                       if (
+                        c.component.compositionMode === "ZESTAW" &&
+                        c.component.bundleShippingMode === "SINGLE_CARTON" &&
+                        c.component.bundleShippingBox
+                      ) {
+                        // Waga 1 paczki = box + suma wag sub-komponentow
+                        // (siedzisko + nogi + montaz).
+                        const subWeight = (c.component.components ?? []).reduce(
+                          (s, sub) =>
+                            s + (sub.component.weightKg ?? 0) * sub.quantity,
+                          0,
+                        );
+                        shipLeaves.push({
+                          weightKg: subWeight,
+                          directBox: {
+                            widthCm: c.component.bundleShippingBox.widthCm,
+                            heightCm: c.component.bundleShippingBox.heightCm,
+                            depthCm: c.component.bundleShippingBox.depthCm,
+                            weightKg: c.component.bundleShippingBox.weightKg,
+                          },
+                          shippingBoxes: [],
+                          qtyInBundle: c.quantity,
+                        });
+                      } else if (
                         c.component.compositionMode === "ZESTAW" &&
                         (c.component.components?.length ?? 0) > 0
                       ) {
+                        // Zagniezdzony ZESTAW bez wlasnego pudla — splaszcz.
                         for (const sub of c.component.components ?? []) {
                           shipLeaves.push({
                             weightKg: sub.component.weightKg ?? 0,
+                            directBox: null,
                             shippingBoxes: sub.component.shippingBoxes ?? [],
                             qtyInBundle: c.quantity * sub.quantity,
                           });
@@ -1265,6 +1327,7 @@ export default async function ProduktyPage({
                       } else {
                         shipLeaves.push({
                           weightKg: c.component.weightKg ?? 0,
+                          directBox: null,
                           shippingBoxes: c.component.shippingBoxes ?? [],
                           qtyInBundle: c.quantity,
                         });
@@ -1273,28 +1336,42 @@ export default async function ProduktyPage({
                     let total = 0;
                     let leafsCounted = 0;
                     for (const leaf of shipLeaves) {
-                      const pin =
-                        leaf.shippingBoxes.find(
-                          (b) => b.purpose === "SHIPPING" && b.isPrimary,
-                        ) ??
-                        leaf.shippingBoxes.find((b) => b.purpose === "SHIPPING") ??
-                        leaf.shippingBoxes.find(
-                          (b) => b.purpose === "FACTORY" && b.isPrimary,
-                        ) ??
-                        leaf.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
-                        null;
-                      if (!pin) continue; // skip — komponent bez boxa
-                      const upb = Math.max(1, pin.unitsPerBox ?? 1);
-                      const packages = Math.ceil(leaf.qtyInBundle / upb);
-                      const pkgProductWeight = leaf.weightKg * upb;
-                      const q = quoteShippingForProduct({
-                        productWeightKg: pkgProductWeight,
-                        primaryBox: {
+                      let box: {
+                        widthCm: number;
+                        heightCm: number;
+                        depthCm: number;
+                        weightKg: number | null;
+                      } | null = null;
+                      let upb = 1;
+                      if (leaf.directBox) {
+                        // 1 paczka per szt (np. krzeslo SINGLE_CARTON).
+                        box = leaf.directBox;
+                        upb = 1;
+                      } else {
+                        const pin =
+                          leaf.shippingBoxes.find(
+                            (b) => b.purpose === "SHIPPING" && b.isPrimary,
+                          ) ??
+                          leaf.shippingBoxes.find((b) => b.purpose === "SHIPPING") ??
+                          leaf.shippingBoxes.find(
+                            (b) => b.purpose === "FACTORY" && b.isPrimary,
+                          ) ??
+                          leaf.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
+                          null;
+                        if (!pin) continue;
+                        box = {
                           widthCm: pin.box.widthCm,
                           heightCm: pin.box.heightCm,
                           depthCm: pin.box.depthCm,
                           weightKg: pin.box.weightKg,
-                        },
+                        };
+                        upb = Math.max(1, pin.unitsPerBox ?? 1);
+                      }
+                      const packages = Math.ceil(leaf.qtyInBundle / upb);
+                      const pkgProductWeight = leaf.weightKg * upb;
+                      const q = quoteShippingForProduct({
+                        productWeightKg: pkgProductWeight,
+                        primaryBox: box,
                         preferredServiceCodes: p.preferredShippingServices,
                         excludedServiceCodes: p.excludedShippingServices,
                         excludedBrands: p.excludedShippingBrands,
