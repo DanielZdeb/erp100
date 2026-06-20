@@ -1181,6 +1181,16 @@ model ImportOrder {
   // (uzywamy zdjecia z dominujacej kategorii / pierwszej pozycji).
   coverImageUrl String?
 
+  // ETA — Estimated Time of Arrival kontenerow. Mozna wpisac recznie
+  // albo zaciagnac z Maersk Track & Trace API (gdy w trackingu container
+  // number lub carrier booking reference).
+  etaDate     DateTime?
+  // Timestamp ostatniego udanego fetcha z Maersk (do wyswietlenia 'auto'
+  // vs 'recznie' i cache'owania — nie odpytujemy zbyt czesto).
+  etaFetchedAt DateTime?
+  // Zrodlo ETA: 'manual' (uzytkownik wpisal) lub 'maersk' (API).
+  etaSource    String?
+
   // ── Awizacja dostawy do magazynu ──
   driverName       String?
   driverPhone      String?

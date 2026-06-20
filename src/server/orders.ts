@@ -651,6 +651,143 @@ export async function updateOrderMetaAction(
 }
 
 /**
+ * Recznie ustawia / kasuje ETA (Estimated Time of Arrival) zamowienia.
+ * Date.toISOString() string albo null. Source = 'manual'.
+ */
+export async function updateOrderEtaAction(
+  orderId: string,
+  isoDate: string | null,
+) {
+  await requireUser();
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+  await db.importOrder.update({
+    where: { id: orderId },
+    data: {
+      etaDate: isoDate ? new Date(isoDate) : null,
+      etaSource: isoDate ? "manual" : null,
+      etaFetchedAt: isoDate ? new Date() : null,
+    },
+  });
+  revalidatePath("/zamowienia");
+  return { ok: true as const };
+}
+
+/**
+ * Pobiera ETA z Maersk Track & Trace API dla containerow przypisanych
+ * do zamowienia. Wymaga MAERSK_API_KEY w env (Consumer-Key z developer
+ * portal: developer.maersk.com/products).
+ *
+ * Dla kazdego containerLinks[].containerNumber wola endpoint:
+ *   GET https://api.maersk.com/track-and-trace-public/shipments
+ *       ?containerNumber=XYZ
+ *   Header: Consumer-Key: <MAERSK_API_KEY>
+ *
+ * Z odpowiedzi bierze najpozniejsza datePlanned / dateExpected dla
+ * eventu kategorii 'ARRIVE_AT_DESTINATION' — to wlasnie ETA do portu PL.
+ * Jesli zamowienie ma wiele kontenerow, bierzemy MAX (najpozniejsza data).
+ */
+export async function fetchEtaFromMaerskAction(orderId: string) {
+  await requireUser();
+  const apiKey = process.env.MAERSK_API_KEY;
+  if (!apiKey) {
+    return {
+      ok: false as const,
+      error:
+        "Brak MAERSK_API_KEY w env. Zarejestruj się na developer.maersk.com i dodaj klucz do Coolify env.",
+    };
+  }
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      containerLinks: { select: { containerNumber: true } },
+    },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+  if (order.containerLinks.length === 0) {
+    return {
+      ok: false as const,
+      error: "Brak numerów kontenerów — dodaj link śledzenia z numerem.",
+    };
+  }
+
+  let latestEta: Date | null = null;
+  const errors: string[] = [];
+  for (const link of order.containerLinks) {
+    const num = link.containerNumber.trim();
+    if (!num) continue;
+    try {
+      const url = `https://api.maersk.com/track-and-trace-public/shipments?containerNumber=${encodeURIComponent(num)}`;
+      const res = await fetch(url, {
+        headers: { "Consumer-Key": apiKey },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        errors.push(`${num}: HTTP ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as {
+        events?: Array<{
+          eventClassifierCode?: string;
+          eventDateTime?: string;
+          eventType?: string;
+          transportEventTypeCode?: string;
+        }>;
+      };
+      // Maersk events: szukamy ostatniego ARRIVE eventu (kontener przybywa
+      // do portu docelowego). Z fallback do najnowszego planned eventu.
+      const arrival = data.events
+        ?.filter(
+          (e) =>
+            e.transportEventTypeCode === "ARRI" ||
+            e.eventType === "ARRIVAL" ||
+            (e.eventClassifierCode === "PLN" &&
+              e.transportEventTypeCode === "ARRI"),
+        )
+        .map((e) => (e.eventDateTime ? new Date(e.eventDateTime) : null))
+        .filter((d): d is Date => d !== null)
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+      if (arrival && (!latestEta || arrival > latestEta)) {
+        latestEta = arrival;
+      }
+    } catch (e) {
+      errors.push(
+        `${num}: ${e instanceof Error ? e.message : "fetch error"}`,
+      );
+    }
+  }
+
+  if (!latestEta) {
+    return {
+      ok: false as const,
+      error:
+        errors.length > 0
+          ? `Nie udało się pobrać ETA: ${errors.join("; ")}`
+          : "Brak danych o przybyciu w odpowiedzi Maersk.",
+    };
+  }
+
+  await db.importOrder.update({
+    where: { id: orderId },
+    data: {
+      etaDate: latestEta,
+      etaSource: "maersk",
+      etaFetchedAt: new Date(),
+    },
+  });
+  revalidatePath("/zamowienia");
+  return {
+    ok: true as const,
+    eta: latestEta.toISOString(),
+    containers: order.containerLinks.length,
+  };
+}
+
+/**
  * Ustawia override miniatury (cover image) dla zamowienia. URL = wlasne
  * zdjecie z pozycji albo upload. Null = auto (cover wybierany z dominujacej
  * kategorii w liscie zamowien).

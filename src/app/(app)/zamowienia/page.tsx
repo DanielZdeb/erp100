@@ -25,6 +25,7 @@ import { effectiveContainerCbm, kalkulujKontener } from "@/lib/kalkulacje";
 import { STATUS_BADGE, STATUS_THEME } from "@/lib/status-colors";
 import { DOC_CATEGORIES } from "@/lib/order-doc-slots";
 import { OrderNumberCell, TrackingCell } from "./order-row-editors";
+import { EtaCell } from "./_components/eta-cell";
 import { NewOrderDialog } from "./new-order-dialog";
 import { ClickableOrderRow } from "./order-row-clickable";
 import { ProductsPreviewGrid } from "./_components/products-preview-grid";
@@ -407,6 +408,8 @@ export default async function ZamowieniaPage({
       trackingUrl: o.trackingUrl,
       containerLinks: o.containerLinks,
       coverImageUrl: o.coverImageUrl,
+      etaDate: o.etaDate,
+      etaSource: o.etaSource,
       // Wszystkie dostepne zdjecia z pozycji zamowienia — do picker'a cover'a.
       // Deduplikujemy po URL bo pozycje moga miec to samo zdjecie (warianty).
       availableImages: Array.from(
@@ -536,10 +539,9 @@ export default async function ZamowieniaPage({
               <TableRow>
                 <TableHead>Numer / kontener</TableHead>
                 <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Kontenerów</TableHead>
                 <TableHead className="text-center">Link</TableHead>
-                <TableHead className="text-right">Pozycji</TableHead>
-                <TableHead className="text-right">Koszt total</TableHead>
-                <TableHead className="text-right">Marża</TableHead>
+                <TableHead className="text-center">ETA</TableHead>
                 <TableHead className="text-right">Opłacono</TableHead>
                 <TableHead className="text-right">Pozostało</TableHead>
                 <TableHead className="text-right">Dokumenty</TableHead>
@@ -608,12 +610,19 @@ export default async function ZamowieniaPage({
                     <TableCell className="text-center">
                       <span
                         className={cn(
-                          "inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold tabular-nums tracking-wider ring-1",
+                          "inline-flex items-center rounded px-2 py-0.5 text-[11px] font-bold ring-1 whitespace-nowrap",
                           STATUS_BADGE[r.status],
                         )}
-                        title={STATUS_LABEL[r.status]}
                       >
-                        {r.status.slice(0, 3)}
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-md bg-slate-100 ring-1 ring-slate-200 px-2 py-0.5 text-xs font-semibold tabular-nums"
+                        title={`Wypełnienie: ${(r.fillRate * 100).toFixed(0)}%`}
+                      >
+                        {r.containerCount}×{r.containerSize.toFixed(0)}m³
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
@@ -623,21 +632,13 @@ export default async function ZamowieniaPage({
                         containerLinks={r.containerLinks}
                       />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.itemsCount}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <NettoBruttoTooltip
-                        nettoValue={r.totalLanded}
-                        vatRate={DEFAULT_VAT_RATE}
-                        label="Razem koszt zamówienia (landed)"
-                        description="Suma: zakup + logistyka + cło per pozycja"
-                      >
-                        {fmtPln(r.totalLanded)}
-                      </NettoBruttoTooltip>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.totalRevenue > 0 ? `${r.marginPct.toFixed(1)}%` : "—"}
+                    <TableCell className="text-center">
+                      <EtaCell
+                        orderId={r.id}
+                        etaDate={r.etaDate}
+                        etaSource={r.etaSource}
+                        hasContainerNumbers={r.containerLinks.length > 0}
+                      />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       <div className="inline-flex flex-col items-end gap-1 min-w-[140px]">
