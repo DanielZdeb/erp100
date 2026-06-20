@@ -21,6 +21,7 @@ import {
 import { quoteShippingForProduct } from "@/lib/courier-pricing/product-quote";
 
 import { StatusWorkflow } from "./status-workflow";
+import { RecomputeProductsButton } from "./recompute-products-button";
 import { ItemsTab } from "./items-tab";
 import { DOC_CATEGORIES } from "@/lib/order-doc-slots";
 import { StageTasks } from "./stage-tasks";
@@ -979,15 +980,18 @@ export default async function ZamowienieDetailPage({
           )}
         </div>
 
-        <StatusWorkflow
-          orderId={order.id}
-          currentStatus={status}
-          closedAt={order.closedAt}
-          closeBlockers={closeBlockers}
-          containerType={order.containerType}
-          containerSizeM3={order.containerSizeM3}
-          country={order.country}
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <RecomputeProductsButton orderId={order.id} />
+          <StatusWorkflow
+            orderId={order.id}
+            currentStatus={status}
+            closedAt={order.closedAt}
+            closeBlockers={closeBlockers}
+            containerType={order.containerType}
+            containerSizeM3={order.containerSizeM3}
+            country={order.country}
+          />
+        </div>
       </div>
 
       {(() => {

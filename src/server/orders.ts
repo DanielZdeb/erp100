@@ -251,6 +251,53 @@ export async function changeOrderStatusAction(
  * też tu robi się z grzeczności — chociaż w większości miejsc i tak jest
  * wołane wcześniej).
  */
+/**
+ * Wymusza ponowne policzenie i zapisanie snapshotu cen produktow dla
+ * zamowienia. Uzywane gdy uzytkownik zmienil dane wplywajace na kalkulacje
+ * (np. cbmPerUnit komponentu) i chce zeby lista produktow odzwierciedlala
+ * aktualny stan, bez przelaczania statusu zamowienia.
+ *
+ * Snapshot powstanie tylko gdy status zamowienia jest >= DOGADYWANE
+ * (lista produktow nie pokazuje ekonomiki z PLANOWANE).
+ */
+export async function recomputeOrderProductsAction(orderId: string) {
+  await requireUser();
+  const o = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { status: true, _count: { select: { items: true } } },
+  });
+  if (!o) throw new Error("Zamówienie nie istnieje.");
+  if (o._count.items === 0) {
+    return {
+      ok: true as const,
+      itemsUpdated: 0,
+      message: "Zamówienie nie ma jeszcze pozycji.",
+    };
+  }
+  const SNAPSHOT_FROM_STATUSES: OrderStatusT[] = [
+    "DOGADYWANE",
+    "PRODUKOWANE",
+    "WYPRODUKOWANE",
+    "WYSLANE",
+    "ODEBRANE",
+    "W_MAGAZYNIE",
+  ];
+  if (!SNAPSHOT_FROM_STATUSES.includes(o.status as OrderStatusT)) {
+    return {
+      ok: false as const,
+      message: `Status ${o.status} — snapshot tworzy się od DOGADYWANE. Przesuń zamówienie na kolejny etap.`,
+    };
+  }
+  await snapshotOrderPricesToHistory(orderId);
+  revalidatePath("/produkty");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return {
+    ok: true as const,
+    itemsUpdated: o._count.items,
+    message: `Przeliczono ekonomikę dla ${o._count.items} pozycji.`,
+  };
+}
+
 export async function maybeSnapshotOrderPrices(orderId: string) {
   const o = await db.importOrder.findUnique({
     where: { id: orderId },
