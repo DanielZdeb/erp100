@@ -1169,9 +1169,13 @@ model ImportOrder {
 
   estimatedProductionDays Int?
 
-  // Link do śledzenia kontenera (np. tracking armatora) — nie wyświetlamy URL,
-  // tylko zaznaczamy czy jest uzupełniony.
+  // Legacy single-link (jeden link sledzenia bez numeru kontenera) — nowe
+  // zamowienia korzystaja z relacji `containerLinks` ponizej, ktora wspiera
+  // wiele kontenerow z numerami.
   trackingUrl String?
+  // Numerowane linki sledzenia per kontener. Wyswietlane w liscie zamowien
+  // jako klikalne kafelki (numer kontenera → URL).
+  containerLinks ImportOrderContainerLink[]
 
   // ── Awizacja dostawy do magazynu ──
   driverName       String?
@@ -1202,6 +1206,22 @@ model ImportOrder {
 
   @@unique([companyId, orderNumber])
   @@index([companyId])
+}
+
+/// Numerowane linki śledzenia per kontener. Zamówienie importowe może mieć
+/// wiele kontenerów; każdy ma swój numer (np. „MSKU1234567") i URL do
+/// trackingu armatora. W liście zamówień wyświetlane jako klikalne kafelki.
+model ImportOrderContainerLink {
+  id              String      @id @default(cuid())
+  orderId         String
+  order           ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  containerNumber String
+  url             String
+  sortOrder       Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([orderId])
 }
 
 /// Sekcje „Wytyczne i składanie zamówienia" — dowolne tytułowane bloki

@@ -142,6 +142,10 @@ export default async function ZamowieniaPage({
         costs: true,
         goodsTranches: true,
         files: { select: { slot: true } },
+        containerLinks: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true, containerNumber: true, url: true },
+        },
       },
     }),
     db.importOrder.groupBy({
@@ -401,6 +405,7 @@ export default async function ZamowieniaPage({
       containerCount,
       containerSize,
       trackingUrl: o.trackingUrl,
+      containerLinks: o.containerLinks,
       categoryBreakdown,
       previewItems,
       daysToProductionEnd,
@@ -421,6 +426,37 @@ export default async function ZamowieniaPage({
 
       {/* Status tabs jako pipeline — wszystkie w jednym wierszu */}
       <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+        <Link
+          href="/zamowienia?status=all"
+          className={cn(
+            "rounded-xl ring-1 p-3 transition-all flex flex-col gap-2 hover:shadow-md hover:-translate-y-0.5",
+            activeStatus === ALL
+              ? "bg-indigo-100 border-indigo-400 border-2 shadow-sm"
+              : "bg-card border-indigo-200 border",
+          )}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="size-9 rounded-lg grid place-items-center bg-indigo-100">
+              <Plus className="size-4 text-indigo-700" />
+            </div>
+            <span
+              className={cn(
+                "text-2xl font-heading font-bold tabular-nums",
+                activeStatus === ALL ? "text-indigo-900" : "text-indigo-700",
+              )}
+            >
+              {totalCount}
+            </span>
+          </div>
+          <div
+            className={cn(
+              "text-xs font-medium",
+              activeStatus === ALL ? "text-indigo-900" : "text-indigo-500",
+            )}
+          >
+            Wszystkie
+          </div>
+        </Link>
         {ORDER_STATUSES.map((s) => {
           const theme = STATUS_THEME[s];
           const Icon = STATUS_ICON[s];
@@ -466,37 +502,6 @@ export default async function ZamowieniaPage({
             </Link>
           );
         })}
-        <Link
-          href="/zamowienia?status=all"
-          className={cn(
-            "rounded-xl ring-1 p-3 transition-all flex flex-col gap-2 hover:shadow-md hover:-translate-y-0.5",
-            activeStatus === ALL
-              ? "bg-indigo-100 border-indigo-400 border-2 shadow-sm"
-              : "bg-card border-indigo-200 border",
-          )}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="size-9 rounded-lg grid place-items-center bg-indigo-100">
-              <Plus className="size-4 text-indigo-700" />
-            </div>
-            <span
-              className={cn(
-                "text-2xl font-heading font-bold tabular-nums",
-                activeStatus === ALL ? "text-indigo-900" : "text-indigo-700",
-              )}
-            >
-              {totalCount}
-            </span>
-          </div>
-          <div
-            className={cn(
-              "text-xs font-medium",
-              activeStatus === ALL ? "text-indigo-900" : "text-indigo-500",
-            )}
-          >
-            Wszystkie
-          </div>
-        </Link>
       </div>
 
       <Card>
@@ -592,7 +597,8 @@ export default async function ZamowieniaPage({
                     <TableCell className="text-center">
                       <TrackingCell
                         orderId={r.id}
-                        trackingUrl={r.trackingUrl}
+                        legacyTrackingUrl={r.trackingUrl}
+                        containerLinks={r.containerLinks}
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
@@ -712,6 +718,7 @@ function PaidLine({
 }) {
   const pct = total > 0 ? (paid / total) * 100 : 0;
   const safePct = Math.max(0, Math.min(100, pct));
+  const remaining = Math.max(0, total - paid);
   const colorClass =
     pct >= 100
       ? "text-emerald-700"
@@ -723,7 +730,7 @@ function PaidLine({
       nettoValue={total}
       vatRate={DEFAULT_VAT_RATE}
       label={`${label} — łącznie`}
-      description={`Opłacono ${fmtPln(paid)} (${paidCount}/${totalCount} transz)`}
+      description={`Opłacono ${fmtPln(paid)} · Pozostało ${fmtPln(remaining)} (${paidCount}/${totalCount} transz)`}
     >
       <div className="w-full flex flex-col gap-0.5">
         <div className="flex items-baseline justify-end gap-1.5 text-[11px] tabular-nums">
@@ -748,6 +755,11 @@ function PaidLine({
             style={{ width: `${safePct}%` }}
           />
         </div>
+        {remaining > 0.5 && (
+          <div className="flex justify-end text-[9px] tabular-nums text-amber-700 font-medium">
+            do zapłaty: {fmtPlnShort(remaining)}
+          </div>
+        )}
       </div>
     </NettoBruttoTooltip>
   );

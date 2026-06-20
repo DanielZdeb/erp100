@@ -594,6 +594,51 @@ export async function updateOrderMetaAction(
 }
 
 /**
+ * Zapisuje liste linkow sledzenia kontenerow dla zamowienia. Atomic replace:
+ * kasujemy stare rekordy + tworzymy nowe w transakcji. Puste rzedy
+ * (brak numeru LUB brak url) sa pomijane. Czysci tez legacy `trackingUrl`
+ * gdy uzytkownik wszedl w nowy widget.
+ */
+export async function replaceContainerLinksAction(
+  orderId: string,
+  links: Array<{ containerNumber: string; url: string }>,
+) {
+  await requireUser();
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+
+  const normalized = links
+    .map((l, idx) => ({
+      containerNumber: l.containerNumber.trim(),
+      url: l.url.trim(),
+      sortOrder: idx,
+    }))
+    .filter((l) => l.containerNumber && l.url);
+
+  await db.$transaction([
+    db.importOrderContainerLink.deleteMany({ where: { orderId } }),
+    ...(normalized.length > 0
+      ? [
+          db.importOrderContainerLink.createMany({
+            data: normalized.map((l) => ({ orderId, ...l })),
+          }),
+        ]
+      : []),
+    db.importOrder.update({
+      where: { id: orderId },
+      data: { trackingUrl: null },
+    }),
+  ]);
+
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+/**
  * Aktualizuje treść „Opis zamówienia" pokazywaną na stronie 1 PDF (PL).
  * Pusty/whitespace string zapisujemy jako null, by PDF nie pokazywał
  * pustej sekcji.

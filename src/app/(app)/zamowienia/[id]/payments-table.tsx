@@ -241,7 +241,6 @@ export function PaymentsTable({
   const fixedCosts = costs.filter((c) => c.type !== "INNE");
 
   // ─── Sumy ──────────────────────────────────────────────────────────
-  const totalPct = sortedTranches.reduce((s, t) => s + t.percentage, 0);
   function trancheAmount(t: Tranche): number {
     if (t.paidAmountOriginal != null && t.paidAmountOriginal > 0) {
       return t.paidAmountOriginal * (t.paidExchangeRate ?? 1);
@@ -292,14 +291,26 @@ export function PaymentsTable({
             Płatności
           </h3>
         </div>
-        <div className="text-[11px] text-indigo-800 tabular-nums">
-          Opłacono:{" "}
-          <span className={cn(grandPaid > 0 && "text-emerald-700 font-bold")}>
-            {fmtPln(grandPaid)}
-          </span>{" "}
-          / <span className="font-semibold">{fmtPln(grandTotal)}</span>
+        <div className="text-[11px] text-indigo-800 tabular-nums flex items-center gap-2 flex-wrap">
+          <span>
+            Opłacono:{" "}
+            <span className={cn(grandPaid > 0 && "text-emerald-700 font-bold")}>
+              {fmtPln(grandPaid)}
+            </span>{" "}
+            / <span className="font-semibold">{fmtPln(grandTotal)}</span>
+          </span>
+          {grandTotal - grandPaid > 0.5 && (
+            <span className="inline-flex items-center rounded-full bg-amber-50 ring-1 ring-amber-200 px-2 py-0.5 font-semibold text-amber-900">
+              Pozostało: {fmtPln(grandTotal - grandPaid)}
+            </span>
+          )}
+          {grandTotal > 0 && grandTotal - grandPaid <= 0.5 && (
+            <span className="inline-flex items-center rounded-full bg-emerald-50 ring-1 ring-emerald-300 px-2 py-0.5 font-semibold text-emerald-800">
+              ✓ Opłacone w całości
+            </span>
+          )}
           {grandTotal > 0 && (
-            <span className="ml-2 inline-flex items-center rounded-full bg-white/80 ring-1 ring-indigo-200 px-2 py-0.5 font-bold text-indigo-900">
+            <span className="inline-flex items-center rounded-full bg-white/80 ring-1 ring-indigo-200 px-2 py-0.5 font-bold text-indigo-900">
               {((grandPaid / grandTotal) * 100).toFixed(0)}%
             </span>
           )}
