@@ -538,6 +538,108 @@ export async function updateProductSaleDefaultsAction(
     }
   }
 
+  // Auto-fill: gdy user wpisuje cene (defaultSalePrice*) a pozostale pola
+  // tego kanalu sa null, podstawiamy defaulty z kategorii (z dziedziczeniem
+  // po parentach). Bez tego prowizja/wysylka/koszty zostaja puste i marza
+  // jest niepoprawna.
+  const settingAllegroPrice =
+    patch.defaultSalePriceAllegroPln != null &&
+    patch.defaultSalePriceAllegroPln > 0;
+  const settingSklepPrice =
+    patch.defaultSalePriceSklepPln != null &&
+    patch.defaultSalePriceSklepPln > 0;
+
+  if (settingAllegroPrice || settingSklepPrice) {
+    const product = await db.product.findUnique({
+      where: { id },
+      select: {
+        defaultAllegroCommissionPct: true,
+        defaultAllegroOtherCostPln: true,
+        defaultAllegroCustomerShippingPln: true,
+        defaultSklepCommissionPct: true,
+        defaultSklepAdCostPln: true,
+        defaultSklepCustomerShippingPln: true,
+        category: {
+          select: {
+            commissionPctAllegro: true,
+            commissionPctSklep: true,
+            kpkPlnAllegro: true,
+            kpkPlnSklep: true,
+            customerShippingPlnAllegro: true,
+            customerShippingPlnSklep: true,
+            parent: {
+              select: {
+                commissionPctAllegro: true,
+                commissionPctSklep: true,
+                kpkPlnAllegro: true,
+                kpkPlnSklep: true,
+                customerShippingPlnAllegro: true,
+                customerShippingPlnSklep: true,
+                parent: {
+                  select: {
+                    commissionPctAllegro: true,
+                    commissionPctSklep: true,
+                    kpkPlnAllegro: true,
+                    kpkPlnSklep: true,
+                    customerShippingPlnAllegro: true,
+                    customerShippingPlnSklep: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (product?.category) {
+      // Resolve z dziedziczeniem: self -> parent -> grandparent.
+      const resolve = (
+        field:
+          | "commissionPctAllegro"
+          | "commissionPctSklep"
+          | "kpkPlnAllegro"
+          | "kpkPlnSklep"
+          | "customerShippingPlnAllegro"
+          | "customerShippingPlnSklep",
+      ): number | null =>
+        product.category![field] ??
+        product.category!.parent?.[field] ??
+        product.category!.parent?.parent?.[field] ??
+        null;
+
+      // Allegro: tylko gdy user wpisal cene allegro + pole produktu wciaz puste.
+      if (settingAllegroPrice) {
+        if (product.defaultAllegroCommissionPct == null) {
+          const v = resolve("commissionPctAllegro");
+          if (v != null) patch.defaultAllegroCommissionPct = v;
+        }
+        if (product.defaultAllegroOtherCostPln == null) {
+          const v = resolve("kpkPlnAllegro");
+          if (v != null) patch.defaultAllegroOtherCostPln = v;
+        }
+        if (product.defaultAllegroCustomerShippingPln == null) {
+          const v = resolve("customerShippingPlnAllegro");
+          if (v != null) patch.defaultAllegroCustomerShippingPln = v;
+        }
+      }
+      if (settingSklepPrice) {
+        if (product.defaultSklepCommissionPct == null) {
+          const v = resolve("commissionPctSklep");
+          if (v != null) patch.defaultSklepCommissionPct = v;
+        }
+        if (product.defaultSklepAdCostPln == null) {
+          const v = resolve("kpkPlnSklep");
+          if (v != null) patch.defaultSklepAdCostPln = v;
+        }
+        if (product.defaultSklepCustomerShippingPln == null) {
+          const v = resolve("customerShippingPlnSklep");
+          if (v != null) patch.defaultSklepCustomerShippingPln = v;
+        }
+      }
+    }
+  }
+
   await db.product.update({ where: { id }, data: patch });
   revalidatePath("/produkty");
   revalidateTag("products", "max");
