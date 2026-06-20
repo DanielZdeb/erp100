@@ -96,8 +96,12 @@ export default async function ProductDetailLayout({
       : 0;
   const isBundleForPackaging = product.compositionMode === "ZESTAW";
   const packagingFilled = isBundleForPackaging
-    ? product.bundleShippingMode != null &&
-      product.bundleShippingBoxId != null
+    ? // SINGLE_CARTON wymaga wybranego kartonu (bundleShippingBoxId).
+      // INDIVIDUAL_PACKAGING nie potrzebuje wspolnego kartonu — uzywa
+      // pudel kazdego komponentu. Wystarczy ze tryb jest wybrany.
+      product.bundleShippingMode === "INDIVIDUAL_PACKAGING" ||
+      (product.bundleShippingMode === "SINGLE_CARTON" &&
+        product.bundleShippingBoxId != null)
       ? 1
       : 0
     : (shippingBoxCount > 0 || factoryBoxCount > 0 ? 1 : 0) +
