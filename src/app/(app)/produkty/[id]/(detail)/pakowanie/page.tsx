@@ -245,6 +245,78 @@ export default async function PakowaniePage({
     }
     breakdown.bundleShippingQuote = bundleShippingQuote;
 
+    // ── Kalkulowana paczka dla zestawu — dla SINGLE_CARTON skladamy
+    // 1 paczke (bundleShippingBox + suma wag komponentow × ich quantity).
+    // Dla INDIVIDUAL_PACKAGING uzywamy NAJCIEZSZEJ paczki z breakdown
+    // jako reprezentanta — bo picker pokazuje 1 wycene; cala kalkulacja
+    // per-paczka jest juz w breakdown ponizej.
+    const totalComponentWeight = product.components.reduce(
+      (sum, c) => sum + (c.component.weightKg ?? 0) * c.quantity,
+      0,
+    );
+    let bundlePrimaryBox: {
+      widthCm: number;
+      heightCm: number;
+      depthCm: number;
+      weightKg: number | null;
+    } | null = null;
+    let bundleProductWeight = 0;
+    let bundlePackageLabel = "";
+    if (
+      product.bundleShippingMode === "SINGLE_CARTON" &&
+      product.bundleShippingBox
+    ) {
+      bundlePrimaryBox = {
+        widthCm: product.bundleShippingBox.widthCm,
+        heightCm: product.bundleShippingBox.heightCm,
+        depthCm: product.bundleShippingBox.depthCm,
+        weightKg: product.bundleShippingBox.weightKg,
+      };
+      bundleProductWeight = totalComponentWeight;
+      bundlePackageLabel = product.bundleShippingBox.name;
+    } else if (product.bundleShippingMode === "INDIVIDUAL_PACKAGING") {
+      // Najciezsza paczka z breakdown = reprezentant dla cenkowania.
+      let heaviest: {
+        widthCm: number;
+        heightCm: number;
+        depthCm: number;
+        weightKg: number;
+        boxWeightKg: number | null;
+        boxName: string;
+      } | null = null;
+      const componentsWithWeight = new Map(
+        product.components.map((c) => [
+          c.component.id,
+          c.component.weightKg ?? 0,
+        ]),
+      );
+      for (const cp of breakdown.components) {
+        if (!cp.box) continue;
+        const cw = componentsWithWeight.get(cp.componentId) ?? 0;
+        const pkgWeight = (cp.box.weightKg ?? 0) + cw * cp.unitsPerBox;
+        if (!heaviest || pkgWeight > heaviest.weightKg) {
+          heaviest = {
+            widthCm: cp.box.widthCm,
+            heightCm: cp.box.heightCm,
+            depthCm: cp.box.depthCm,
+            weightKg: pkgWeight,
+            boxWeightKg: cp.box.weightKg,
+            boxName: cp.box.name,
+          };
+        }
+      }
+      if (heaviest) {
+        bundlePrimaryBox = {
+          widthCm: heaviest.widthCm,
+          heightCm: heaviest.heightCm,
+          depthCm: heaviest.depthCm,
+          weightKg: heaviest.boxWeightKg,
+        };
+        bundleProductWeight = heaviest.weightKg - (heaviest.boxWeightKg ?? 0);
+        bundlePackageLabel = `${heaviest.boxName} (najcięższa z ${breakdown.totalPackagesPerSet})`;
+      }
+    }
+
     return (
       <div className="space-y-6">
         <div>
@@ -280,6 +352,76 @@ export default async function PakowaniePage({
           breakdown={breakdown}
           availableBoxes={availableBoxes}
         />
+
+        {/* Kalkulacja kuriera dla zestawu — analogicznie do widoku produktu */}
+        <section className="space-y-3">
+          <h3 className="text-sm font-heading font-semibold">
+            Preferowane usługi kurierskie
+          </h3>
+          {bundlePrimaryBox ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-lg bg-gradient-to-r from-indigo-50 to-blue-50 ring-1 ring-indigo-200 p-3 space-y-2 h-fit">
+                <div className="text-[10px] uppercase tracking-wide font-bold text-indigo-700">
+                  Kalkulowana paczka
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">
+                      <Ruler className="size-3" /> Wymiary pudełka
+                    </div>
+                    <div className="font-mono text-lg font-bold text-indigo-900 tabular-nums">
+                      {bundlePrimaryBox.widthCm}×{bundlePrimaryBox.heightCm}×
+                      {bundlePrimaryBox.depthCm}
+                      <span className="text-xs font-normal text-indigo-700 ml-0.5">
+                        cm
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-indigo-700/80 truncate">
+                      {bundlePackageLabel}
+                    </div>
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">
+                      <Weight className="size-3" /> Waga paczki
+                    </div>
+                    <div className="font-mono text-lg font-bold text-indigo-900 tabular-nums">
+                      {((bundlePrimaryBox.weightKg ?? 0) + bundleProductWeight).toFixed(2)}
+                      <span className="text-xs font-normal text-indigo-700 ml-0.5">
+                        kg
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-indigo-700/80">
+                      pudełko {bundlePrimaryBox.weightKg ?? "?"} kg +{" "}
+                      {product.bundleShippingMode === "SINGLE_CARTON"
+                        ? "komponenty"
+                        : "produkt"}{" "}
+                      {bundleProductWeight.toFixed(2)} kg
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <PreferredServicesPicker
+                  productId={product.id}
+                  initialCodes={product.preferredShippingServices}
+                  productWeightKg={bundleProductWeight}
+                  primaryBox={bundlePrimaryBox}
+                />
+                <ExcludedServicesPicker
+                  productId={product.id}
+                  initialCodes={product.excludedShippingServices}
+                  initialBrands={product.excludedShippingBrands}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md bg-rose-50 ring-1 ring-rose-200 px-3 py-2 text-xs text-rose-800">
+              ⚠ Brak kartonu / komponentów z pudełkami — kalkulacja kurierów
+              niemożliwa. Wybierz karton w „Edytuj pakowanie zestawu" albo
+              przypnij primary SHIPPING box do każdego komponentu.
+            </div>
+          )}
+        </section>
       </div>
     );
   }
