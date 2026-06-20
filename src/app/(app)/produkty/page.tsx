@@ -1271,7 +1271,7 @@ export default async function ProduktyPage({
                       }
                     }
                     let total = 0;
-                    let anyMissing = false;
+                    let leafsCounted = 0;
                     for (const leaf of shipLeaves) {
                       const pin =
                         leaf.shippingBoxes.find(
@@ -1283,10 +1283,7 @@ export default async function ProduktyPage({
                         ) ??
                         leaf.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
                         null;
-                      if (!pin) {
-                        anyMissing = true;
-                        continue;
-                      }
+                      if (!pin) continue; // skip — komponent bez boxa
                       const upb = Math.max(1, pin.unitsPerBox ?? 1);
                       const packages = Math.ceil(leaf.qtyInBundle / upb);
                       const pkgProductWeight = leaf.weightKg * upb;
@@ -1303,13 +1300,16 @@ export default async function ProduktyPage({
                         excludedBrands: p.excludedShippingBrands,
                       });
                       const cheap = q?.primary?.totalNetPln;
-                      if (cheap == null) {
-                        anyMissing = true;
-                        continue;
-                      }
+                      if (cheap == null) continue;
                       total += cheap * packages;
+                      leafsCounted++;
                     }
-                    if (!anyMissing) bundleIndividualShipping = total;
+                    // Zwracamy sume nawet czesciowa — user widzi orientacyjny
+                    // koszt zamiast '—'. UI doda marker '(czesc.)' gdy
+                    // leafsCounted < shipLeaves.length.
+                    if (leafsCounted > 0) {
+                      bundleIndividualShipping = total;
+                    }
                   }
                   const shippingQuote = bundleQuoteBox
                     ? quoteShippingForProduct({
