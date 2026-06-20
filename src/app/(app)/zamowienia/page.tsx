@@ -542,8 +542,7 @@ export default async function ZamowieniaPage({
                 <TableHead className="text-center">Kontenerów</TableHead>
                 <TableHead className="text-center">Link</TableHead>
                 <TableHead className="text-center">ETA</TableHead>
-                <TableHead className="text-right">Opłacono</TableHead>
-                <TableHead className="text-right">Pozostało</TableHead>
+                <TableHead className="text-center">Płatności</TableHead>
                 <TableHead className="text-right">Dokumenty</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -640,38 +639,20 @@ export default async function ZamowieniaPage({
                         hasContainerNumbers={r.containerLinks.length > 0}
                       />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div className="inline-flex flex-col items-end gap-1 min-w-[140px]">
-                        <PaidLine
-                          label="Towar"
-                          paid={r.goodsPaid}
-                          total={r.goodsTotalEffective}
-                          paidCount={r.paidGoodsCount}
-                          totalCount={r.totalGoodsCount}
-                        />
-                        <PaidLine
-                          label="Logist."
-                          paid={r.logisticsPaid}
-                          total={r.logisticsTotal}
-                          paidCount={r.paidLogisticsCount}
-                          totalCount={r.totalLogisticsCount}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums",
-                        r.payRemaining > 0 ? "text-amber-700" : "text-emerald-700",
-                      )}
-                    >
-                      <NettoBruttoTooltip
-                        nettoValue={r.payRemaining}
-                        vatRate={DEFAULT_VAT_RATE}
-                        label="Pozostało do zapłaty"
-                        description={`Razem: ${fmtPln(r.payTotal)} · Opłacono: ${fmtPln(r.payPaid)}`}
-                      >
-                        {fmtPln(r.payRemaining)}
-                      </NettoBruttoTooltip>
+                    <TableCell className="text-center">
+                      <PaymentsSummary
+                        payTotal={r.payTotal}
+                        payPaid={r.payPaid}
+                        payRemaining={r.payRemaining}
+                        goodsTotal={r.goodsTotalEffective}
+                        goodsPaid={r.goodsPaid}
+                        logisticsTotal={r.logisticsTotal}
+                        logisticsPaid={r.logisticsPaid}
+                        paidGoodsCount={r.paidGoodsCount}
+                        totalGoodsCount={r.totalGoodsCount}
+                        paidLogisticsCount={r.paidLogisticsCount}
+                        totalLogisticsCount={r.totalLogisticsCount}
+                      />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       <ProgressCell
@@ -723,66 +704,113 @@ function fmtPlnShort(n: number): string {
 }
 
 /**
- * Wiersz „Towar / Logistyka" w komórce Opłacono — kwota PLN + licznik poz.
- * z paskiem postępu. Kolor zależy od % opłaconej kwoty.
+ * Skonsolidowana tabelka platnosci w 1 komorce — sumuje Towar + Logistyka,
+ * pokazuje 3 wartosci (Razem / Oplacono / Zostalo) + pasek progress + count
+ * transz. Zastapilo poprzednie 2 oddzielne PaidLine + osobna kolumne Pozostalo.
  */
-function PaidLine({
-  label,
-  paid,
-  total,
-  paidCount,
-  totalCount,
+function PaymentsSummary({
+  payTotal,
+  payPaid,
+  payRemaining,
+  goodsTotal,
+  goodsPaid,
+  logisticsTotal,
+  logisticsPaid,
+  paidGoodsCount,
+  totalGoodsCount,
+  paidLogisticsCount,
+  totalLogisticsCount,
 }: {
-  label: string;
-  paid: number;
-  total: number;
-  paidCount: number;
-  totalCount: number;
+  payTotal: number;
+  payPaid: number;
+  payRemaining: number;
+  goodsTotal: number;
+  goodsPaid: number;
+  logisticsTotal: number;
+  logisticsPaid: number;
+  paidGoodsCount: number;
+  totalGoodsCount: number;
+  paidLogisticsCount: number;
+  totalLogisticsCount: number;
 }) {
-  const pct = total > 0 ? (paid / total) * 100 : 0;
+  const pct = payTotal > 0 ? (payPaid / payTotal) * 100 : 0;
   const safePct = Math.max(0, Math.min(100, pct));
-  const remaining = Math.max(0, total - paid);
-  const colorClass =
-    pct >= 100
-      ? "text-emerald-700"
-      : pct > 0
-        ? "text-emerald-600"
-        : "text-muted-foreground";
+  const allPaid = payRemaining <= 0.5 && payTotal > 0;
+  const noneStarted = payPaid <= 0.5;
+  const tranchesPaid = paidGoodsCount + paidLogisticsCount;
+  const tranchesTotal = totalGoodsCount + totalLogisticsCount;
+
   return (
     <NettoBruttoTooltip
-      nettoValue={total}
+      nettoValue={payTotal}
       vatRate={DEFAULT_VAT_RATE}
-      label={`${label} — łącznie`}
-      description={`Opłacono ${fmtPln(paid)} · Pozostało ${fmtPln(remaining)} (${paidCount}/${totalCount} transz)`}
+      label="Płatności razem (towar + logistyka)"
+      description={`Towar ${fmtPln(goodsPaid)}/${fmtPln(goodsTotal)} (${paidGoodsCount}/${totalGoodsCount}) · Logist. ${fmtPln(logisticsPaid)}/${fmtPln(logisticsTotal)} (${paidLogisticsCount}/${totalLogisticsCount})`}
     >
-      <div className="w-full flex flex-col gap-0.5">
-        <div className="flex items-baseline justify-end gap-1.5 text-[11px] tabular-nums">
-          <span className="text-[9px] text-muted-foreground uppercase tracking-wide font-medium">
-            {label}
-          </span>
-          <span className={cn("font-bold", colorClass)}>
-            {fmtPlnShort(paid)}
-          </span>
-          <span className="text-muted-foreground text-[9px]">/</span>
-          <span className="text-foreground/80">{fmtPlnShort(total)}</span>
-          <span className="text-[9px] text-muted-foreground">
-            ({paidCount}/{totalCount})
-          </span>
-        </div>
-        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+      <div className="inline-block min-w-[170px] text-left">
+        <table className="w-full text-[10px] tabular-nums">
+          <tbody>
+            <tr>
+              <td className="text-muted-foreground uppercase tracking-wide font-medium pr-2">
+                Razem
+              </td>
+              <td className="text-right font-semibold text-foreground/90">
+                {fmtPlnShort(payTotal)}
+              </td>
+            </tr>
+            <tr>
+              <td
+                className={cn(
+                  "uppercase tracking-wide font-medium pr-2",
+                  noneStarted ? "text-muted-foreground" : "text-emerald-700",
+                )}
+              >
+                Opłacono
+              </td>
+              <td
+                className={cn(
+                  "text-right font-bold",
+                  noneStarted ? "text-muted-foreground" : "text-emerald-700",
+                )}
+              >
+                {fmtPlnShort(payPaid)}{" "}
+                <span className="text-[8px] font-normal text-muted-foreground">
+                  ({tranchesPaid}/{tranchesTotal})
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td
+                className={cn(
+                  "uppercase tracking-wide font-medium pr-2",
+                  allPaid ? "text-emerald-700" : "text-amber-700",
+                )}
+              >
+                Zostało
+              </td>
+              <td
+                className={cn(
+                  "text-right font-bold",
+                  allPaid ? "text-emerald-700" : "text-amber-700",
+                )}
+              >
+                {allPaid ? "—" : fmtPlnShort(payRemaining)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
           <div
             className={cn(
               "h-full transition-all",
-              pct >= 100 ? "bg-emerald-500" : "bg-emerald-400",
+              allPaid ? "bg-emerald-500" : "bg-emerald-400",
             )}
             style={{ width: `${safePct}%` }}
           />
         </div>
-        {remaining > 0.5 && (
-          <div className="flex justify-end text-[9px] tabular-nums text-amber-700 font-medium">
-            do zapłaty: {fmtPlnShort(remaining)}
-          </div>
-        )}
+        <div className="mt-0.5 text-right text-[8px] font-semibold text-muted-foreground">
+          {pct.toFixed(0)}%
+        </div>
       </div>
     </NettoBruttoTooltip>
   );
