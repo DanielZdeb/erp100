@@ -80,7 +80,7 @@ export function ContainersList({
 
   return (
     <>
-      <div className="flex flex-col items-stretch gap-0.5 max-w-[170px] mx-auto">
+      <div className="flex flex-col items-stretch gap-0.5 max-w-[220px] mx-auto">
         {slots.map((slot, idx) => (
           <ContainerRow
             key={slot.kind === "existing" ? slot.link.id : `ph-${idx}`}
@@ -166,29 +166,48 @@ function ContainerRow({
           <span className="text-[10px] text-muted-foreground italic">—</span>
         )}
         {link.etaDate ? (
-          <span
-            className={cn(
-              "tabular-nums shrink-0 ml-auto text-sm font-bold",
-              isPast
-                ? "text-rose-600"
-                : isUrgent
-                  ? "text-amber-700"
-                  : "text-emerald-700",
-            )}
-            title={
-              days != null
-                ? isPast
-                  ? `Opóźnienie ${Math.abs(days)} dni`
+          <span className="shrink-0 ml-auto flex items-baseline gap-1.5">
+            <span
+              className={cn(
+                "tabular-nums text-sm font-bold leading-none",
+                isPast
+                  ? "text-rose-600"
+                  : isUrgent
+                    ? "text-amber-700"
+                    : "text-emerald-700",
+              )}
+              title={`ETA: ${link.etaDate.toLocaleDateString("pl-PL")}`}
+            >
+              {link.etaDate.toLocaleDateString("pl-PL", {
+                day: "2-digit",
+                month: "2-digit",
+              })}
+            </span>
+            {days != null && (
+              <span
+                className={cn(
+                  "tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 leading-none whitespace-nowrap",
+                  isPast
+                    ? "bg-rose-100 text-rose-800 ring-rose-300"
+                    : isUrgent
+                      ? "bg-amber-100 text-amber-800 ring-amber-300"
+                      : "bg-emerald-100 text-emerald-800 ring-emerald-300",
+                )}
+                title={
+                  isPast
+                    ? `Opóźnienie ${Math.abs(days)} dni`
+                    : days === 0
+                      ? "Dziś"
+                      : `Za ${days} dni`
+                }
+              >
+                {isPast
+                  ? `↓ ${Math.abs(days)}d`
                   : days === 0
-                    ? "Dziś"
-                    : `Za ${days} dni`
-                : ""
-            }
-          >
-            {link.etaDate.toLocaleDateString("pl-PL", {
-              day: "2-digit",
-              month: "2-digit",
-            })}
+                    ? "dziś"
+                    : `+${days}d`}
+              </span>
+            )}
           </span>
         ) : (
           <span className="text-muted-foreground/60 italic shrink-0 ml-auto text-[10px]">
