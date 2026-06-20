@@ -472,9 +472,28 @@ export default async function ProduktyPage({
                     select: {
                       id: true,
                       name: true,
+                      weightKg: true,
                       defaultUnitPriceCny: true,
                       defaultUnitPriceUsd: true,
                       defaultUnitPricePln: true,
+                      shippingBoxes: {
+                        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+                        select: {
+                          isPrimary: true,
+                          purpose: true,
+                          unitsPerBox: true,
+                          box: {
+                            select: {
+                              name: true,
+                              widthCm: true,
+                              heightCm: true,
+                              depthCm: true,
+                              weightKg: true,
+                              purchasePricePln: true,
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                 },
@@ -496,6 +515,7 @@ export default async function ProduktyPage({
                       widthCm: true,
                       heightCm: true,
                       depthCm: true,
+                      weightKg: true,
                       purchasePricePln: true,
                     },
                   },
@@ -1214,6 +1234,83 @@ export default async function ProduktyPage({
                       0,
                     );
                   }
+                  // INDIVIDUAL_PACKAGING — kazdy komponent w swoim pudle.
+                  // Splaszczamy zagniezdzone zestawy (KA-BLACK-B → siedzisko + nogi
+                  // + montaz) i sumujemy quote silnika kuriera per komponent ×
+                  // liczba paczek.
+                  let bundleIndividualShipping: number | null = null;
+                  if (
+                    p.compositionMode === "ZESTAW" &&
+                    p.bundleShippingMode === "INDIVIDUAL_PACKAGING" &&
+                    p.components.length > 0
+                  ) {
+                    type ShipLeaf = {
+                      weightKg: number;
+                      shippingBoxes: typeof p.components[number]["component"]["shippingBoxes"];
+                      qtyInBundle: number;
+                    };
+                    const shipLeaves: ShipLeaf[] = [];
+                    for (const c of p.components) {
+                      if (
+                        c.component.compositionMode === "ZESTAW" &&
+                        (c.component.components?.length ?? 0) > 0
+                      ) {
+                        for (const sub of c.component.components ?? []) {
+                          shipLeaves.push({
+                            weightKg: sub.component.weightKg ?? 0,
+                            shippingBoxes: sub.component.shippingBoxes ?? [],
+                            qtyInBundle: c.quantity * sub.quantity,
+                          });
+                        }
+                      } else {
+                        shipLeaves.push({
+                          weightKg: c.component.weightKg ?? 0,
+                          shippingBoxes: c.component.shippingBoxes ?? [],
+                          qtyInBundle: c.quantity,
+                        });
+                      }
+                    }
+                    let total = 0;
+                    let anyMissing = false;
+                    for (const leaf of shipLeaves) {
+                      const pin =
+                        leaf.shippingBoxes.find(
+                          (b) => b.purpose === "SHIPPING" && b.isPrimary,
+                        ) ??
+                        leaf.shippingBoxes.find((b) => b.purpose === "SHIPPING") ??
+                        leaf.shippingBoxes.find(
+                          (b) => b.purpose === "FACTORY" && b.isPrimary,
+                        ) ??
+                        leaf.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
+                        null;
+                      if (!pin) {
+                        anyMissing = true;
+                        continue;
+                      }
+                      const upb = Math.max(1, pin.unitsPerBox ?? 1);
+                      const packages = Math.ceil(leaf.qtyInBundle / upb);
+                      const pkgProductWeight = leaf.weightKg * upb;
+                      const q = quoteShippingForProduct({
+                        productWeightKg: pkgProductWeight,
+                        primaryBox: {
+                          widthCm: pin.box.widthCm,
+                          heightCm: pin.box.heightCm,
+                          depthCm: pin.box.depthCm,
+                          weightKg: pin.box.weightKg,
+                        },
+                        preferredServiceCodes: p.preferredShippingServices,
+                        excludedServiceCodes: p.excludedShippingServices,
+                        excludedBrands: p.excludedShippingBrands,
+                      });
+                      const cheap = q?.primary?.totalNetPln;
+                      if (cheap == null) {
+                        anyMissing = true;
+                        continue;
+                      }
+                      total += cheap * packages;
+                    }
+                    if (!anyMissing) bundleIndividualShipping = total;
+                  }
                   const shippingQuote = bundleQuoteBox
                     ? quoteShippingForProduct({
                         productWeightKg: bundleQuoteWeight,
@@ -1236,7 +1333,10 @@ export default async function ProduktyPage({
                           excludedBrands: p.excludedShippingBrands,
                         })
                       : null;
-                  const shippingFromEngine = shippingQuote?.primary?.totalNetPln ?? null;
+                  const shippingFromEngine =
+                    bundleIndividualShipping ??
+                    shippingQuote?.primary?.totalNetPln ??
+                    null;
                   // Dla ZESTAW — zsumuj ceny zakupu + logistykę z komponentów
                   // (ostatnie z bazy, fallback do defaultUnitPriceUsd) i przekaż
                   // jako override do computeProductEconomics.
@@ -2421,6 +2521,14 @@ export default async function ProduktyPage({
                           compClo = subClo;
                           compLog = subLog;
                         }
+                        // Mnozenie × pc.quantity — wszystkie sub-row pokazuja
+                        // total za zestaw (np. 4 krzesla × 79.87 = 319.48),
+                        // nie cene jednostkowa. Konsystentnie ze suma main row.
+                        const qty = Math.max(1, pc.quantity);
+                        if (compPricePln != null) compPricePln *= qty;
+                        compProw *= qty;
+                        compClo *= qty;
+                        compLog *= qty;
                         const compLanded =
                           (compPricePln ?? 0) +
                           compProw +
