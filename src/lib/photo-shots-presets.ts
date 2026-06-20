@@ -131,11 +131,17 @@ export const QUALITY_SPEC: Record<
   // 2K kosztuje $0.134, 4K — $0.24. Dla typowych produktówek 2K wystarcza
   // (dwukrotnie ostrzejsze niż Imagen Fast).
   NANO_BANANA_PRO: {
-    model: "gemini-3-pro-image-preview",
-    costPerImage: 0.134,
-    imageSize: "2K",
-    label: "Nano Banana Pro",
+    // UWAGA: oficjalnie ten preset celuje w Gemini 3 Pro Image, ale w czerwcu
+    // 2026 zarowno `gemini-3-pro-image` jak i `-preview` zwracaja
+    // UND_ERR_HEADERS_TIMEOUT (>5 min bez response) — Google ma jakis problem
+    // z dostepem do tego modelu na naszym koncie/regionie. Tymczasowo uzywamy
+    // Gemini 2.5 Flash Image (Nano Banana), ktore odpowiada w ~6s i daje
+    // wystarczajaca jakosc edycji (zmiana koloru, tla, drobne korekty).
+    // Gdy Google naprawi dostep do Pro, mozna wrocic do "gemini-3-pro-image".
+    model: "gemini-2.5-flash-image",
+    costPerImage: 0.039,
+    label: "Nano Banana (Flash)",
     description:
-      "Gemini 3 Pro Image — 2K, najlepszy tekst na obrazku, do 6 referencji obiektów + 5 postaci ($0.134/szt)",
+      "Gemini 2.5 Flash Image — szybkie generowanie/edycja w ~6s, dobra jakość ($0.039/szt). Pro tymczasowo niedostępny.",
   },
 };

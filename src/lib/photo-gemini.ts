@@ -89,7 +89,7 @@ export async function generateProductPhoto(
     };
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:predict?key=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -195,7 +195,7 @@ async function generateViaGeminiImage(
     };
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:generateContent`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -380,6 +380,67 @@ function makePngChunk(type: string, data: Buffer): Buffer {
   const crc = Buffer.alloc(4);
   crc.writeUInt32BE(crc32(crcInput), 0);
   return Buffer.concat([len, typeBuf, data, crc]);
+}
+
+/**
+ * Wrapper na fetch() z timeout + 1 retry przy nieudanym połączeniu.
+ * Gemini Image API (Nano Banana Pro) generuje 2K obraz przez 30-120s,
+ * a sieć/firewall/proxy zrywa idle connection po krótszym czasie →
+ * undici raportuje "TypeError: fetch failed". Dajemy explicit timeout
+ * 4 minuty + 1 retry żeby przejściowy network error nie killował zlecenia.
+ *
+ * Zawsze rzuca lepszy error niz samo "fetch failed" — opisuje czy to byl
+ * timeout, network error, czy inny problem.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  opts: { timeoutMs?: number; retries?: number } = {},
+): Promise<Response> {
+  const timeoutMs = opts.timeoutMs ?? 240_000;
+  const retries = opts.retries ?? 1;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...init, signal: ac.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (e) {
+      clearTimeout(timer);
+      lastError = e;
+      const wasAbort =
+        e instanceof Error &&
+        (e.name === "AbortError" || e.message.includes("aborted"));
+      console.error(
+        `[gemini-fetch] attempt ${attempt + 1}/${retries + 1} failed:`,
+        e instanceof Error ? e.message : String(e),
+        wasAbort ? "(timeout)" : "",
+      );
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+    }
+  }
+  if (lastError instanceof Error) {
+    const wasAbort =
+      lastError.name === "AbortError" || lastError.message.includes("aborted");
+    if (wasAbort) {
+      throw new Error(
+        `Timeout — Gemini nie zwrócił odpowiedzi w ${Math.round(timeoutMs / 1000)}s (model może być przeciążony, spróbuj ponownie)`,
+      );
+    }
+    const cause = (lastError as { cause?: { code?: string } }).cause;
+    const code = cause?.code;
+    throw new Error(
+      code
+        ? `Błąd sieci: ${lastError.message} (${code}) — sprawdź połączenie i spróbuj ponownie`
+        : `Błąd sieci: ${lastError.message} — sprawdź połączenie i spróbuj ponownie`,
+    );
+  }
+  throw new Error("Nieznany błąd sieci podczas wywołania Gemini API");
 }
 
 /** Pobiera obraz z URL'a i zwraca jako base64 + mimeType. */
