@@ -80,7 +80,7 @@ export function ContainersList({
 
   return (
     <>
-      <div className="flex flex-col items-stretch gap-1 max-w-[200px] mx-auto">
+      <div className="flex flex-col items-stretch gap-0.5 max-w-[140px] mx-auto">
         {slots.map((slot, idx) => (
           <ContainerRow
             key={slot.kind === "existing" ? slot.link.id : `ph-${idx}`}
@@ -124,10 +124,11 @@ function ContainerRow({
           e.stopPropagation();
           onEdit();
         }}
-        className="rounded-md ring-1 ring-dashed ring-border bg-muted/20 hover:bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground flex items-center justify-center gap-1.5"
+        className="rounded ring-1 ring-dashed ring-border bg-muted/10 hover:bg-muted/40 px-1 py-0.5 text-[9px] text-muted-foreground/80 flex items-center justify-center gap-0.5"
+        title="Dodaj kontener"
       >
-        <Pencil className="size-2.5" />
-        Dodaj kontener
+        <Pencil className="size-2" />
+        dodaj
       </button>
     );
   }
@@ -140,77 +141,60 @@ function ContainerRow({
   const isUrgent = days != null && days >= 0 && days <= 7;
 
   return (
-    <div className="rounded-md ring-1 ring-slate-200 bg-white px-1.5 py-1 flex items-stretch gap-1 group/row">
-      {/* Numer + link (klikalne) */}
-      <div className="flex-1 min-w-0">
+    <div className="rounded ring-1 ring-slate-200 bg-white px-1 py-0.5 flex items-center gap-1 group/row text-[10px] leading-tight">
+      <Container className="size-2.5 text-slate-500 shrink-0" />
+      <div className="flex-1 min-w-0 flex items-center gap-1.5">
         {hasUrl && hasNumber ? (
           <a
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="block text-emerald-700 font-mono text-[10px] font-semibold truncate hover:underline"
+            className="text-emerald-700 font-mono font-semibold truncate hover:underline"
             title={`Otwórz ${link.url}`}
           >
-            <Container className="size-2.5 inline mr-0.5" />
             {link.containerNumber}
           </a>
         ) : hasNumber ? (
           <span
-            className="block text-slate-700 font-mono text-[10px] truncate"
+            className="text-slate-700 font-mono truncate"
             title="Brak URL"
           >
-            <Container className="size-2.5 inline mr-0.5" />
             {link.containerNumber}
           </span>
         ) : (
-          <span className="text-[10px] text-muted-foreground italic">
-            (bez numeru)
+          <span className="text-muted-foreground italic">—</span>
+        )}
+        {link.etaDate ? (
+          <span
+            className={cn(
+              "tabular-nums shrink-0 ml-auto",
+              isPast
+                ? "text-rose-600 font-semibold"
+                : isUrgent
+                  ? "text-amber-700 font-semibold"
+                  : "text-emerald-700",
+            )}
+            title={
+              days != null
+                ? isPast
+                  ? `Opóźnienie ${Math.abs(days)} dni`
+                  : days === 0
+                    ? "Dziś"
+                    : `Za ${days} dni`
+                : ""
+            }
+          >
+            {link.etaDate.toLocaleDateString("pl-PL", {
+              day: "2-digit",
+              month: "2-digit",
+            })}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/60 italic shrink-0 ml-auto text-[9px]">
+            ETA?
           </span>
         )}
-        {/* ETA */}
-        <div className="text-[9px] mt-0.5 flex items-center gap-1">
-          {link.etaDate ? (
-            <>
-              <CalendarClock className="size-2.5 text-slate-500" />
-              <span
-                className={cn(
-                  "tabular-nums",
-                  isPast
-                    ? "text-rose-600 font-semibold"
-                    : isUrgent
-                      ? "text-amber-700 font-semibold"
-                      : "text-emerald-700",
-                )}
-              >
-                {link.etaDate.toLocaleDateString("pl-PL", {
-                  day: "2-digit",
-                  month: "2-digit",
-                })}
-              </span>
-              {days != null && (
-                <span
-                  className={cn(
-                    "text-[8px]",
-                    isPast
-                      ? "text-rose-500"
-                      : isUrgent
-                        ? "text-amber-600"
-                        : "text-emerald-600",
-                  )}
-                >
-                  {isPast
-                    ? `-${Math.abs(days)}d`
-                    : days === 0
-                      ? "dziś"
-                      : `+${days}d`}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-muted-foreground italic">brak ETA</span>
-          )}
-        </div>
       </div>
       <button
         type="button"
@@ -219,10 +203,10 @@ function ContainerRow({
           e.stopPropagation();
           onEdit();
         }}
-        className="shrink-0 self-center p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 opacity-0 group-hover/row:opacity-100 transition-opacity"
+        className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 opacity-0 group-hover/row:opacity-100 transition-opacity"
         title="Edytuj kontener"
       >
-        <Pencil className="size-3" />
+        <Pencil className="size-2.5" />
       </button>
     </div>
   );
