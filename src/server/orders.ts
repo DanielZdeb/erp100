@@ -651,6 +651,63 @@ export async function updateOrderMetaAction(
 }
 
 /**
+ * Aktualizuje przewidywany czas produkcji zamowienia. Dwie wejscia:
+ * - 'date' -> ustaw productionEndAt; przeliczamy estimatedProductionDays
+ *   jako (date - today) dni (zostaje na 0 gdy data juz minela).
+ * - 'days' -> ustaw estimatedProductionDays; productionEndAt = today + days.
+ * - null/0 -> czyscimy oba pola.
+ */
+export async function updateOrderProductionEstimateAction(
+  orderId: string,
+  mode: "date" | "days" | "clear",
+  value: string | number | null,
+) {
+  await requireUser();
+  const order = await db.importOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Zamówienie nie istnieje.");
+
+  let productionEndAt: Date | null = null;
+  let estimatedProductionDays: number | null = null;
+
+  if (mode === "date" && typeof value === "string" && value) {
+    productionEndAt = new Date(value);
+    if (Number.isNaN(productionEndAt.getTime())) {
+      throw new Error("Nieprawidłowa data.");
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffMs = productionEndAt.getTime() - today.getTime();
+    estimatedProductionDays = Math.max(
+      0,
+      Math.ceil(diffMs / (1000 * 60 * 60 * 24)),
+    );
+  } else if (mode === "days" && typeof value === "number" && value > 0) {
+    estimatedProductionDays = Math.floor(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    productionEndAt = new Date(
+      today.getTime() + estimatedProductionDays * 24 * 60 * 60 * 1000,
+    );
+  }
+  // mode 'clear' -> oba zostaja null
+
+  await db.importOrder.update({
+    where: { id: orderId },
+    data: { productionEndAt, estimatedProductionDays },
+  });
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+  return {
+    ok: true as const,
+    productionEndAt,
+    estimatedProductionDays,
+  };
+}
+
+/**
  * Recznie ustawia / kasuje ETA (Estimated Time of Arrival) zamowienia.
  * Date.toISOString() string albo null. Source = 'manual'.
  */

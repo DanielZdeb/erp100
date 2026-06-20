@@ -22,6 +22,7 @@ import { quoteShippingForProduct } from "@/lib/courier-pricing/product-quote";
 
 import { StatusWorkflow } from "./status-workflow";
 import { RecomputeProductsButton } from "./recompute-products-button";
+import { ProductionEstimateWidget } from "./production-estimate-widget";
 import { ItemsTab } from "./items-tab";
 import { DOC_CATEGORIES } from "@/lib/order-doc-slots";
 import { StageTasks } from "./stage-tasks";
@@ -1236,6 +1237,11 @@ export default async function ZamowienieDetailPage({
             }
             orderSection={
               <div className="space-y-4">
+                <ProductionEstimateWidget
+                  orderId={order.id}
+                  productionEndAt={order.productionEndAt}
+                  estimatedProductionDays={order.estimatedProductionDays}
+                />
                 <ItemsTab
                   orderId={order.id}
                   itemMeta={buildItemMeta({
