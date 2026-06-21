@@ -142,22 +142,23 @@ function ContainerRow({
 
   return (
     <div className="rounded ring-1 ring-slate-200 bg-white px-1.5 py-1 flex items-center gap-1.5 group/row leading-tight">
-      <Container className="size-3 text-slate-500 shrink-0" />
-      <div className="flex-1 min-w-0 flex items-center gap-2">
+      {/* LEWA: numer kontenera (slate/indigo, zwykly tekst) */}
+      <div className="flex items-center gap-1 min-w-0">
+        <Container className="size-3 text-indigo-500 shrink-0" />
         {hasUrl && hasNumber ? (
           <a
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-emerald-700 font-mono text-[10px] font-semibold truncate hover:underline"
+            className="text-indigo-900 font-mono text-[10px] font-medium truncate hover:underline hover:text-indigo-700"
             title={`Otwórz ${link.url}`}
           >
             {link.containerNumber}
           </a>
         ) : hasNumber ? (
           <span
-            className="text-slate-700 font-mono text-[10px] truncate"
+            className="text-indigo-900 font-mono text-[10px] font-medium truncate"
             title="Brak URL"
           >
             {link.containerNumber}
@@ -165,11 +166,21 @@ function ContainerRow({
         ) : (
           <span className="text-[10px] text-muted-foreground italic">—</span>
         )}
+      </div>
+
+      {/* Separator pionowy */}
+      <span
+        aria-hidden
+        className="h-5 w-px bg-slate-200 shrink-0 mx-0.5"
+      />
+
+      {/* PRAWA: data ETA + pill (kolor wg pilnosci) */}
+      <div className="flex-1 min-w-0 flex items-baseline justify-end gap-1.5">
         {link.etaDate ? (
-          <span className="shrink-0 ml-auto flex items-baseline gap-1.5">
+          <>
             <span
               className={cn(
-                "tabular-nums text-sm font-bold leading-none",
+                "tabular-nums text-sm font-extrabold leading-none shrink-0",
                 isPast
                   ? "text-rose-600"
                   : isUrgent
@@ -186,7 +197,7 @@ function ContainerRow({
             {days != null && (
               <span
                 className={cn(
-                  "tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 leading-none whitespace-nowrap",
+                  "tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-1 leading-none whitespace-nowrap shrink-0",
                   isPast
                     ? "bg-rose-100 text-rose-800 ring-rose-300"
                     : isUrgent
@@ -208,7 +219,7 @@ function ContainerRow({
                     : `+${days}d`}
               </span>
             )}
-          </span>
+          </>
         ) : (
           <span className="text-muted-foreground/60 italic shrink-0 ml-auto text-[10px]">
             brak ETA
