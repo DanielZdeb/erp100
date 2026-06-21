@@ -1507,15 +1507,23 @@ export default async function ProduktyPage({
                       const compEcon = compLast
                         ? econByItemId.get(compLast.id) ?? null
                         : null;
-                      const compLog = compEcon?.logisticsPerUnitPln ?? null;
-                      const compProw = compEcon?.prowizjaPerUnitPln ?? null;
-                      const compClo = compEcon?.cloPerUnitPln ?? null;
-                      if (compLog == null) anyLogisticsMissing = true;
-                      else logisticsSum += compLog * c.quantity;
-                      if (compProw == null) anyProwizjaMissing = true;
-                      else prowizjaSum += compProw * c.quantity;
-                      if (compClo == null) anyCloMissing = true;
-                      else cloSum += compClo * c.quantity;
+                      // Dla komponentow PL (brak importu, compLast == null)
+                      // logistyka/clo/prowizja = 0 (produkt krajowy nie ma
+                      // logistyki morskiej). Dla importu z compLast ale bez
+                      // econ snapshot — wciaz traktujemy jako missing.
+                      if (compLast == null) {
+                        // PL: 0 kosztow importu (uznajemy ze zsumujemy bez nich).
+                      } else {
+                        const compLog = compEcon?.logisticsPerUnitPln ?? null;
+                        const compProw = compEcon?.prowizjaPerUnitPln ?? null;
+                        const compClo = compEcon?.cloPerUnitPln ?? null;
+                        if (compLog == null) anyLogisticsMissing = true;
+                        else logisticsSum += compLog * c.quantity;
+                        if (compProw == null) anyProwizjaMissing = true;
+                        else prowizjaSum += compProw * c.quantity;
+                        if (compClo == null) anyCloMissing = true;
+                        else cloSum += compClo * c.quantity;
+                      }
                     }
                     if (!anyPurchaseMissing) bundlePurchasePln = purchaseSum;
                     if (!anyLogisticsMissing) bundleLogisticsPln = logisticsSum;
