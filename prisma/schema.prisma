@@ -90,6 +90,11 @@ model Company {
   photoBatches   ProductPhotoBatch[]
   orderTemplateSections OrderTemplateSection[]
   descriptionTemplates  DescriptionTemplate[]
+
+  // ── Integracje zewnetrzne ─────────────────────────────────────────
+  /// Maersk Track & Trace Consumer-Key (z developer.maersk.com).
+  /// Uzywany do pobierania ETA per kontener.
+  maerskApiKey String?
 }
 
 model User {

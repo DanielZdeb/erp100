@@ -822,34 +822,41 @@ export async function updateOrderEtaAction(
 }
 
 /**
- * Pobiera ETA z Maersk Track & Trace API dla containerow przypisanych
- * do zamowienia. Wymaga MAERSK_API_KEY w env (Consumer-Key z developer
- * portal: developer.maersk.com/products).
+ * Pobiera ETA z Maersk Track & Trace Events API per kontener.
  *
- * Dla kazdego containerLinks[].containerNumber wola endpoint:
- *   GET https://api.maersk.com/track-and-trace-public/shipments
- *       ?containerNumber=XYZ
- *   Header: Consumer-Key: <MAERSK_API_KEY>
+ * Endpoint (DCSA standard v2.2):
+ *   GET https://api.maersk.com/track-and-trace-private/events
+ *       ?equipmentReference=<containerNumber>
+ *   Header: Consumer-Key: <key>
  *
- * Z odpowiedzi bierze najpozniejsza datePlanned / dateExpected dla
- * eventu kategorii 'ARRIVE_AT_DESTINATION' — to wlasnie ETA do portu PL.
- * Jesli zamowienie ma wiele kontenerow, bierzemy MAX (najpozniejsza data).
+ * Klucz: preferowany Company.maerskApiKey (z UI ustawien); fallback do
+ * env MAERSK_API_KEY (dla testow / multi-tenant shared).
+ *
+ * Z eventow bierzemy najpozniejszy 'ARRI' (arrival) — to ETA do portu
+ * docelowego. Per-link aktualizujemy ImportOrderContainerLink.etaDate.
  */
 export async function fetchEtaFromMaerskAction(orderId: string) {
   await requireUser();
-  const apiKey = process.env.MAERSK_API_KEY;
+  const companyId = await getCurrentCompanyId();
+  const company = await db.company.findUnique({
+    where: { id: companyId },
+    select: { maerskApiKey: true },
+  });
+  const apiKey = company?.maerskApiKey || process.env.MAERSK_API_KEY;
   if (!apiKey) {
     return {
       ok: false as const,
       error:
-        "Brak MAERSK_API_KEY w env. Zarejestruj się na developer.maersk.com i dodaj klucz do Coolify env.",
+        "Brak klucza Maersk API. Wpisz go w Ustawienia → Integracje (lub MAERSK_API_KEY w env).",
     };
   }
   const order = await db.importOrder.findUnique({
     where: { id: orderId },
     select: {
       id: true,
-      containerLinks: { select: { containerNumber: true } },
+      containerLinks: {
+        select: { id: true, containerNumber: true },
+      },
     },
   });
   if (!order) throw new Error("Zamówienie nie istnieje.");
@@ -860,45 +867,50 @@ export async function fetchEtaFromMaerskAction(orderId: string) {
     };
   }
 
-  let latestEta: Date | null = null;
   const errors: string[] = [];
+  let updatedCount = 0;
   for (const link of order.containerLinks) {
     const num = link.containerNumber.trim();
     if (!num) continue;
     try {
-      const url = `https://api.maersk.com/track-and-trace-public/shipments?containerNumber=${encodeURIComponent(num)}`;
+      const url = `https://api.maersk.com/track-and-trace-private/events?equipmentReference=${encodeURIComponent(num)}`;
       const res = await fetch(url, {
-        headers: { "Consumer-Key": apiKey },
+        headers: { "Consumer-Key": apiKey, Accept: "application/json" },
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
-        errors.push(`${num}: HTTP ${res.status}`);
+        const body = await res.text().catch(() => "");
+        errors.push(
+          `${num}: HTTP ${res.status} ${body.slice(0, 120)}`,
+        );
         continue;
       }
       const data = (await res.json()) as {
         events?: Array<{
-          eventClassifierCode?: string;
+          eventClassifierCode?: string; // 'PLN' (planned) | 'EST' (estimated) | 'ACT' (actual)
           eventDateTime?: string;
-          eventType?: string;
-          transportEventTypeCode?: string;
+          transportEventTypeCode?: string; // 'ARRI' | 'DEPA'
         }>;
       };
-      // Maersk events: szukamy ostatniego ARRIVE eventu (kontener przybywa
-      // do portu docelowego). Z fallback do najnowszego planned eventu.
-      const arrival = data.events
-        ?.filter(
-          (e) =>
-            e.transportEventTypeCode === "ARRI" ||
-            e.eventType === "ARRIVAL" ||
-            (e.eventClassifierCode === "PLN" &&
-              e.transportEventTypeCode === "ARRI"),
-        )
+      // Szukamy najpozniejszego ARRIVAL event (planned lub estimated > actual).
+      const arrival = (data.events ?? [])
+        .filter((e) => e.transportEventTypeCode === "ARRI")
         .map((e) => (e.eventDateTime ? new Date(e.eventDateTime) : null))
-        .filter((d): d is Date => d !== null)
+        .filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()))
         .sort((a, b) => b.getTime() - a.getTime())[0];
-      if (arrival && (!latestEta || arrival > latestEta)) {
-        latestEta = arrival;
+      if (!arrival) {
+        errors.push(`${num}: brak ARRIVAL event w odpowiedzi`);
+        continue;
       }
+      await db.importOrderContainerLink.update({
+        where: { id: link.id },
+        data: {
+          etaDate: arrival,
+          etaSource: "maersk",
+          etaFetchedAt: new Date(),
+        },
+      });
+      updatedCount++;
     } catch (e) {
       errors.push(
         `${num}: ${e instanceof Error ? e.message : "fetch error"}`,
@@ -906,30 +918,39 @@ export async function fetchEtaFromMaerskAction(orderId: string) {
     }
   }
 
-  if (!latestEta) {
+  revalidatePath("/zamowienia");
+  revalidatePath(`/zamowienia/${orderId}`);
+
+  if (updatedCount === 0) {
     return {
       ok: false as const,
       error:
         errors.length > 0
-          ? `Nie udało się pobrać ETA: ${errors.join("; ")}`
+          ? `Maersk: ${errors.join("; ")}`
           : "Brak danych o przybyciu w odpowiedzi Maersk.",
     };
   }
-
-  await db.importOrder.update({
-    where: { id: orderId },
-    data: {
-      etaDate: latestEta,
-      etaSource: "maersk",
-      etaFetchedAt: new Date(),
-    },
-  });
-  revalidatePath("/zamowienia");
   return {
     ok: true as const,
-    eta: latestEta.toISOString(),
-    containers: order.containerLinks.length,
+    containers: updatedCount,
+    errors: errors.length > 0 ? errors : undefined,
   };
+}
+
+/**
+ * Zapisuje Maersk API key w ustawieniach firmy (Company.maerskApiKey).
+ * Pusty string -> null (usuniecie klucza).
+ */
+export async function updateMaerskApiKeyAction(key: string | null) {
+  await requireUser();
+  const companyId = await getCurrentCompanyId();
+  const trimmed = key?.trim() ?? "";
+  await db.company.update({
+    where: { id: companyId },
+    data: { maerskApiKey: trimmed || null },
+  });
+  revalidatePath("/ustawienia");
+  return { ok: true as const };
 }
 
 /**

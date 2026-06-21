@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Container,
   Handshake,
+  Plug,
   Scissors,
   ShoppingBag,
   ToggleRight,
@@ -26,6 +27,7 @@ import { FulfillmentForm } from "./fulfillment-form";
 import { SaleChannelDefaultsForm } from "./sale-channel-defaults-form";
 import { BrokerCommissionForm } from "./broker-commission-form";
 import { FeaturesForm } from "./features-form";
+import { MaerskIntegrationForm } from "./maersk-integration-form";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,7 @@ export default async function UstawieniaPage() {
         krs: true,
         representativeName: true,
         deliveryAddress: true,
+        maerskApiKey: true,
       },
     }),
   ]);
@@ -98,6 +101,17 @@ export default async function UstawieniaPage() {
           description="Stawki auto-kalkulacji kosztów wysyłki i magazynowania per sztuka."
         >
           <FulfillmentForm initial={fulfillment} />
+        </SettingsSection>
+
+        <SettingsSection
+          accent="indigo"
+          icon={Plug}
+          title="Integracje — Maersk Track & Trace"
+          description="Klucz Consumer-Key z developer.maersk.com. Używany do auto-pobierania ETA per kontener."
+        >
+          <MaerskIntegrationForm
+            initialKey={companyInfo?.maerskApiKey ?? null}
+          />
         </SettingsSection>
 
         <SettingsSection

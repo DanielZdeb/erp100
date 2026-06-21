@@ -290,9 +290,13 @@ function ContainerEditDialog({
       try {
         const r = await fetchEtaFromMaerskAction(orderId);
         if (r.ok) {
-          toast.success(`ETA zaktualizowane (${r.containers} kontener.)`, {
-            id: toastId,
-          });
+          const warn = r.errors
+            ? ` (${r.errors.length} z błędem)`
+            : "";
+          toast.success(
+            `ETA zaktualizowane dla ${r.containers} kontener${r.containers === 1 ? "a" : "ów"}${warn}`,
+            { id: toastId },
+          );
           onSaved();
         } else {
           toast.error(r.error, { id: toastId });
