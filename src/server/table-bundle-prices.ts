@@ -34,6 +34,7 @@ async function requireUser() {
  */
 export async function recomputeTableBundlePricesAction(
   targetMarginPct: number = 0.5,
+  filterIds: string[] | null = null,
 ) {
   await requireUser();
   const companyId = await getCurrentCompanyId();
@@ -191,12 +192,14 @@ export async function recomputeTableBundlePricesAction(
     return total;
   }
 
-  // Filtr docelowy: zestawy stolowe.
+  // Filtr docelowy: zestawy stolowe + opcjonalnie ograniczenie do wybranych ids.
+  const filterIdsSet = filterIds ? new Set(filterIds) : null;
   const tableBundles = products.filter(
     (p) =>
       p.compositionMode === "ZESTAW" &&
       (p.name.toLowerCase().startsWith("zestaw stół") ||
-        p.name.toLowerCase().startsWith("zestaw stol")),
+        p.name.toLowerCase().startsWith("zestaw stol")) &&
+      (filterIdsSet === null || filterIdsSet.has(p.id)),
   );
 
   const results: Array<{
