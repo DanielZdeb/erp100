@@ -230,8 +230,9 @@ export async function recomputeTableBundlePricesAction(
     const saleBruttoTarget = costsBrutto / denom;
     const saleBruttoRounded =
       Math.ceil((saleBruttoTarget + 1) / 10) * 10 - 1;
-    const saleNetto =
-      Math.round((saleBruttoRounded / 1.23) * 100) / 100;
+    // Pelna precyzja netto (bez round do 2 cyfr) — zeby UI mnozac × 1.23
+    // wyswietlal dokladnie saleBruttoRounded (np. 2989 zamiast 2988.99).
+    const saleNetto = saleBruttoRounded / 1.23;
 
     await db.product.update({
       where: { id: b.id },

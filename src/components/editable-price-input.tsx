@@ -114,8 +114,19 @@ export function EditablePriceInput({
   async function handleSave() {
     setSaving(true);
     try {
-      const n = parseFloat(nettoStr.replace(",", "."));
-      const finalNetto = Number.isFinite(n) ? n : null;
+      // Jesli user edytowal BRUTTO, liczymy netto = brutto/factor z PELNA
+      // precyzja (bez round do 2 cyfr). Bez tego np. user wpisuje 2990 brutto
+      // -> displayed netto 2430.89 (round) -> mnozenie × 1.23 daje 2989.99
+      // (float imprecision). Zapis pelnej precyzji 2430.0813008... daje
+      // dokladnie 2990.00 po mnozeniu.
+      let finalNetto: number | null = null;
+      if (editingField.current === "brutto") {
+        const b = parseFloat(bruttoStr.replace(",", "."));
+        if (Number.isFinite(b)) finalNetto = b / factor;
+      } else {
+        const n = parseFloat(nettoStr.replace(",", "."));
+        if (Number.isFinite(n)) finalNetto = n;
+      }
       await onSave(finalNetto);
       setOpen(false);
     } finally {
