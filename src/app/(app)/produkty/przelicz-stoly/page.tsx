@@ -120,7 +120,8 @@ export default async function PrzeliczStolyPage({
         <thead className="bg-slate-100">
           <tr>
             <th className="text-left p-2">Zestaw</th>
-            <th className="text-right p-2">Koszt brutto</th>
+            <th className="text-right p-2">Koszt komp.</th>
+            <th className="text-right p-2">Kurier</th>
             <th className="text-right p-2">Magazyn</th>
             <th className="text-right p-2">SKLEP brutto</th>
             <th className="text-right p-2">Marża fakt.</th>
@@ -135,6 +136,9 @@ export default async function PrzeliczStolyPage({
               </td>
               <td className="text-right tabular-nums p-2">
                 {r.cost.toFixed(2)}
+              </td>
+              <td className="text-right tabular-nums p-2 text-blue-700">
+                {r.shipping.toFixed(2)}
               </td>
               <td className="text-right tabular-nums p-2">
                 {r.warehouse.toFixed(2)}

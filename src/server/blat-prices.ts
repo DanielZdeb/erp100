@@ -166,8 +166,12 @@ export async function recomputeBlatPricesAction(
     });
   }
 
-  revalidatePath("/produkty");
-  revalidatePath("/sprzedaz/produkty");
+  try {
+    revalidatePath("/produkty");
+    revalidatePath("/sprzedaz/produkty");
+  } catch {
+    // Next 16 nie pozwala revalidate w renderze — ignore.
+  }
 
   return {
     ok: true as const,

@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { getFulfillmentSettings } from "./system-settings";
+import { quoteShippingForProduct } from "@/lib/courier-pricing/product-quote";
 
 async function requireUser() {
   const session = await auth();
@@ -53,10 +54,30 @@ export async function recomputeTableBundlePricesAction(
       compositionMode: true,
       defaultUnitPricePln: true,
       defaultSklepCommissionPct: true,
+      weightKg: true,
+      preferredShippingServices: true,
+      excludedShippingServices: true,
+      excludedShippingBrands: true,
       components: {
         select: {
           componentId: true,
           quantity: true,
+        },
+      },
+      shippingBoxes: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: {
+          isPrimary: true,
+          purpose: true,
+          box: {
+            select: {
+              widthCm: true,
+              heightCm: true,
+              depthCm: true,
+              weightKg: true,
+              purchasePricePln: true,
+            },
+          },
         },
       },
       priceHistory: {
@@ -116,6 +137,60 @@ export async function recomputeTableBundlePricesAction(
     return null;
   }
 
+  // Splaszczanie ZESTAW do leaves (proste produkty z pudlami). Per leaf
+  // znajduje primary box, liczy quote kuriera. Multiplier zachowuje
+  // quantity rodzicow (np. 6 krzesel × 1 paczka = 6 paczek).
+  type Leaf = {
+    productId: string;
+    qty: number;
+  };
+  function flattenForShipping(productId: string, multiplier: number, visited: Set<string>): Leaf[] {
+    if (visited.has(productId)) return [];
+    visited.add(productId);
+    const p = byId.get(productId);
+    if (!p) return [];
+    if (p.compositionMode === "ZESTAW" && p.components.length > 0) {
+      const out: Leaf[] = [];
+      for (const c of p.components) {
+        out.push(...flattenForShipping(c.componentId, multiplier * c.quantity, new Set(visited)));
+      }
+      return out;
+    }
+    return [{ productId, qty: multiplier }];
+  }
+
+  function getShippingNetto(rootId: string, parentShippingBrand: string[]): number {
+    const leaves = flattenForShipping(rootId, 1, new Set());
+    let total = 0;
+    for (const leaf of leaves) {
+      const p = byId.get(leaf.productId);
+      if (!p) continue;
+      const pin =
+        p.shippingBoxes.find((b) => b.purpose === "SHIPPING" && b.isPrimary) ??
+        p.shippingBoxes.find((b) => b.purpose === "SHIPPING") ??
+        p.shippingBoxes.find((b) => b.purpose === "FACTORY" && b.isPrimary) ??
+        p.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
+        null;
+      if (!pin) continue;
+      const quote = quoteShippingForProduct({
+        productWeightKg: p.weightKg,
+        primaryBox: {
+          widthCm: pin.box.widthCm,
+          heightCm: pin.box.heightCm,
+          depthCm: pin.box.depthCm,
+          weightKg: pin.box.weightKg,
+        },
+        preferredServiceCodes: [],
+        excludedServiceCodes: [],
+        excludedBrands: parentShippingBrand,
+      });
+      const cheap = quote?.cheapest?.totalNetPln;
+      if (cheap == null) continue;
+      total += cheap * leaf.qty;
+    }
+    return total;
+  }
+
   // Filtr docelowy: zestawy stolowe.
   const tableBundles = products.filter(
     (p) =>
@@ -128,6 +203,7 @@ export async function recomputeTableBundlePricesAction(
     code: string;
     name: string;
     cost: number;
+    shipping: number;
     warehouse: number;
     saleNetto: number;
     saleBrutto: number;
@@ -142,8 +218,10 @@ export async function recomputeTableBundlePricesAction(
       skipped++;
       continue;
     }
+    const shippingNetto = getShippingNetto(b.id, b.excludedShippingBrands);
     const commissionPct = b.defaultSklepCommissionPct ?? 0.01;
-    const costsBrutto = (costNetto + warehousePerUnitNetto) * 1.23;
+    const costsBrutto =
+      (costNetto + shippingNetto + warehousePerUnitNetto) * 1.23;
     const denom = 1 - targetMarginPct - commissionPct;
     if (denom <= 0) {
       skipped++;
@@ -171,6 +249,7 @@ export async function recomputeTableBundlePricesAction(
       code: b.productCode,
       name: b.name,
       cost: costNetto * 1.23,
+      shipping: shippingNetto * 1.23,
       warehouse: warehousePerUnitNetto * 1.23,
       saleNetto,
       saleBrutto: saleBruttoRounded,
@@ -178,8 +257,14 @@ export async function recomputeTableBundlePricesAction(
     });
   }
 
-  revalidatePath("/produkty");
-  revalidatePath("/sprzedaz/produkty");
+  // revalidatePath wywołane jako fire-and-forget żeby nie blokować render
+  // (Next 16 nie pozwala revalidate wewnątrz renderu strony).
+  try {
+    revalidatePath("/produkty");
+    revalidatePath("/sprzedaz/produkty");
+  } catch {
+    // ignore — strona przelicz-stoly jest dynamic i tak zwroci swieze dane
+  }
 
   return {
     ok: true as const,
