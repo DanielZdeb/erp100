@@ -292,6 +292,8 @@ export default async function ZamowieniaPage({
     const costsPaid = o.costs
       .filter((c) => c.paid)
       .reduce((s, c) => s + c.amountPln, 0);
+    const costsRemaining = Math.max(0, costsTotal - costsPaid);
+    const goodsRemaining = Math.max(0, goodsTotalEffective - goodsPaid);
     const payTotal = goodsTotalEffective + costsTotal;
     const payPaid = goodsPaid + costsPaid;
     const payRemaining = Math.max(0, payTotal - payPaid);
@@ -401,6 +403,8 @@ export default async function ZamowieniaPage({
       payRemaining,
       goodsTotalEffective,
       goodsPaid,
+      goodsRemaining,
+      costsRemaining,
       paidGoodsCount,
       totalGoodsCount,
       logisticsTotal,
@@ -441,15 +445,79 @@ export default async function ZamowieniaPage({
     };
   });
 
+  // Pozostalo do zaplaty — sumujemy TYLKO aktywne zamowienia od statusu
+  // PRODUKOWANE w gore. Planowane/Dogadywane sa wczesnie i jeszcze nie maja
+  // realnego zobowiazania, wiec ich kwoty zaciemnialyby obraz biezacych dlugow.
+  const ACTIVE_PAYMENT_STATUSES = new Set<OrderStatusT>([
+    "PRODUKOWANE",
+    "WYPRODUKOWANE",
+    "WYSLANE",
+    "ODEBRANE",
+    "W_MAGAZYNIE",
+  ]);
+  const activePaymentRows = rows.filter((r) =>
+    ACTIVE_PAYMENT_STATUSES.has(r.status),
+  );
+  const remainingGoodsTotal = activePaymentRows.reduce(
+    (s, r) => s + r.goodsRemaining,
+    0,
+  );
+  const remainingCostsTotal = activePaymentRows.reduce(
+    (s, r) => s + r.costsRemaining,
+    0,
+  );
+  const remainingPayTotal = remainingGoodsTotal + remainingCostsTotal;
+  const fmtPln = (n: number) =>
+    `${Math.round(n).toLocaleString("pl-PL")} zł`;
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-heading font-bold tracking-tight">
-          Zamówienia importowe
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Kontenery z Chin — przeciągaj między etapami.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-heading font-bold tracking-tight">
+            Zamówienia importowe
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Kontenery z Chin — przeciągaj między etapami.
+          </p>
+        </div>
+        {activePaymentRows.length > 0 && (
+          <Card className="shrink-0 p-3 bg-gradient-to-br from-rose-50 to-amber-50 border-rose-200">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-rose-700 font-bold mb-1.5">
+              <span>Zostało do zapłaty</span>
+              <span className="rounded-full bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[9px] tabular-nums ring-1 ring-rose-200">
+                {activePaymentRows.length}{" "}
+                {activePaymentRows.length === 1 ? "zam." : "zam."} od „PRODUKOWANE"
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-0">
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                  Towar
+                </div>
+                <div className="text-base font-bold tabular-nums text-rose-900">
+                  {fmtPln(remainingGoodsTotal)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                  Dodatki
+                </div>
+                <div className="text-base font-bold tabular-nums text-amber-900">
+                  {fmtPln(remainingCostsTotal)}
+                </div>
+              </div>
+              <div className="border-l pl-4 border-rose-200">
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                  Razem
+                </div>
+                <div className="text-base font-extrabold tabular-nums text-slate-900">
+                  {fmtPln(remainingPayTotal)}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Status tabs jako pipeline — wszystkie w jednym wierszu */}
