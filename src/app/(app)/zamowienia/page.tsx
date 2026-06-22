@@ -214,6 +214,11 @@ export default async function ZamowieniaPage({
             eff.source !== "RAW" ? eff.effectiveCbmPerUnit : baseCbm,
           unitPriceUsd: it.unitPriceUsd,
           unitPriceCny: it.unitPriceCny,
+          // PL: cena w PLN (zamiast USD/CNY). Bez tych dwoch pol calc liczyl
+          // totalGoodsValuePln=0 dla zamowien PL -> transze % * 0 = 0,
+          // przez co PaymentsSummary na liscie pokazywal tylko logistyke.
+          unitPricePln: it.unitPricePln,
+          unitPriceIsBrutto: it.unitPriceIsBrutto,
           cnyToPlnRate: it.cnyToPlnRate,
           usdToPlnRate: it.usdToPlnRate,
           expectedMonthlySales: it.expectedMonthlySales,
