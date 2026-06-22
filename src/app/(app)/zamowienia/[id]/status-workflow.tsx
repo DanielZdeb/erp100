@@ -45,7 +45,12 @@ import {
   type ContainerTypeT,
 } from "@/lib/container-types";
 
-export function StatusWorkflow({
+// ─── StatusActions ─────────────────────────────────────────────────
+// Przyciski w prawym górnym rogu nagłówka: kontener, usuń, zamknij/otwórz.
+// Rozdzielone od pipeline'a (StatusPipeline) bo w naglowku zajmuja osobne
+// wiersze — actions w pasku z back-linkiem, pipeline na cala szerokosc nizej.
+
+export function StatusActions({
   orderId,
   currentStatus,
   closedAt,
@@ -57,21 +62,18 @@ export function StatusWorkflow({
   orderId: string;
   currentStatus: OrderStatusT;
   closedAt: Date | null;
-  /** Kraj produkcji — PL ukrywa edytor kontenera (brak transportu morskiego). */
-  country?: "CHINA" | "POLAND";
-  /** Lista przeszkód blokujących zamknięcie (pusta = można zamknąć). */
   closeBlockers: string[];
   containerType: ContainerTypeT;
   containerSizeM3: number | null;
+  country?: "CHINA" | "POLAND";
 }) {
   const router = useRouter();
-  const currentIdx = ORDER_STATUSES.indexOf(currentStatus);
   const canDelete = canDeleteOrder(currentStatus) && !closedAt;
   const isClosed = !!closedAt;
   const canShowCloseButton = !isClosed && currentStatus === "W_MAGAZYNIE";
   const canClose = canShowCloseButton && closeBlockers.length === 0;
+  const isPoland = country === "POLAND";
 
-  const [targetStatus, setTargetStatus] = useState<OrderStatusT | null>(null);
   const [containerDialogOpen, setContainerDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -116,19 +118,6 @@ export function StatusWorkflow({
     });
   }
 
-  function go(status: OrderStatusT, note?: string) {
-    startTransition(async () => {
-      try {
-        await changeOrderStatusAction(orderId, status, note);
-        toast.success(`Status: ${STATUS_LABEL[status]}`);
-        setTargetStatus(null);
-        router.refresh();
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Nie udało się");
-      }
-    });
-  }
-
   function remove() {
     if (
       !confirm(
@@ -149,8 +138,6 @@ export function StatusWorkflow({
     });
   }
 
-  const isPoland = country === "POLAND";
-
   return (
     <>
       <div className="flex items-center gap-2 flex-wrap">
@@ -163,10 +150,10 @@ export function StatusWorkflow({
             onClick={() => setContainerDialogOpen(true)}
             aria-label="Edytuj kontener"
             title="Edytuj typ i pojemność kontenera"
-            className="h-7 px-2 shrink-0 gap-1.5"
+            className="h-8 px-2.5 shrink-0 gap-1.5"
           >
             <ContainerIcon className="size-3.5" />
-            <span className="text-xs font-medium tabular-nums">
+            <span className="text-xs font-semibold tabular-nums">
               {containerType === "TWENTY_FT"
                 ? "20'"
                 : containerType === "FORTY_FT"
@@ -175,21 +162,7 @@ export function StatusWorkflow({
             </span>
           </Button>
         )}
-        {canDelete && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={remove}
-            aria-label="Usuń zamówienie"
-            className="h-7 px-2 shrink-0"
-          >
-            <Trash2 className="size-3.5 text-destructive" />
-          </Button>
-        )}
 
-        {/* Zamknij zamówienie — tylko gdy status W_MAGAZYNIE i niezamknięte */}
         {canShowCloseButton && (
           <Button
             type="button"
@@ -204,18 +177,17 @@ export function StatusWorkflow({
                   closeBlockers.map((r) => "· " + r).join("\n")
             }
             className={cn(
-              "h-7 px-2 shrink-0 gap-1.5",
+              "h-8 px-2.5 shrink-0 gap-1.5",
               canClose
                 ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 ring-emerald-300"
                 : "opacity-60 cursor-not-allowed",
             )}
           >
             <Lock className="size-3.5" />
-            <span className="text-xs font-medium">Zamknij</span>
+            <span className="text-xs font-semibold">Zamknij</span>
           </Button>
         )}
 
-        {/* Otwórz ponownie — zawsze gdy zamknięte */}
         {isClosed && (
           <Button
             type="button"
@@ -224,46 +196,108 @@ export function StatusWorkflow({
             disabled={pending}
             onClick={handleReopen}
             title="Otwórz ponownie do edycji"
-            className="h-7 px-2 shrink-0 gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 ring-amber-300"
+            className="h-8 px-2.5 shrink-0 gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 ring-amber-300"
           >
             <LockOpen className="size-3.5" />
-            <span className="text-xs font-medium">Otwórz do edycji</span>
+            <span className="text-xs font-semibold">Otwórz do edycji</span>
           </Button>
         )}
 
-        <div
-          className={cn(
-            "flex items-center gap-0.5 bg-muted/40 rounded-lg p-1 ring-1 ring-border",
-            isClosed && "opacity-60",
-          )}
-        >
-          {ORDER_STATUSES.map((s, i) => (
-            <Fragment key={s}>
-              {i > 0 && (
-                <ChevronRight
-                  className={cn(
-                    "size-3 shrink-0",
-                    i <= currentIdx
-                      ? "text-emerald-600"
-                      : "text-muted-foreground/40",
-                  )}
-                />
-              )}
-              <StepButton
-                status={s}
-                state={
-                  i < currentIdx
-                    ? "done"
-                    : i === currentIdx
-                      ? "current"
-                      : "future"
-                }
-                disabled={pending || i === currentIdx || isClosed}
-                onClick={() => setTargetStatus(s)}
+        {canDelete && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={remove}
+            aria-label="Usuń zamówienie"
+            className="h-8 w-8 p-0 shrink-0"
+            title="Usuń zamówienie"
+          >
+            <Trash2 className="size-3.5 text-destructive" />
+          </Button>
+        )}
+      </div>
+
+      <ContainerEditDialog
+        open={containerDialogOpen}
+        onClose={() => setContainerDialogOpen(false)}
+        orderId={orderId}
+        currentType={containerType}
+        currentSize={containerSizeM3 ?? CONTAINER_M3.TWENTY_FT ?? 28}
+      />
+    </>
+  );
+}
+
+// ─── StatusPipeline ────────────────────────────────────────────────
+// Wizualny pipeline 7 statusów (Planowane → ... → W magazynie). Klik na
+// status otwiera dialog z notatką i zmienia status zamówienia. Renderowany
+// na cala szerokosc pod naglowkiem dla maksymalnej czytelnosci.
+
+export function StatusPipeline({
+  orderId,
+  currentStatus,
+  closedAt,
+}: {
+  orderId: string;
+  currentStatus: OrderStatusT;
+  closedAt: Date | null;
+}) {
+  const router = useRouter();
+  const currentIdx = ORDER_STATUSES.indexOf(currentStatus);
+  const isClosed = !!closedAt;
+
+  const [targetStatus, setTargetStatus] = useState<OrderStatusT | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function go(status: OrderStatusT, note?: string) {
+    startTransition(async () => {
+      try {
+        await changeOrderStatusAction(orderId, status, note);
+        toast.success(`Status: ${STATUS_LABEL[status]}`);
+        setTargetStatus(null);
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Nie udało się");
+      }
+    });
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "flex items-center gap-0.5 bg-muted/40 rounded-lg p-1.5 ring-1 ring-border w-full",
+          isClosed && "opacity-60",
+        )}
+      >
+        {ORDER_STATUSES.map((s, i) => (
+          <Fragment key={s}>
+            {i > 0 && (
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0",
+                  i <= currentIdx
+                    ? "text-emerald-600"
+                    : "text-muted-foreground/40",
+                )}
               />
-            </Fragment>
-          ))}
-        </div>
+            )}
+            <StepButton
+              status={s}
+              state={
+                i < currentIdx
+                  ? "done"
+                  : i === currentIdx
+                    ? "current"
+                    : "future"
+              }
+              disabled={pending || i === currentIdx || isClosed}
+              onClick={() => setTargetStatus(s)}
+            />
+          </Fragment>
+        ))}
       </div>
 
       <Dialog
@@ -304,16 +338,6 @@ export function StatusWorkflow({
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Dialog edycji kontenera — szybka zmiana 20'/40' bez otwierania pełnego
-          edytora nagłówka. Auto-przelicza logistykę po zapisie (revalidate). */}
-      <ContainerEditDialog
-        open={containerDialogOpen}
-        onClose={() => setContainerDialogOpen(false)}
-        orderId={orderId}
-        currentType={containerType}
-        currentSize={containerSizeM3 ?? CONTAINER_M3.TWENTY_FT ?? 28}
-      />
     </>
   );
 }
@@ -336,7 +360,6 @@ function ContainerEditDialog({
   const [size, setSize] = useState(String(currentSize));
   const [pending, startTransition] = useTransition();
 
-  // Resync gdy dialog się otwiera (mógł zmienić się stan w międzyczasie)
   function pick(t: "TWENTY_FT" | "FORTY_FT") {
     setType(t);
     const preset = CONTAINER_M3[t];
@@ -374,7 +397,6 @@ function ContainerEditDialog({
       onOpenChange={(o) => {
         if (!o) onClose();
         else {
-          // Resync przy otwarciu — żeby pokazać aktualny stan zam.
           setType(currentType);
           setSize(String(currentSize));
         }
@@ -493,16 +515,16 @@ function StepButton({
       aria-label={STATUS_LABEL[status]}
       aria-current={state === "current" ? "step" : undefined}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ring-1 disabled:cursor-default",
+        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ring-1 disabled:cursor-default whitespace-nowrap",
         stateClasses,
       )}
     >
       {state === "done" ? (
-        <Check className="size-3" strokeWidth={3} />
+        <Check className="size-3.5" strokeWidth={3} />
       ) : (
-        <Icon className="size-3" />
+        <Icon className="size-3.5" />
       )}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }

@@ -20,7 +20,7 @@ import {
 } from "@/server/system-settings";
 import { quoteShippingForProduct } from "@/lib/courier-pricing/product-quote";
 
-import { StatusWorkflow } from "./status-workflow";
+import { StatusActions, StatusPipeline } from "./status-workflow";
 import { RecomputeProductsButton } from "./recompute-products-button";
 import { ProductionEstimateWidget } from "./production-estimate-widget";
 import { ItemsTab } from "./items-tab";
@@ -945,8 +945,11 @@ export default async function ZamowienieDetailPage({
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      {/* ── HEADER ────────────────────────────────────────────────
+          3 wiersze: (1) back-link + akcje, (2) numer + status badge +
+          nazwa, (3) pipeline 7 statusów na całą szerokość. */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <Link
             href={isPolandOrder ? "/zamowienia/z-polski" : "/zamowienia"}
             className="text-xs text-muted-foreground hover:underline inline-flex items-center gap-1"
@@ -954,45 +957,52 @@ export default async function ZamowienieDetailPage({
             <ArrowLeft className="size-3" />
             {isPolandOrder ? "Zamówienia z Polski" : "Zamówienia z Chin"}
           </Link>
-          <div className="flex items-center gap-3 mt-1">
-            <h1 className="text-3xl font-heading font-bold tracking-tight">
-              {order.orderNumber}
-            </h1>
-            <span
-              className={cn(
-                "inline-flex items-center rounded px-2 py-0.5 text-xs ring-1",
-                STATUS_BADGE[status],
-              )}
-            >
-              {STATUS_LABEL[status]}
-            </span>
-            {isClosed && (
-              <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-900 text-white ring-1 ring-slate-800">
-                <Lock className="size-3" />
-                ZAMKNIĘTE ·{" "}
-                {new Date(order.closedAt!).toLocaleDateString("pl-PL")}
-              </span>
-            )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <RecomputeProductsButton orderId={order.id} />
+            <StatusActions
+              orderId={order.id}
+              currentStatus={status}
+              closedAt={order.closedAt}
+              closeBlockers={closeBlockers}
+              containerType={order.containerType}
+              containerSizeM3={order.containerSizeM3}
+              country={order.country}
+            />
           </div>
-          {order.name && (
-            <div className="text-sm text-muted-foreground mt-0.5">
-              {order.name}
-            </div>
-          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <RecomputeProductsButton orderId={order.id} />
-          <StatusWorkflow
-            orderId={order.id}
-            currentStatus={status}
-            closedAt={order.closedAt}
-            closeBlockers={closeBlockers}
-            containerType={order.containerType}
-            containerSizeM3={order.containerSizeM3}
-            country={order.country}
-          />
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h1 className="text-3xl font-heading font-bold tracking-tight">
+            {order.orderNumber}
+          </h1>
+          <span
+            className={cn(
+              "inline-flex items-center rounded px-2 py-0.5 text-xs ring-1",
+              STATUS_BADGE[status],
+            )}
+          >
+            {STATUS_LABEL[status]}
+          </span>
+          {isClosed && (
+            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-900 text-white ring-1 ring-slate-800">
+              <Lock className="size-3" />
+              ZAMKNIĘTE ·{" "}
+              {new Date(order.closedAt!).toLocaleDateString("pl-PL")}
+            </span>
+          )}
         </div>
+        {order.name && (
+          <div className="text-sm text-muted-foreground -mt-1">
+            {order.name}
+          </div>
+        )}
+
+        <StatusPipeline
+          orderId={order.id}
+          currentStatus={status}
+          closedAt={order.closedAt}
+        />
       </div>
 
       {(() => {
