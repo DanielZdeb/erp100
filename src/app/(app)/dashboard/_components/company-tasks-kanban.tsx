@@ -2,7 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  Plus,
+  Users,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -22,22 +29,43 @@ import {
 
 const COLUMN_STYLE: Record<
   CompanyTaskStatusT,
-  { ring: string; bg: string; accent: string }
+  {
+    ring: string;
+    bg: string;
+    accent: string;
+    icon: LucideIcon;
+    iconBg: string;
+    headerBar: string;
+    badgeRing: string;
+  }
 > = {
+  // Cyan zamiast violet — odrozniamy sie od fioletowego menu po lewej.
   TODO: {
-    ring: "ring-violet-200",
-    bg: "bg-violet-50/40",
-    accent: "text-violet-700",
+    ring: "ring-sky-200",
+    bg: "bg-white",
+    accent: "text-sky-700",
+    icon: Circle,
+    iconBg: "bg-sky-100 text-sky-700",
+    headerBar: "bg-gradient-to-r from-sky-500 to-cyan-500",
+    badgeRing: "ring-sky-200",
   },
   IN_PROGRESS: {
     ring: "ring-amber-200",
-    bg: "bg-amber-50/40",
+    bg: "bg-white",
     accent: "text-amber-800",
+    icon: Loader2,
+    iconBg: "bg-amber-100 text-amber-700",
+    headerBar: "bg-gradient-to-r from-amber-500 to-orange-500",
+    badgeRing: "ring-amber-200",
   },
   DONE: {
     ring: "ring-emerald-200",
-    bg: "bg-emerald-50/40",
+    bg: "bg-white",
     accent: "text-emerald-700",
+    icon: CheckCircle2,
+    iconBg: "bg-emerald-100 text-emerald-700",
+    headerBar: "bg-gradient-to-r from-emerald-500 to-teal-500",
+    badgeRing: "ring-emerald-200",
   },
 };
 
@@ -271,10 +299,11 @@ export function CompanyTasksKanban({
         </Button>
       </div>
 
-      {/* Kanban: 3 kolumny */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Kanban: 3 kolumny z kolorowym paskiem u góry */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {STATUS_ORDER.map((status) => {
           const style = COLUMN_STYLE[status];
+          const Icon = style.icon;
           const items = byStatus[status];
           const isDropTarget = dropTarget === status;
           return (
@@ -293,40 +322,66 @@ export function CompanyTasksKanban({
                 setDropTarget(null);
               }}
               className={cn(
-                "rounded-xl ring-1 p-3 space-y-2 min-h-[400px] transition-all",
-                style.ring,
-                style.bg,
-                isDropTarget && "ring-2 ring-violet-500 bg-violet-100/60",
+                "rounded-xl ring-1 ring-slate-200 bg-white shadow-sm overflow-hidden transition-all min-h-[420px] flex flex-col",
+                isDropTarget &&
+                  "ring-2 ring-offset-2 ring-offset-slate-50 ring-slate-900 shadow-lg",
               )}
             >
-              <div className="flex items-center justify-between gap-2">
-                <h3
-                  className={cn(
-                    "text-xs uppercase tracking-wide font-bold flex items-center gap-2",
-                    style.accent,
-                  )}
-                >
-                  {STATUS_LABELS[status]}
+              {/* Kolorowy pasek-akcent u góry — szybka identyfikacja statusu */}
+              <div className={cn("h-1", style.headerBar)} />
+
+              {/* Nagłówek kolumny */}
+              <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/40">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn(
+                      "size-6 rounded-md grid place-items-center",
+                      style.iconBg,
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "size-3.5",
+                        status === "IN_PROGRESS" && "animate-spin-slow",
+                      )}
+                      strokeWidth={2.5}
+                    />
+                  </div>
+                  <h3
+                    className={cn(
+                      "text-xs uppercase tracking-wider font-bold",
+                      style.accent,
+                    )}
+                  >
+                    {STATUS_LABELS[status]}
+                  </h3>
                   <span
                     className={cn(
-                      "rounded-full bg-white ring-1 px-1.5 py-0 text-[10px] tabular-nums",
-                      style.ring,
+                      "rounded-full bg-white ring-1 px-2 py-0.5 text-[10px] font-bold tabular-nums",
+                      style.badgeRing,
                       style.accent,
                     )}
                   >
                     {items.length}
                   </span>
-                </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => openCreate(status)}
-                  className="text-slate-400 hover:text-slate-700 transition-colors"
+                  className="size-6 rounded-md grid place-items-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                   title="Dodaj zadanie w tej kolumnie"
                 >
                   <Plus className="size-4" />
                 </button>
               </div>
-              <div className="space-y-2">
+
+              {/* Lista kart */}
+              <div
+                className={cn(
+                  "flex-1 p-3 space-y-2 transition-colors",
+                  isDropTarget && "bg-slate-50",
+                )}
+              >
                 {items.map((t) => (
                   <CompanyTaskCard
                     key={t.id}
@@ -341,7 +396,7 @@ export function CompanyTasksKanban({
                   />
                 ))}
                 {items.length === 0 && (
-                  <div className="text-center py-8 text-xs text-muted-foreground/70 italic">
+                  <div className="text-center py-10 text-xs text-muted-foreground/60 italic">
                     {status === "TODO"
                       ? "Brak zadań — dodaj nowe"
                       : status === "IN_PROGRESS"

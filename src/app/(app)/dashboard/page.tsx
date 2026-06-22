@@ -155,22 +155,33 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            Tablica zadań zespołu
-            <span className="text-xs font-normal text-muted-foreground">
-              · drag&drop między kolumnami zmienia status
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* ── Tablica zadań zespołu ───────────────────────────────────
+          Ciemny header + jasna sekcja kontentu — wizualnie odrebne od
+          szarego menu po lewej. Calosc na ciemnym tle slate-900 z subtle
+          gradientem; karty kolumn na bialo na tym tle. */}
+      <section className="rounded-2xl overflow-hidden ring-1 ring-slate-900/10 shadow-lg">
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-lg bg-white/10 grid place-items-center ring-1 ring-white/20">
+              <span className="text-base">📋</span>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white tracking-tight">
+                Tablica zadań zespołu
+              </h2>
+              <p className="text-[10px] text-slate-300 uppercase tracking-wider">
+                drag&drop między kolumnami zmienia status
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-slate-50 to-white p-5">
           <CompanyTasksKanban
             tasks={tasksForClient}
             members={membersForClient}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <Card>
         <CardHeader>
