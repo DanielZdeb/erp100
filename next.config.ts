@@ -11,13 +11,11 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "50mb",
+      bodySizeLimit: "100mb",
     },
     // Next 16 ma osobny limit body dla request'ow przez middleware (default 10MB).
-    // Bez tego upload >10MB rzuca 'Request body exceeded 10MB' i wykrzacza
-    // multipart formdata ("Unexpected end of form"). Podnosimy do 50MB —
-    // dokumenty zamowienia (skany B/L, faktury) potrafia byc 15-30 MB.
-    middlewareClientMaxBodySize: "50mb",
+    // 100MB pozwala wgrac duze skany dokumentow z postepem (XHR per plik).
+    middlewareClientMaxBodySize: "100mb",
   },
   images: {
     remotePatterns: [

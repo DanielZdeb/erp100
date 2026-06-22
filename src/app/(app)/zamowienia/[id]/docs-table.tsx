@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Check,
   File as FileIcon,
@@ -33,7 +34,6 @@ import {
 } from "@/lib/order-doc-slots";
 
 import {
-  uploadOrderFileAction,
   deleteOrderFileAction,
   updateOrderFileNotesAction,
 } from "@/server/order-costs";
@@ -53,6 +53,50 @@ type OrderFile = {
 // Tabela renderuje (maxFiles + 1) kolumn na pliki — dzięki temu w każdym
 // wierszu pojawia się od razu „+ Dodaj" w kolumnie tuż za ostatnim plikiem.
 const MAX_FILE_COLUMNS = 8;
+
+// XHR-based upload — server actions w Next.js nie wystawiaja eventow progress,
+// wiec dla widocznego paska postepu uzywamy POST do /api/orders/[id]/files/upload.
+function uploadFileWithProgress(
+  orderId: string,
+  formData: FormData,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(
+      "POST",
+      `/api/orders/${encodeURIComponent(orderId)}/files/upload`,
+      true,
+    );
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      let msg = `HTTP ${xhr.status}`;
+      try {
+        const j = JSON.parse(xhr.responseText) as { error?: string };
+        if (j?.error) msg = j.error;
+      } catch {}
+      reject(new Error(msg));
+    };
+    xhr.onerror = () => reject(new Error("Bład sieci"));
+    xhr.onabort = () => reject(new Error("Upload przerwany"));
+    xhr.send(formData);
+  });
+}
+
+type UploadItem = {
+  name: string;
+  pct: number;
+  status: "uploading" | "done" | "error";
+  error?: string;
+};
 
 export function DocsTable({
   orderId,
@@ -395,29 +439,55 @@ function SlotRow({
 }) {
   const Icon = slot.icon;
   const inputRef = useRef<HTMLInputElement>(null);
-  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [customOpen, setCustomOpen] = useState(false);
 
-  function uploadFiles(fileList: FileList | null, customLabel?: string) {
+  async function uploadFiles(
+    fileList: FileList | null,
+    customLabel?: string,
+  ) {
     if (!fileList || fileList.length === 0) return;
-    startTransition(async () => {
-      let okCount = 0;
-      for (const file of Array.from(fileList)) {
-        try {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("slot", slot.id);
-          if (customLabel) fd.append("label", customLabel);
-          await uploadOrderFileAction(orderId, fd);
-          okCount++;
-        } catch (e) {
-          toast.error(
-            e instanceof Error ? e.message : `Błąd uploadu ${file.name}`,
+    const arr = Array.from(fileList);
+    setUploads(
+      arr.map((f) => ({ name: f.name, pct: 0, status: "uploading" })),
+    );
+    setPending(true);
+    let okCount = 0;
+    for (const file of arr) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("slot", slot.id);
+        if (customLabel) fd.append("label", customLabel);
+        await uploadFileWithProgress(orderId, fd, (pct) => {
+          setUploads((prev) =>
+            prev.map((p) => (p.name === file.name ? { ...p, pct } : p)),
           );
-        }
+        });
+        setUploads((prev) =>
+          prev.map((p) =>
+            p.name === file.name ? { ...p, pct: 100, status: "done" } : p,
+          ),
+        );
+        okCount++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : `Bład uploadu ${file.name}`;
+        setUploads((prev) =>
+          prev.map((p) =>
+            p.name === file.name ? { ...p, status: "error", error: msg } : p,
+          ),
+        );
+        toast.error(msg);
       }
-      if (okCount > 0) toast.success(`Wgrano ${okCount} plik(ów)`);
-    });
+    }
+    setPending(false);
+    if (okCount > 0) {
+      toast.success(`Wgrano ${okCount} plik(ów)`);
+      router.refresh();
+    }
+    setTimeout(() => setUploads([]), 2500);
   }
 
   function onAddClick() {
@@ -525,6 +595,17 @@ function SlotRow({
         </td>
       </tr>
 
+      {uploads.length > 0 && (
+        <tr>
+          <td
+            colSpan={3 + fileColumns}
+            className="px-3 py-2 bg-violet-50/40 border-b border-violet-100"
+          >
+            <UploadProgressList items={uploads} />
+          </td>
+        </tr>
+      )}
+
       {slot.custom && (
         <CustomFileDialog
           open={customOpen}
@@ -537,6 +618,58 @@ function SlotRow({
         />
       )}
     </>
+  );
+}
+
+// ─── Pasek postępu uploadu (jeden element listy = jeden plik) ──────
+
+function UploadProgressList({ items }: { items: UploadItem[] }) {
+  return (
+    <div className="space-y-1.5">
+      {items.map((it) => {
+        const color =
+          it.status === "error"
+            ? "bg-red-500"
+            : it.status === "done"
+              ? "bg-emerald-500"
+              : "bg-violet-500";
+        const label =
+          it.status === "error"
+            ? it.error || "Bład"
+            : it.status === "done"
+              ? "Gotowe"
+              : `${it.pct}%`;
+        return (
+          <div key={it.name} className="space-y-0.5">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="truncate text-slate-700" title={it.name}>
+                {it.name}
+              </span>
+              <span
+                className={cn(
+                  "tabular-nums font-medium shrink-0",
+                  it.status === "error"
+                    ? "text-red-700"
+                    : it.status === "done"
+                      ? "text-emerald-700"
+                      : "text-violet-700",
+                )}
+              >
+                {label}
+              </span>
+            </div>
+            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className={cn("h-full transition-all", color)}
+                style={{
+                  width: `${it.status === "done" ? 100 : it.status === "error" ? 100 : it.pct}%`,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -596,28 +729,49 @@ function AddCustomDocRow({
   colSpan: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const router = useRouter();
 
-  function handleSubmit(label: string, files: FileList) {
-    startTransition(async () => {
-      let okCount = 0;
-      for (const file of Array.from(files)) {
-        try {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("slot", slotId);
-          fd.append("label", label);
-          await uploadOrderFileAction(orderId, fd);
-          okCount++;
-        } catch (e) {
-          toast.error(
-            e instanceof Error ? e.message : `Błąd uploadu ${file.name}`,
+  async function handleSubmit(label: string, files: FileList) {
+    const arr = Array.from(files);
+    setUploads(arr.map((f) => ({ name: f.name, pct: 0, status: "uploading" })));
+    setPending(true);
+    let okCount = 0;
+    for (const file of arr) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("slot", slotId);
+        fd.append("label", label);
+        await uploadFileWithProgress(orderId, fd, (pct) => {
+          setUploads((prev) =>
+            prev.map((p) => (p.name === file.name ? { ...p, pct } : p)),
           );
-        }
+        });
+        setUploads((prev) =>
+          prev.map((p) =>
+            p.name === file.name ? { ...p, pct: 100, status: "done" } : p,
+          ),
+        );
+        okCount++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : `Bład uploadu ${file.name}`;
+        setUploads((prev) =>
+          prev.map((p) =>
+            p.name === file.name ? { ...p, status: "error", error: msg } : p,
+          ),
+        );
+        toast.error(msg);
       }
-      if (okCount > 0) toast.success(`Wgrano ${okCount} plik(ów)`);
-      setOpen(false);
-    });
+    }
+    setPending(false);
+    if (okCount > 0) {
+      toast.success(`Wgrano ${okCount} plik(ów)`);
+      router.refresh();
+    }
+    setOpen(false);
+    setTimeout(() => setUploads([]), 2500);
   }
 
   return (
@@ -635,6 +789,16 @@ function AddCustomDocRow({
           </button>
         </td>
       </tr>
+      {uploads.length > 0 && (
+        <tr>
+          <td
+            colSpan={colSpan}
+            className="px-3 py-2 bg-violet-50/40 border-b border-violet-100"
+          >
+            <UploadProgressList items={uploads} />
+          </td>
+        </tr>
+      )}
       <CustomFileDialog
         open={open}
         onClose={() => setOpen(false)}
