@@ -44,6 +44,7 @@ export function ProductsPreviewGrid({
   containerCount,
   containerSize,
   usedCbm,
+  hideContainerStats = false,
 }: {
   orderId: string;
   coverImageUrl: string | null;
@@ -53,6 +54,8 @@ export function ProductsPreviewGrid({
   containerCount: number;
   containerSize: number;
   usedCbm: number;
+  /** Zamowienia z PL nie maja "kontenera" — chowamy pasek pod miniatura. */
+  hideContainerStats?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -151,20 +154,22 @@ export function ProductsPreviewGrid({
           <Pencil className="size-4" />
         </button>
       </div>
-      {/* Pod miniaturą: skrót danych kontenera */}
-      <div
-        className={cn(
-          "text-[8px] tabular-nums font-semibold",
-          fillPct >= 90
-            ? "text-emerald-700"
-            : fillPct >= 50
-              ? "text-amber-700"
-              : "text-slate-500",
-        )}
-        title={`Wypełnienie: ${usedCbm.toFixed(1)} / ${(containerSize * containerCount).toFixed(1)} m³`}
-      >
-        {containerCount}×{containerSize.toFixed(0)}m³ · {fillPct}%
-      </div>
+      {/* Pod miniaturą: skrót danych kontenera (tylko dla zamówień importowych z Chin) */}
+      {!hideContainerStats && (
+        <div
+          className={cn(
+            "text-[8px] tabular-nums font-semibold",
+            fillPct >= 90
+              ? "text-emerald-700"
+              : fillPct >= 50
+                ? "text-amber-700"
+                : "text-slate-500",
+          )}
+          title={`Wypełnienie: ${usedCbm.toFixed(1)} / ${(containerSize * containerCount).toFixed(1)} m³`}
+        >
+          {containerCount}×{containerSize.toFixed(0)}m³ · {fillPct}%
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent

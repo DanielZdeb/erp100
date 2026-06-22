@@ -71,7 +71,6 @@ export default async function ZamowieniaPage({
     db.importOrder.findMany({
       where: {
         companyId,
-        country: "CHINA",
         ...(activeStatus !== ALL ? { status: activeStatus } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -157,7 +156,7 @@ export default async function ZamowieniaPage({
     }),
     db.importOrder.groupBy({
       by: ["status"],
-      where: { companyId, country: "CHINA" },
+      where: { companyId },
       _count: { _all: true },
     }),
     getDefaultContainerType(),
@@ -390,6 +389,7 @@ export default async function ZamowieniaPage({
       id: o.id,
       orderNumber: o.orderNumber,
       name: o.name,
+      country: o.country,
       status: o.status as OrderStatusT,
       createdAt: o.createdAt,
       itemsCount: o.items.length,
@@ -475,10 +475,10 @@ export default async function ZamowieniaPage({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-heading font-bold tracking-tight">
-            Zamówienia importowe
+            Zamówienia
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Kontenery z Chin — przeciągaj między etapami.
+            Zamówienia z Chin i Polski — przeciągaj między etapami.
           </p>
         </div>
         {activePaymentRows.length > 0 && (
@@ -648,9 +648,21 @@ export default async function ZamowieniaPage({
                           containerCount={r.containerCount}
                           containerSize={r.containerSize}
                           usedCbm={r.usedCbm}
+                          hideContainerStats={r.country === "POLAND"}
                         />
                         <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className="text-sm leading-none"
+                              title={
+                                r.country === "POLAND" ? "Polska" : "Chiny"
+                              }
+                              aria-label={
+                                r.country === "POLAND" ? "Polska" : "Chiny"
+                              }
+                            >
+                              {r.country === "POLAND" ? "🇵🇱" : "🇨🇳"}
+                            </span>
                             <OrderNumberCell
                               orderId={r.id}
                               orderNumber={r.orderNumber}
@@ -716,19 +728,31 @@ export default async function ZamowieniaPage({
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span
-                        className="inline-flex items-center gap-1 rounded-md bg-slate-100 ring-1 ring-slate-200 px-2 py-0.5 text-xs font-semibold tabular-nums"
-                        title={`Wypełnienie: ${(r.fillRate * 100).toFixed(0)}%`}
-                      >
-                        {r.containerCount}×{r.containerSize.toFixed(0)}m³
-                      </span>
+                      {r.country === "POLAND" ? (
+                        <span className="text-muted-foreground/40 text-xs">
+                          —
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 ring-1 ring-slate-200 px-2 py-0.5 text-xs font-semibold tabular-nums"
+                          title={`Wypełnienie: ${(r.fillRate * 100).toFixed(0)}%`}
+                        >
+                          {r.containerCount}×{r.containerSize.toFixed(0)}m³
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <ContainersList
-                        orderId={r.id}
-                        containerLinks={r.containerLinks}
-                        containerCount={r.containerCount}
-                      />
+                      {r.country === "POLAND" ? (
+                        <span className="text-muted-foreground/40 text-xs">
+                          —
+                        </span>
+                      ) : (
+                        <ContainersList
+                          orderId={r.id}
+                          containerLinks={r.containerLinks}
+                          containerCount={r.containerCount}
+                        />
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       <PaymentsSummary
