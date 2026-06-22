@@ -172,12 +172,26 @@ export function CompanyTaskCard({
         {task.title}
       </div>
 
-      {/* Description preview */}
-      {task.description && (
-        <div className="text-[11px] text-slate-500 line-clamp-2 leading-snug">
-          {task.description}
-        </div>
-      )}
+      {/* Description preview — opis jest HTML z TipTapa (StarterKit, bezpieczny);
+          stripujemy do plain textu dla zwięzłej miniaturki na karcie. Pełen
+          formatting widać w dialogu edycji. */}
+      {task.description &&
+        (() => {
+          const plain = task.description
+            .replace(/<\/(p|div|h\d|li|br)>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .trim();
+          if (!plain) return null;
+          return (
+            <div className="text-[11px] text-slate-500 line-clamp-2 leading-snug whitespace-pre-line">
+              {plain}
+            </div>
+          );
+        })()}
 
       {/* Image preview thumbnail (pierwszy obrazek) */}
       {firstImage && (

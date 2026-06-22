@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -23,6 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+function isHtmlEmpty(html: string): boolean {
+  return (
+    html
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, "")
+      .trim() === ""
+  );
+}
 
 import { createCompanyTaskAction } from "@/server/company-tasks";
 import {
@@ -76,7 +85,7 @@ export function CompanyTaskCreateDialog({
       try {
         await createCompanyTaskAction({
           title: title.trim(),
-          description: description.trim() || null,
+          description: isHtmlEmpty(description) ? null : description,
           status,
           priority,
           assignedToId: assignedToId || null,
@@ -122,17 +131,12 @@ export function CompanyTaskCreateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label
-              htmlFor="new-desc"
-              className="text-xs uppercase tracking-wide"
-            >
+            <Label className="text-xs uppercase tracking-wide">
               Opis (opcjonalnie)
             </Label>
-            <Textarea
-              id="new-desc"
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              onChange={setDescription}
               placeholder="Szczegóły, kontekst…"
             />
           </div>

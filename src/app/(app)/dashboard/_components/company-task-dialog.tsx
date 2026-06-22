@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -32,6 +32,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+// HTML z TipTapa dla pustego dokumentu = "<p></p>". Sanity-check w server
+// action `data.description?.trim() || null` nie wystarczy — `"<p></p>".trim()`
+// to dalej truthy. Helper sprawdza czy po usunieciu tagow zostaje cos
+// widocznego.
+function isHtmlEmpty(html: string): boolean {
+  return (
+    html
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, "")
+      .trim() === ""
+  );
+}
 
 import {
   assignCompanyTaskAction,
@@ -105,7 +118,7 @@ export function CompanyTaskDialog({
       try {
         await updateCompanyTaskAction(task.id, {
           title: title.trim(),
-          description: description.trim() || null,
+          description: isHtmlEmpty(description) ? null : description,
           status,
           priority,
           assignedToId: assignedToId || null,
@@ -216,16 +229,12 @@ export function CompanyTaskDialog({
             />
           </div>
 
-          {/* Opis */}
+          {/* Opis — rich text z paskiem narzędzi (B / I / U, listy, naglowki) */}
           <div className="space-y-1.5">
-            <Label htmlFor="desc" className="text-xs uppercase tracking-wide">
-              Opis
-            </Label>
-            <Textarea
-              id="desc"
+            <Label className="text-xs uppercase tracking-wide">Opis</Label>
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
+              onChange={setDescription}
               placeholder="Szczegóły, kontekst, linki, kroki…"
             />
           </div>
