@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
@@ -26,17 +26,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const companyId = await getCurrentCompanyId();
-  const [
-    activeOrders,
-    productCount,
-    activeOrdersList,
-    companyTasks,
-    members,
-  ] = await Promise.all([
-    db.importOrder.count({
-      where: { companyId, status: { not: "W_MAGAZYNIE" } },
-    }),
-    db.product.count({ where: { companyId, archived: false } }),
+  const [activeOrdersList, companyTasks, members] = await Promise.all([
     // Lekka lista aktywnych zamowien dla dashboardu — bez calc, tylko transze
     // towaru i koszty (do prostej sumy "do zaplaty"). Pelne kalkulacje sa na
     // stronie /zamowienia.
@@ -98,7 +88,6 @@ export default async function DashboardPage() {
   // Prosta suma "do zaplaty" dla dashboard — koszty niezaplacone + transze
   // niezaplacone (transza estymowana jako % × suma towaru). Bez kalkulacji
   // calowej ekonomiki (logistyka per-CBM itp) — to siedzi na stronie zamowien.
-  let totalUnpaid = 0;
   const orderSummaries: Array<{
     id: string;
     orderNumber: string;
@@ -136,7 +125,6 @@ export default async function DashboardPage() {
       .filter((c) => !c.paid)
       .reduce((s, c) => s + c.amountPln, 0);
     const unpaid = goodsRemaining + costsRemaining;
-    totalUnpaid += unpaid;
     orderSummaries.push({
       id: o.id,
       orderNumber: o.orderNumber,
@@ -145,19 +133,6 @@ export default async function DashboardPage() {
       unpaid,
     });
   }
-
-  // Statystyki Kanbanu
-  const now = new Date();
-  const overdueTasks = companyTasks.filter(
-    (t) => t.dueAt && new Date(t.dueAt) < now && t.status !== "DONE",
-  ).length;
-  const urgentTasks = companyTasks.filter(
-    (t) => t.priority === "URGENT" && t.status !== "DONE",
-  ).length;
-  const inProgressTasks = companyTasks.filter(
-    (t) => t.status === "IN_PROGRESS",
-  ).length;
-  const attentionCount = overdueTasks + urgentTasks;
 
   const tasksForClient: CompanyTaskWithRelations[] = companyTasks.map((t) => ({
     id: t.id,
@@ -180,45 +155,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-heading font-bold tracking-tight">
-          Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Zadania zespołu i kluczowe wskaźniki firmy.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Aktywne zamówienia"
-          value={activeOrders.toString()}
-          href="/zamowienia"
-          theme="cyan"
-        />
-        <KpiCard
-          label="Produkty w katalogu"
-          value={productCount.toString()}
-          href="/produkty"
-          theme="emerald"
-        />
-        <KpiCard
-          label="Gotówka do zapłaty"
-          value={fmtPln(totalUnpaid)}
-          theme={totalUnpaid > 0 ? "amber" : "emerald"}
-        />
-        <KpiCard
-          label="Zadania pilne"
-          value={attentionCount.toString()}
-          subtitle={
-            attentionCount > 0
-              ? `${overdueTasks} po terminie · ${urgentTasks} URGENT · ${inProgressTasks} w trakcie`
-              : `${inProgressTasks} w trakcie`
-          }
-          theme={attentionCount > 0 ? "rose" : "emerald"}
-        />
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -302,110 +238,6 @@ export default async function DashboardPage() {
       </Card>
 
     </div>
-  );
-}
-
-const KPI_THEME = {
-  indigo: {
-    iconBg: "bg-indigo-100 text-indigo-700",
-    accent: "text-indigo-700",
-    ring: "hover:ring-indigo-200",
-    glow: "from-indigo-50/60",
-  },
-  cyan: {
-    iconBg: "bg-cyan-100 text-cyan-700",
-    accent: "text-cyan-700",
-    ring: "hover:ring-cyan-200",
-    glow: "from-cyan-50/60",
-  },
-  emerald: {
-    iconBg: "bg-emerald-100 text-emerald-700",
-    accent: "text-emerald-700",
-    ring: "hover:ring-emerald-200",
-    glow: "from-emerald-50/60",
-  },
-  amber: {
-    iconBg: "bg-amber-100 text-amber-700",
-    accent: "text-amber-700",
-    ring: "hover:ring-amber-200",
-    glow: "from-amber-50/60",
-  },
-  rose: {
-    iconBg: "bg-rose-100 text-rose-700",
-    accent: "text-rose-700",
-    ring: "hover:ring-rose-200",
-    glow: "from-rose-50/60",
-  },
-} as const;
-
-type KpiTheme = keyof typeof KPI_THEME;
-
-function KpiCard({
-  label,
-  value,
-  subtitle,
-  theme = "indigo",
-  href,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  theme?: KpiTheme;
-  href?: string;
-}) {
-  const t = KPI_THEME[theme];
-  const body = (
-    <div
-      className={cn(
-        "relative h-full rounded-xl bg-card ring-1 ring-border p-4 overflow-hidden transition-all",
-        href && "hover:shadow-md hover:-translate-y-0.5",
-        t.ring,
-      )}
-    >
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent pointer-events-none",
-          t.glow,
-        )}
-      />
-      <div className="relative flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {label}
-          </div>
-          <div
-            className={cn(
-              "text-3xl font-heading font-bold tabular-nums mt-1",
-              t.accent,
-            )}
-          >
-            {value}
-          </div>
-          {subtitle && (
-            <div className="text-[10px] text-muted-foreground mt-1 truncate">
-              {subtitle}
-            </div>
-          )}
-        </div>
-        {href && (
-          <div
-            className={cn(
-              "size-8 rounded-lg grid place-items-center shrink-0",
-              t.iconBg,
-            )}
-          >
-            <ArrowRight className="size-4" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {body}
-    </Link>
-  ) : (
-    body
   );
 }
 
