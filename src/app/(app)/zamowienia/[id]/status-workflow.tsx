@@ -268,7 +268,7 @@ export function StatusPipeline({
     <>
       <div
         className={cn(
-          "flex items-center gap-0.5 bg-muted/40 rounded-lg p-1.5 ring-1 ring-border w-full",
+          "inline-flex items-center gap-0.5 bg-muted/40 rounded-lg p-1 ring-1 ring-border flex-wrap",
           isClosed && "opacity-60",
         )}
       >
@@ -515,7 +515,7 @@ function StepButton({
       aria-label={STATUS_LABEL[status]}
       aria-current={state === "current" ? "step" : undefined}
       className={cn(
-        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ring-1 disabled:cursor-default whitespace-nowrap",
+        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ring-1 disabled:cursor-default whitespace-nowrap",
         stateClasses,
       )}
     >

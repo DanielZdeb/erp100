@@ -946,9 +946,9 @@ export default async function ZamowienieDetailPage({
   return (
     <div className="p-6 space-y-6">
       {/* ── HEADER ────────────────────────────────────────────────
-          3 wiersze: (1) back-link + akcje, (2) numer + status badge +
-          nazwa, (3) pipeline 7 statusów na całą szerokość. */}
-      <div className="space-y-3">
+          Naglowek + pipeline oddzielone od tabow wyraznym border-bottom.
+          Header: back-link/akcje, numer/status, nazwa, pipeline statusow. */}
+      <div className="space-y-3 pb-5 border-b border-slate-200">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <Link
             href={isPolandOrder ? "/zamowienia/z-polski" : "/zamowienia"}
@@ -972,37 +972,42 @@ export default async function ZamowienieDetailPage({
           </div>
         </div>
 
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <h1 className="text-3xl font-heading font-bold tracking-tight">
-            {order.orderNumber}
-          </h1>
-          <span
-            className={cn(
-              "inline-flex items-center rounded px-2 py-0.5 text-xs ring-1",
-              STATUS_BADGE[status],
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <h1 className="text-3xl font-heading font-bold tracking-tight">
+                {order.orderNumber}
+              </h1>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded px-2 py-0.5 text-xs ring-1",
+                  STATUS_BADGE[status],
+                )}
+              >
+                {STATUS_LABEL[status]}
+              </span>
+              {isClosed && (
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-900 text-white ring-1 ring-slate-800">
+                  <Lock className="size-3" />
+                  ZAMKNIĘTE ·{" "}
+                  {new Date(order.closedAt!).toLocaleDateString("pl-PL")}
+                </span>
+              )}
+            </div>
+            {order.name && (
+              <div className="text-sm text-muted-foreground">
+                {order.name}
+              </div>
             )}
-          >
-            {STATUS_LABEL[status]}
-          </span>
-          {isClosed && (
-            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-900 text-white ring-1 ring-slate-800">
-              <Lock className="size-3" />
-              ZAMKNIĘTE ·{" "}
-              {new Date(order.closedAt!).toLocaleDateString("pl-PL")}
-            </span>
-          )}
-        </div>
-        {order.name && (
-          <div className="text-sm text-muted-foreground -mt-1">
-            {order.name}
           </div>
-        )}
 
-        <StatusPipeline
-          orderId={order.id}
-          currentStatus={status}
-          closedAt={order.closedAt}
-        />
+          {/* Pipeline statusów — kompaktowy, w tej samej linii co tytul gdy jest miejsce */}
+          <StatusPipeline
+            orderId={order.id}
+            currentStatus={status}
+            closedAt={order.closedAt}
+          />
+        </div>
       </div>
 
       {(() => {
