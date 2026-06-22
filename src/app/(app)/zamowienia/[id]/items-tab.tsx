@@ -4818,26 +4818,25 @@ function CategoryBreakdown({
                   {qtyShare.toFixed(0)}%
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-violet-800 flex-wrap">
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-violet-500">SKU</span>
-                  <span className="tabular-nums font-semibold">
-                    {l1.skuCount}
+              {/* Metryki w 2 kolumnach: lewa = SKU/szt, prawa = CBM */}
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <div className="flex items-center gap-2 text-violet-800">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-violet-500">SKU</span>
+                    <span className="tabular-nums font-semibold">
+                      {l1.skuCount}
+                    </span>
                   </span>
-                </span>
-                <span className="text-violet-300">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-violet-500">szt</span>
-                  <span className="tabular-nums font-semibold">
-                    {l1.qty.toLocaleString("pl-PL")}
+                  <span className="text-violet-300">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-violet-500">szt</span>
+                    <span className="tabular-nums font-semibold">
+                      {l1.qty.toLocaleString("pl-PL")}
+                    </span>
                   </span>
-                </span>
-                <span className="text-violet-300">·</span>
-                <span className="inline-flex items-center gap-1 text-sky-700">
-                  <span className="text-sky-500">CBM</span>
-                  <span className="tabular-nums font-semibold">
-                    {l1.cbm.toFixed(2)}
-                  </span>
+                </div>
+                <span className="inline-flex items-center rounded bg-sky-100 text-sky-800 ring-1 ring-sky-200 px-1.5 py-0.5 tabular-nums font-semibold">
+                  {l1.cbm.toFixed(2)} m³
                 </span>
               </div>
               {/* Progress bar */}
@@ -4847,20 +4846,22 @@ function CategoryBreakdown({
                   style={{ width: `${qtyShare}%` }}
                 />
               </div>
-              {/* Subcategories */}
+              {/* Subcategories — grid: nazwa | szt | cbm (wyrównane kolumny) */}
               {l2List.length > 0 && (
                 <ul className="pt-1 space-y-0.5">
                   {l2List.map((l2) => (
                     <li
                       key={l2.name}
-                      className="flex items-center justify-between gap-2 text-[11px] text-indigo-800"
+                      className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 text-[11px]"
                     >
-                      <span className="truncate">↳ {l2.name}</span>
-                      <span className="tabular-nums shrink-0 text-indigo-600">
-                        {l2.skuCount}× / {l2.qty.toLocaleString("pl-PL")}szt
-                        <span className="ml-1 text-sky-600">
-                          · {l2.cbm.toFixed(2)}m³
-                        </span>
+                      <span className="truncate text-indigo-800">
+                        ↳ {l2.name}
+                      </span>
+                      <span className="tabular-nums text-indigo-600">
+                        {l2.skuCount}×/{l2.qty.toLocaleString("pl-PL")}szt
+                      </span>
+                      <span className="tabular-nums text-sky-700 font-medium text-right min-w-[52px]">
+                        {l2.cbm.toFixed(2)} m³
                       </span>
                     </li>
                   ))}
