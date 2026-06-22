@@ -868,7 +868,7 @@ export function ItemsTab({
       )}
       {items.length > 0 && country !== "POLAND" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CategoryBreakdown items={orderedItems} />
+          <CategoryBreakdown items={orderedItems} cbmByItemId={calcById} />
           <ContainerVisual calc={calc} containerCount={containerCount} />
         </div>
       )}
@@ -4721,40 +4721,52 @@ function buildMaterialItems(items: Item[]): MaterialItem[] {
 
 // ─── Licznik kategorii / podkategorii ───────────────────────────────
 
-function CategoryBreakdown({ items }: { items: Item[] }) {
-  // Group: L1 -> L2 -> { skuCount, qtySum }
-  type L2Bucket = { name: string; skuCount: number; qty: number };
+function CategoryBreakdown({
+  items,
+  cbmByItemId,
+}: {
+  items: Item[];
+  cbmByItemId: Map<string, ContainerResult["items"][number]>;
+}) {
+  // Group: L1 -> L2 -> { skuCount, qtySum, cbm }
+  type L2Bucket = { name: string; skuCount: number; qty: number; cbm: number };
   type L1Bucket = {
     name: string;
     skuCount: number;
     qty: number;
+    cbm: number;
     l2s: Map<string, L2Bucket>;
   };
   const byL1 = new Map<string, L1Bucket>();
 
   let totalSkus = 0;
   let totalQty = 0;
+  let totalCbm = 0;
 
   for (const it of items) {
     totalSkus += 1;
     totalQty += it.quantity;
+    const itemCbm = cbmByItemId.get(it.id)?.totalCbm ?? 0;
+    totalCbm += itemCbm;
     const { l1Name, l2Name } = getCategoryGroupLabels(it.product.category);
     const l1Key = l1Name ?? "Bez kategorii";
     const l2Key = l2Name ?? "—";
     let l1 = byL1.get(l1Key);
     if (!l1) {
-      l1 = { name: l1Key, skuCount: 0, qty: 0, l2s: new Map() };
+      l1 = { name: l1Key, skuCount: 0, qty: 0, cbm: 0, l2s: new Map() };
       byL1.set(l1Key, l1);
     }
     l1.skuCount += 1;
     l1.qty += it.quantity;
+    l1.cbm += itemCbm;
     let l2 = l1.l2s.get(l2Key);
     if (!l2) {
-      l2 = { name: l2Key, skuCount: 0, qty: 0 };
+      l2 = { name: l2Key, skuCount: 0, qty: 0, cbm: 0 };
       l1.l2s.set(l2Key, l2);
     }
     l2.skuCount += 1;
     l2.qty += it.quantity;
+    l2.cbm += itemCbm;
   }
 
   const l1List = Array.from(byL1.values()).sort((a, b) => b.qty - a.qty);
@@ -4776,6 +4788,12 @@ function CategoryBreakdown({ items }: { items: Item[] }) {
             <span className="text-muted-foreground">Sztuk:</span>
             <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 px-2 py-0.5 tabular-nums font-semibold">
               {totalQty.toLocaleString("pl-PL")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">CBM:</span>
+            <span className="inline-flex items-center rounded-full bg-sky-100 text-sky-800 ring-1 ring-sky-200 px-2 py-0.5 tabular-nums font-semibold">
+              {totalCbm.toFixed(2)} m³
             </span>
           </div>
         </div>
@@ -4800,7 +4818,7 @@ function CategoryBreakdown({ items }: { items: Item[] }) {
                   {qtyShare.toFixed(0)}%
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-violet-800">
+              <div className="flex items-center gap-2 text-[11px] text-violet-800 flex-wrap">
                 <span className="inline-flex items-center gap-1">
                   <span className="text-violet-500">SKU</span>
                   <span className="tabular-nums font-semibold">
@@ -4812,6 +4830,13 @@ function CategoryBreakdown({ items }: { items: Item[] }) {
                   <span className="text-violet-500">szt</span>
                   <span className="tabular-nums font-semibold">
                     {l1.qty.toLocaleString("pl-PL")}
+                  </span>
+                </span>
+                <span className="text-violet-300">·</span>
+                <span className="inline-flex items-center gap-1 text-sky-700">
+                  <span className="text-sky-500">CBM</span>
+                  <span className="tabular-nums font-semibold">
+                    {l1.cbm.toFixed(2)}
                   </span>
                 </span>
               </div>
@@ -4833,6 +4858,9 @@ function CategoryBreakdown({ items }: { items: Item[] }) {
                       <span className="truncate">↳ {l2.name}</span>
                       <span className="tabular-nums shrink-0 text-indigo-600">
                         {l2.skuCount}× / {l2.qty.toLocaleString("pl-PL")}szt
+                        <span className="ml-1 text-sky-600">
+                          · {l2.cbm.toFixed(2)}m³
+                        </span>
                       </span>
                     </li>
                   ))}
