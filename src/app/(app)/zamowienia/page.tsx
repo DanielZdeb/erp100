@@ -624,8 +624,19 @@ export default async function ZamowieniaPage({
               {rows.map((r) => {
                 const docsPct =
                   r.docsTotal > 0 ? (r.docsFilled / r.docsTotal) * 100 : 0;
+                // Wiersze "W magazynie" sa wygaszone — to zamkniety etap,
+                // user nie powinien sie nimi rozpraszac. Hover przywraca
+                // pelna widocznosc, klik dalej dziala normalnie.
+                const isArchived = r.status === "W_MAGAZYNIE";
                 return (
-                  <ClickableOrderRow key={r.id} href={`/zamowienia/${r.id}`}>
+                  <ClickableOrderRow
+                    key={r.id}
+                    href={`/zamowienia/${r.id}`}
+                    className={cn(
+                      isArchived &&
+                        "opacity-55 grayscale-[30%] bg-slate-50/60 hover:opacity-100 hover:grayscale-0",
+                    )}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <ProductsPreviewGrid
@@ -639,10 +650,17 @@ export default async function ZamowieniaPage({
                           usedCbm={r.usedCbm}
                         />
                         <div className="space-y-0.5 min-w-0">
-                          <OrderNumberCell
-                            orderId={r.id}
-                            orderNumber={r.orderNumber}
-                          />
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <OrderNumberCell
+                              orderId={r.id}
+                              orderNumber={r.orderNumber}
+                            />
+                            {isArchived && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-200 text-slate-600 ring-1 ring-slate-300 px-1.5 py-0 text-[9px] font-bold uppercase tracking-wide">
+                                ✓ Zamknięte
+                              </span>
+                            )}
+                          </div>
                           {r.name && (
                             <div className="text-[11px] text-foreground/70 truncate max-w-[220px]">
                               {r.name}
