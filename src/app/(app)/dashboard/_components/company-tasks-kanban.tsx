@@ -355,6 +355,15 @@ export function CompanyTasksKanban({
         })}
       </div>
 
+      {/* ── Panel "Zespół" — kafelki osób z avatarami i ich aktywnymi zadaniami */}
+      <TeamPanel
+        members={members}
+        tasks={tasksWithOverrides}
+        activeFilter={filter}
+        onSelectFilter={setFilter}
+        onOpenTask={(t) => setOpenTask(t)}
+      />
+
       <CompanyTaskDialog
         task={openTask}
         members={members}
@@ -374,5 +383,236 @@ export function CompanyTasksKanban({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Panel "Zespół" — karty osób z ich aktywnymi zadaniami ─────────
+
+function TeamPanel({
+  members,
+  tasks,
+  activeFilter,
+  onSelectFilter,
+  onOpenTask,
+}: {
+  members: TaskUser[];
+  tasks: CompanyTaskWithRelations[];
+  activeFilter: string;
+  onSelectFilter: (filter: string) => void;
+  onOpenTask: (t: CompanyTaskWithRelations) => void;
+}) {
+  // Grupowanie: per assignee (vs null = pula firmy)
+  const byAssignee = new Map<string | "POOL", CompanyTaskWithRelations[]>();
+  for (const t of tasks) {
+    if (t.status === "DONE") continue;
+    const key = t.assignedToId ?? "POOL";
+    const arr = byAssignee.get(key) ?? [];
+    arr.push(t);
+    byAssignee.set(key, arr);
+  }
+
+  // Sort wewnątrz osoby: po priorytecie (URGENT najpierw), potem po statusie
+  // (IN_PROGRESS przed TODO), potem po dueAt.
+  const priorityRank = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 } as const;
+  const statusRank = { IN_PROGRESS: 0, TODO: 1, DONE: 2 } as const;
+  for (const arr of byAssignee.values()) {
+    arr.sort((a, b) => {
+      const pa = priorityRank[a.priority];
+      const pb = priorityRank[b.priority];
+      if (pa !== pb) return pa - pb;
+      const sa = statusRank[a.status];
+      const sb = statusRank[b.status];
+      if (sa !== sb) return sa - sb;
+      const da = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+      const db = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+      return da - db;
+    });
+  }
+
+  // Kafelki: najpierw "Pula firmy", potem osoby (sortowane po liczbie zadań desc)
+  const cards: Array<{
+    key: string;
+    filterKey: string;
+    title: string;
+    subtitle: string | null;
+    color: string;
+    initials: string;
+    tasks: CompanyTaskWithRelations[];
+  }> = [];
+
+  const poolTasks = byAssignee.get("POOL") ?? [];
+  cards.push({
+    key: "POOL",
+    filterKey: "unassigned",
+    title: "Pula firmy",
+    subtitle: "Nieprzypisane",
+    color: "bg-slate-700",
+    initials: "??",
+    tasks: poolTasks,
+  });
+
+  const sortedMembers = [...members].sort((a, b) => {
+    const ac = (byAssignee.get(a.id) ?? []).length;
+    const bc = (byAssignee.get(b.id) ?? []).length;
+    return bc - ac;
+  });
+  for (const m of sortedMembers) {
+    cards.push({
+      key: m.id,
+      filterKey: m.id,
+      title: m.name ?? m.email,
+      subtitle: m.name ? m.email : null,
+      color: userColor(m.id),
+      initials: initials(m.name ?? m.email),
+      tasks: byAssignee.get(m.id) ?? [],
+    });
+  }
+
+  return (
+    <section className="space-y-3 pt-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-xs uppercase tracking-wide font-bold text-slate-700">
+          Zespół — kto co robi
+        </h3>
+        <span className="text-[10px] text-muted-foreground">
+          · klik osoby filtruje Kanban, klik zadania otwiera szczegóły
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {cards.map((c) => {
+          const isActive = activeFilter === c.filterKey;
+          const visible = c.tasks.slice(0, 5);
+          const rest = c.tasks.length - visible.length;
+          return (
+            <div
+              key={c.key}
+              className={cn(
+                "rounded-xl ring-1 bg-white p-3 space-y-2 transition-all",
+                isActive
+                  ? "ring-2 ring-violet-500 shadow-md"
+                  : "ring-slate-200 hover:ring-violet-300 hover:shadow-sm",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onSelectFilter(isActive ? "all" : c.filterKey)}
+                className="w-full flex items-center gap-2.5 text-left"
+                title={
+                  isActive
+                    ? "Klik: wyczyść filtr"
+                    : `Klik: pokaż tylko zadania ${c.title}`
+                }
+              >
+                <div
+                  className={cn(
+                    "size-9 rounded-full grid place-items-center text-xs font-bold text-white shrink-0 shadow-sm",
+                    c.color,
+                  )}
+                >
+                  {c.initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-900 truncate">
+                    {c.title}
+                  </div>
+                  {c.subtitle && (
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {c.subtitle}
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0 text-right">
+                  <div
+                    className={cn(
+                      "text-base font-bold tabular-nums leading-none",
+                      c.tasks.length === 0
+                        ? "text-slate-400"
+                        : "text-violet-700",
+                    )}
+                  >
+                    {c.tasks.length}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wide leading-tight">
+                    aktyw.
+                  </div>
+                </div>
+              </button>
+
+              {/* Lista zadań osoby */}
+              {visible.length > 0 ? (
+                <ul className="space-y-1 pt-1 border-t border-slate-100">
+                  {visible.map((t) => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenTask(t)}
+                        className="w-full flex items-center gap-2 text-left rounded px-1.5 py-1 hover:bg-slate-50 transition-colors group"
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full shrink-0",
+                            t.status === "IN_PROGRESS"
+                              ? "bg-amber-500"
+                              : "bg-violet-400",
+                          )}
+                          title={
+                            t.status === "IN_PROGRESS" ? "Robię" : "Do zrobienia"
+                          }
+                        />
+                        <span
+                          className={cn(
+                            "flex-1 text-xs truncate text-slate-700 group-hover:text-slate-900",
+                            t.priority === "URGENT" &&
+                              "font-semibold text-rose-700",
+                          )}
+                        >
+                          {t.priority === "URGENT" && "🔥 "}
+                          {t.title}
+                        </span>
+                        {t.dueAt && (
+                          <span
+                            className={cn(
+                              "text-[9px] tabular-nums shrink-0",
+                              new Date(t.dueAt) < new Date()
+                                ? "text-rose-600 font-semibold"
+                                : "text-slate-400",
+                            )}
+                          >
+                            {new Date(t.dueAt).toLocaleDateString("pl-PL", {
+                              day: "2-digit",
+                              month: "2-digit",
+                            })}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                  {rest > 0 && (
+                    <li className="pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSelectFilter(isActive ? "all" : c.filterKey)
+                        }
+                        className="w-full text-left text-[10px] text-violet-600 hover:text-violet-800 font-medium px-1.5"
+                      >
+                        + {rest}{" "}
+                        {rest === 1 ? "więcej" : rest < 5 ? "więcej" : "więcej"}
+                        …
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              ) : (
+                <div className="text-[10px] text-muted-foreground/60 italic pt-1 border-t border-slate-100">
+                  Brak aktywnych zadań
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
