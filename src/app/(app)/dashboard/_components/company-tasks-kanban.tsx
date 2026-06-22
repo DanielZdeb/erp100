@@ -7,6 +7,8 @@ import {
   Circle,
   Loader2,
   Plus,
+  Trash2,
+  UserPlus,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -15,7 +17,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { changeCompanyTaskStatusAction } from "@/server/company-tasks";
+import { removeTeamMemberAction } from "@/server/team-members";
 
+import { AddTeamMemberDialog } from "./add-team-member-dialog";
 import { CompanyTaskCard } from "./company-task-card";
 import { CompanyTaskDialog } from "./company-task-dialog";
 import { CompanyTaskCreateDialog } from "./company-task-create-dialog";
@@ -113,6 +117,7 @@ export function CompanyTasksKanban({
     null,
   );
   const [createOpen, setCreateOpen] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [createDefaults, setCreateDefaults] = useState<{
     status: CompanyTaskStatusT;
     assignee: string;
@@ -289,14 +294,25 @@ export function CompanyTasksKanban({
             );
           })}
         </div>
-        <Button
-          type="button"
-          onClick={() => openCreate("TODO")}
-          className="gap-1.5"
-        >
-          <Plus className="size-4" />
-          Nowe zadanie
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAddMemberOpen(true)}
+            className="gap-1.5"
+          >
+            <UserPlus className="size-4" />
+            Dodaj osobę
+          </Button>
+          <Button
+            type="button"
+            onClick={() => openCreate("TODO")}
+            className="gap-1.5"
+          >
+            <Plus className="size-4" />
+            Nowe zadanie
+          </Button>
+        </div>
       </div>
 
       {/* Kanban: 3 kolumny z kolorowym paskiem u góry */}
@@ -432,6 +448,10 @@ export function CompanyTasksKanban({
         defaultStatus={createDefaults.status}
         defaultAssigneeId={createDefaults.assignee}
       />
+      <AddTeamMemberDialog
+        open={addMemberOpen}
+        onClose={() => setAddMemberOpen(false)}
+      />
       {pending && (
         <div className="fixed bottom-4 right-4 bg-slate-900 text-white text-xs rounded-full px-3 py-1.5 shadow-lg">
           Zapisuję…
@@ -456,6 +476,29 @@ function TeamPanel({
   onSelectFilter: (filter: string) => void;
   onOpenTask: (t: CompanyTaskWithRelations) => void;
 }) {
+  const router = useRouter();
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  function removeMember(userId: string, name: string) {
+    if (
+      !confirm(
+        `Usunąć ${name} z zespołu? Zadania pozostaną, ale stracą przypisanie.`,
+      )
+    ) {
+      return;
+    }
+    setRemovingId(userId);
+    removeTeamMemberAction(userId)
+      .then(() => {
+        toast.success("Usunięto z zespołu");
+        router.refresh();
+      })
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : "Nie udało się");
+      })
+      .finally(() => setRemovingId(null));
+  }
+
   // Grupowanie: per assignee (vs null = pula firmy)
   const byAssignee = new Map<string | "POOL", CompanyTaskWithRelations[]>();
   for (const t of tasks) {
@@ -543,12 +586,28 @@ function TeamPanel({
             <div
               key={c.key}
               className={cn(
-                "rounded-xl ring-1 bg-white p-3 space-y-2 transition-all",
+                "group/card relative rounded-xl ring-1 bg-white p-3 space-y-2 transition-all",
                 isActive
                   ? "ring-2 ring-violet-500 shadow-md"
                   : "ring-slate-200 hover:ring-violet-300 hover:shadow-sm",
+                removingId === c.key && "opacity-50 pointer-events-none",
               )}
             >
+              {/* Usuń osobę (X w hover) — tylko dla osób, nie dla Puli */}
+              {c.key !== "POOL" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeMember(c.key, c.title);
+                  }}
+                  className="absolute top-1.5 right-1.5 size-5 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-700 grid place-items-center opacity-0 group-hover/card:opacity-100 transition-opacity"
+                  title="Usuń z zespołu"
+                  aria-label="Usuń z zespołu"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onSelectFilter(isActive ? "all" : c.filterKey)}
