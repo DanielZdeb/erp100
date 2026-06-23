@@ -4729,13 +4729,28 @@ function CategoryBreakdown({
   items: Item[];
   cbmByItemId: Map<string, ContainerResult["items"][number]>;
 }) {
-  // Group: L1 -> L2 -> { skuCount, qtySum, cbm }
-  type L2Bucket = { name: string; skuCount: number; qty: number; cbm: number };
+  // Group: L1 -> L2 z agregatami: SKU/qty/CBM + koszty (fabryka/prowizja/
+  // logistyka/clo/landed). Każdy bucket pamięta swoje totale w PLN netto.
+  type CostAgg = {
+    goods: number; // FABRYKA — wartość towaru netto
+    logistics: number; // transport + opłaty terminalowe + cło-relatywne (allocatedLogisticsPln)
+    commission: number; // prowizja pośrednika (broker)
+    customs: number; // cło
+    landed: number; // suma: fabryka + logistyka + cło + prowizja
+  };
+  type L2Bucket = {
+    name: string;
+    skuCount: number;
+    qty: number;
+    cbm: number;
+    cost: CostAgg;
+  };
   type L1Bucket = {
     name: string;
     skuCount: number;
     qty: number;
     cbm: number;
+    cost: CostAgg;
     l2s: Map<string, L2Bucket>;
   };
   const byL1 = new Map<string, L1Bucket>();
@@ -4743,34 +4758,82 @@ function CategoryBreakdown({
   let totalSkus = 0;
   let totalQty = 0;
   let totalCbm = 0;
+  const totalCost: CostAgg = {
+    goods: 0,
+    logistics: 0,
+    commission: 0,
+    customs: 0,
+    landed: 0,
+  };
 
   for (const it of items) {
     totalSkus += 1;
     totalQty += it.quantity;
-    const itemCbm = cbmByItemId.get(it.id)?.totalCbm ?? 0;
+    const calc = cbmByItemId.get(it.id);
+    const itemCbm = calc?.totalCbm ?? 0;
+    const itemGoods = calc?.goodsValuePln ?? 0;
+    const itemLogistics = calc?.allocatedLogisticsPln ?? 0;
+    const itemCommission = calc?.allocatedBrokerCommissionPln ?? 0;
+    const itemCustoms = calc?.customsDutyPln ?? 0;
+    const itemLanded =
+      calc?.landedTotalPln ??
+      itemGoods + itemLogistics + itemCommission + itemCustoms;
     totalCbm += itemCbm;
+    totalCost.goods += itemGoods;
+    totalCost.logistics += itemLogistics;
+    totalCost.commission += itemCommission;
+    totalCost.customs += itemCustoms;
+    totalCost.landed += itemLanded;
+
     const { l1Name, l2Name } = getCategoryGroupLabels(it.product.category);
     const l1Key = l1Name ?? "Bez kategorii";
     const l2Key = l2Name ?? "—";
     let l1 = byL1.get(l1Key);
     if (!l1) {
-      l1 = { name: l1Key, skuCount: 0, qty: 0, cbm: 0, l2s: new Map() };
+      l1 = {
+        name: l1Key,
+        skuCount: 0,
+        qty: 0,
+        cbm: 0,
+        cost: { goods: 0, logistics: 0, commission: 0, customs: 0, landed: 0 },
+        l2s: new Map(),
+      };
       byL1.set(l1Key, l1);
     }
     l1.skuCount += 1;
     l1.qty += it.quantity;
     l1.cbm += itemCbm;
+    l1.cost.goods += itemGoods;
+    l1.cost.logistics += itemLogistics;
+    l1.cost.commission += itemCommission;
+    l1.cost.customs += itemCustoms;
+    l1.cost.landed += itemLanded;
     let l2 = l1.l2s.get(l2Key);
     if (!l2) {
-      l2 = { name: l2Key, skuCount: 0, qty: 0, cbm: 0 };
+      l2 = {
+        name: l2Key,
+        skuCount: 0,
+        qty: 0,
+        cbm: 0,
+        cost: { goods: 0, logistics: 0, commission: 0, customs: 0, landed: 0 },
+      };
       l1.l2s.set(l2Key, l2);
     }
     l2.skuCount += 1;
     l2.qty += it.quantity;
     l2.cbm += itemCbm;
+    l2.cost.goods += itemGoods;
+    l2.cost.logistics += itemLogistics;
+    l2.cost.commission += itemCommission;
+    l2.cost.customs += itemCustoms;
+    l2.cost.landed += itemLanded;
   }
 
   const l1List = Array.from(byL1.values()).sort((a, b) => b.qty - a.qty);
+
+  // Krótki PLN: 12 543 zł, bez grosze (w nagłówku kompaktowo).
+  const fmtPlnCompact = (n: number): string =>
+    `${Math.round(n).toLocaleString("pl-PL")} zł`;
 
   function downloadCsv() {
     // Excel-friendly CSV: separator średnik (Excel pl-PL), BOM UTF-8 dla
@@ -4898,6 +4961,30 @@ function CategoryBreakdown({
         </div>
       </div>
 
+      {/* Pasek sum kosztów: fabryka + logistyka + prowizja + cło = razem (landed) */}
+      {totalCost.landed > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-lg ring-1 ring-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+          <CostCell label="Fabryka" value={totalCost.goods} accent="slate" />
+          <CostCell
+            label="Logistyka"
+            value={totalCost.logistics}
+            accent="indigo"
+          />
+          <CostCell label="Cło" value={totalCost.customs} accent="amber" />
+          <CostCell
+            label="Prowizja"
+            value={totalCost.commission}
+            accent="amber"
+          />
+          <CostCell
+            label="Razem"
+            value={totalCost.landed}
+            accent="emerald"
+            bold
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
         {l1List.map((l1) => {
           const l2List = Array.from(l1.l2s.values()).sort(
@@ -4945,13 +5032,44 @@ function CategoryBreakdown({
                   style={{ width: `${qtyShare}%` }}
                 />
               </div>
-              {/* Subcategories — grid: nazwa | szt | cbm (wyrównane kolumny) */}
+              {/* Sumy kosztow per kategoria (L1): fabryka + logistyka = razem */}
+              {l1.cost.landed > 0 && (
+                <div className="rounded bg-white/70 ring-1 ring-violet-100 px-2 py-1.5 grid grid-cols-3 gap-1 text-[10px]">
+                  <div>
+                    <div className="text-slate-400 uppercase tracking-wide">
+                      Fabryka
+                    </div>
+                    <div className="tabular-nums font-semibold text-slate-700">
+                      {fmtPlnCompact(l1.cost.goods)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 uppercase tracking-wide">
+                      Logistyka
+                    </div>
+                    <div className="tabular-nums font-semibold text-indigo-700">
+                      {fmtPlnCompact(
+                        l1.cost.logistics + l1.cost.customs + l1.cost.commission,
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 uppercase tracking-wide">
+                      Razem
+                    </div>
+                    <div className="tabular-nums font-bold text-emerald-700">
+                      {fmtPlnCompact(l1.cost.landed)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Subcategories — grid: nazwa | szt | cbm | landed (wyrównane kolumny) */}
               {l2List.length > 0 && (
                 <ul className="pt-1 space-y-0.5">
                   {l2List.map((l2) => (
                     <li
                       key={l2.name}
-                      className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 text-[11px]"
+                      className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-[11px]"
                     >
                       <span className="truncate text-indigo-800">
                         ↳ {l2.name}
@@ -4962,6 +5080,12 @@ function CategoryBreakdown({
                       <span className="tabular-nums text-sky-700 font-medium text-right min-w-[52px]">
                         {l2.cbm.toFixed(2)} m³
                       </span>
+                      <span
+                        className="tabular-nums text-emerald-700 font-semibold text-right min-w-[60px]"
+                        title={`Fabryka ${fmtPlnCompact(l2.cost.goods)} + logistyka/cło/prowizja ${fmtPlnCompact(l2.cost.logistics + l2.cost.customs + l2.cost.commission)}`}
+                      >
+                        {l2.cost.landed > 0 ? fmtPlnCompact(l2.cost.landed) : "—"}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -4971,6 +5095,43 @@ function CategoryBreakdown({
         })}
       </div>
     </Card>
+  );
+}
+
+// Małe pole metryki w pasku sum (label nad kwotą). `accent` steruje kolorem
+// kwoty — szybkie skojarzenie z rolą kosztu (towar/logistyka/cło/razem).
+function CostCell({
+  label,
+  value,
+  accent,
+  bold,
+}: {
+  label: string;
+  value: number;
+  accent: "slate" | "indigo" | "amber" | "emerald";
+  bold?: boolean;
+}) {
+  const accentClass = {
+    slate: "text-slate-800",
+    indigo: "text-indigo-700",
+    amber: "text-amber-700",
+    emerald: "text-emerald-700",
+  }[accent];
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "tabular-nums",
+          bold ? "text-base font-bold" : "text-sm font-semibold",
+          accentClass,
+        )}
+      >
+        {`${Math.round(value).toLocaleString("pl-PL")} zł`}
+      </div>
+    </div>
   );
 }
 
