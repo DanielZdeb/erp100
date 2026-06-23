@@ -9,6 +9,7 @@ import {
   ChartPie,
   ChevronRight,
   Coins,
+  Download,
   Factory,
   FileText,
   GripVertical,
@@ -4771,6 +4772,94 @@ function CategoryBreakdown({
 
   const l1List = Array.from(byL1.values()).sort((a, b) => b.qty - a.qty);
 
+  function downloadCsv() {
+    // Excel-friendly CSV: separator średnik (Excel pl-PL), BOM UTF-8 dla
+    // poprawnych polskich znaków, liczby z przecinkiem dziesietnym.
+    const fmtNum = (n: number) =>
+      n.toLocaleString("pl-PL", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+        useGrouping: false,
+      });
+    const csvEscape = (v: unknown): string => {
+      const s = v == null ? "" : String(v);
+      if (s.includes(";") || s.includes("\"") || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    const header = [
+      "SKU",
+      "Nazwa produktu",
+      "Kategoria",
+      "Ilosc (szt)",
+      "CBM/szt (m3)",
+      "CBM razem (m3)",
+      "Pudelko Sz (cm)",
+      "Pudelko W (cm)",
+      "Pudelko G (cm)",
+      "Sztuk w pudelku",
+    ];
+    const lines: string[] = [header.map(csvEscape).join(";")];
+    let sumQty = 0;
+    let sumCbm = 0;
+    for (const it of items) {
+      const c = cbmByItemId.get(it.id);
+      const cbmPerUnit = c?.cbmPerUnit ?? it.product.cbmPerUnit ?? 0;
+      const totalCbmItem = c?.totalCbm ?? cbmPerUnit * it.quantity;
+      const factoryPin =
+        it.product.shippingBoxes.find(
+          (b) => b.purpose === "FACTORY" && b.isPrimary,
+        ) ??
+        it.product.shippingBoxes.find((b) => b.purpose === "FACTORY") ??
+        null;
+      const boxW = factoryPin?.box.widthCm ?? it.product.boxWidthCm ?? null;
+      const boxH = factoryPin?.box.heightCm ?? it.product.boxHeightCm ?? null;
+      const boxD = factoryPin?.box.depthCm ?? it.product.boxDepthCm ?? null;
+      const upb = factoryPin?.unitsPerBox ?? it.product.unitsPerBox ?? null;
+      const { l1Name, l2Name } = getCategoryGroupLabels(it.product.category);
+      const cat = [l1Name, l2Name].filter(Boolean).join(" / ") || "—";
+      sumQty += it.quantity;
+      sumCbm += totalCbmItem;
+      lines.push(
+        [
+          it.product.productCode,
+          it.product.name,
+          cat,
+          it.quantity,
+          fmtNum(cbmPerUnit),
+          fmtNum(totalCbmItem),
+          boxW ?? "",
+          boxH ?? "",
+          boxD ?? "",
+          upb ?? "",
+        ]
+          .map(csvEscape)
+          .join(";"),
+      );
+    }
+    // Wiersz podsumowania na dole
+    lines.push("");
+    lines.push(
+      ["RAZEM", "", "", sumQty, "", fmtNum(sumCbm), "", "", "", ""]
+        .map(csvEscape)
+        .join(";"),
+    );
+    const blob = new Blob(["﻿" + lines.join("\r\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `licznik-kategorii-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -4796,6 +4885,16 @@ function CategoryBreakdown({
               {totalCbm.toFixed(2)} m³
             </span>
           </div>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            disabled={items.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-md ring-1 ring-violet-300 bg-white text-violet-700 hover:bg-violet-50 px-2.5 py-1 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Pobierz CSV z listą produktów (Excel-friendly)"
+          >
+            <Download className="size-3.5" />
+            Pobierz CSV
+          </button>
         </div>
       </div>
 

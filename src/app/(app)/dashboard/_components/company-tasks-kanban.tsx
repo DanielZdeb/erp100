@@ -261,36 +261,65 @@ export function CompanyTasksKanban({
             const count = memberCounts.counts.get(m.id) ?? 0;
             const isActive = filter === m.id;
             return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setFilter(m.id)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs font-medium ring-1 transition-colors",
-                  isActive
-                    ? "bg-violet-600 text-white ring-violet-600"
-                    : "bg-white text-slate-700 ring-slate-300 hover:bg-slate-50",
-                )}
-                title={m.email}
-              >
-                <span
+              <div key={m.id} className="relative group/chip">
+                <button
+                  type="button"
+                  onClick={() => setFilter(m.id)}
                   className={cn(
-                    "size-5 rounded-full grid place-items-center text-[9px] font-bold text-white",
-                    userColor(m.id),
+                    "inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs font-medium ring-1 transition-colors",
+                    isActive
+                      ? "bg-violet-600 text-white ring-violet-600"
+                      : "bg-white text-slate-700 ring-slate-300 hover:bg-slate-50",
                   )}
+                  title={m.email}
                 >
-                  {initials(m.name ?? m.email)}
-                </span>
-                <span>{m.name ?? m.email}</span>
-                <span
-                  className={cn(
-                    "tabular-nums",
-                    isActive ? "opacity-80" : "opacity-50",
-                  )}
+                  <span
+                    className={cn(
+                      "size-5 rounded-full grid place-items-center text-[9px] font-bold text-white",
+                      userColor(m.id),
+                    )}
+                  >
+                    {initials(m.name ?? m.email)}
+                  </span>
+                  <span>{m.name ?? m.email}</span>
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      isActive ? "opacity-80" : "opacity-50",
+                    )}
+                  >
+                    · {count}
+                  </span>
+                </button>
+                {/* X usun w hover — pasek zespołu też ma szybką akcję usuwania */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (
+                      !confirm(
+                        `Usunąć ${m.name ?? m.email} z zespołu? Zadania pozostaną, ale stracą przypisanie.`,
+                      )
+                    )
+                      return;
+                    removeTeamMemberAction(m.id)
+                      .then(() => {
+                        toast.success("Usunięto z zespołu");
+                        router.refresh();
+                      })
+                      .catch((err) => {
+                        toast.error(
+                          err instanceof Error ? err.message : "Nie udało się",
+                        );
+                      });
+                  }}
+                  className="absolute -top-1 -right-1 size-4 rounded-full bg-rose-600 text-white grid place-items-center opacity-0 group-hover/chip:opacity-100 transition-opacity shadow-sm ring-2 ring-white"
+                  title="Usuń z zespołu"
+                  aria-label="Usuń z zespołu"
                 >
-                  · {count}
-                </span>
-              </button>
+                  <span className="text-[10px] leading-none">×</span>
+                </button>
+              </div>
             );
           })}
         </div>
