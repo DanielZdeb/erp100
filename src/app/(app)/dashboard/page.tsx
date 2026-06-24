@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const companyId = await getCurrentCompanyId();
+  const session = await auth();
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id ?? null;
   const [companyTasks, members] = await Promise.all([
     db.companyTask.findMany({
       where: { companyId },
@@ -84,6 +87,7 @@ export default async function DashboardPage() {
           <CompanyTasksKanban
             tasks={tasksForClient}
             members={membersForClient}
+            currentUserId={currentUserId}
           />
         </div>
       </section>

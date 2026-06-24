@@ -101,10 +101,20 @@ function userColor(id: string): string {
 export function CompanyTasksKanban({
   tasks,
   members,
+  currentUserId,
 }: {
   tasks: CompanyTaskWithRelations[];
   members: TaskUser[];
+  /** Zalogowany user. Ukrywany z paska "ZESPOL" i panelu osob — "Zespol"
+   *  to inni czlonkowie firmy, swoje zadania widzisz przez filtr "Wszyscy".
+   *  W dialogu zadania (przypisanie) widac pelna liste, lacznie z soba. */
+  currentUserId?: string | null;
 }) {
+  // Lista osob WIDOCZNYCH na pasku/panelu — bez siebie. Dialogi (Create/Edit)
+  // dostaja pelne `members`, zeby mozna bylo przypisac zadanie sobie.
+  const displayMembers = currentUserId
+    ? members.filter((m) => m.id !== currentUserId)
+    : members;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -257,7 +267,7 @@ export function CompanyTasksKanban({
               ({memberCounts.unassigned})
             </span>
           </button>
-          {members.map((m) => {
+          {displayMembers.map((m) => {
             const count = memberCounts.counts.get(m.id) ?? 0;
             const isActive = filter === m.id;
             return (
@@ -457,7 +467,7 @@ export function CompanyTasksKanban({
 
       {/* ── Panel "Zespół" — kafelki osób z avatarami i ich aktywnymi zadaniami */}
       <TeamPanel
-        members={members}
+        members={displayMembers}
         tasks={tasksWithOverrides}
         activeFilter={filter}
         onSelectFilter={setFilter}
