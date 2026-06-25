@@ -3451,20 +3451,54 @@ function BarcodeModal({
   state: { item: Item; format: "EAN13" | "CODE128" } | null;
   onClose: () => void;
 }) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadA6() {
+    if (!state) return;
+    setDownloading(true);
+    try {
+      const { generateBarcodesMultipagePdf } = await import(
+        "./barcodes-per-product"
+      );
+      const result = await generateBarcodesMultipagePdf([
+        {
+          productCode: state.item.product.productCode,
+          productName: state.item.product.name,
+          color: null,
+          eanCode: state.item.product.eanCode,
+          code128: state.item.product.code128,
+        },
+      ]);
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `etykieta-${state.item.product.productCode}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <Dialog open={state !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        {state && <BarcodeBody item={state.item} format={state.format} />}
+      <DialogContent className="max-w-sm">
+        {state && <BarcodeBody item={state.item} />}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             Zamknij
           </Button>
           <Button
             type="button"
-            onClick={() => window.print()}
+            onClick={downloadA6}
+            disabled={downloading}
             className="gap-2"
           >
-            Drukuj / Zapisz PDF
+            {downloading ? "Generuję..." : "Pobierz PDF (A6)"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -3472,81 +3506,96 @@ function BarcodeModal({
   );
 }
 
-function BarcodeBody({
-  item,
-  format,
-}: {
-  item: Item;
-  format: "EAN13" | "CODE128";
-}) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Podgląd etykiety w formacie A6 portrait (105×148mm) — identyczny układ
+ * jak w `barcodes-per-product.ts:drawProductPage`:
+ *  - SKU bold wycentrowany
+ *  - Nazwa produktu wycentrowana
+ *  - EAN-13 i CODE-128 stacked, oba widoczne jeśli istnieją
+ * Aspekt 105/148 zachowany via aspect-ratio CSS.
+ */
+function BarcodeBody({ item }: { item: Item }) {
+  const eanRef = useRef<SVGSVGElement>(null);
+  const code128Ref = useRef<SVGSVGElement>(null);
 
-  const data =
-    format === "EAN13"
-      ? item.product.eanCode ?? ""
-      : sanitizeAscii(item.product.code128 ?? "");
-  const validationError =
-    format === "EAN13" && !/^\d{13}$/.test(data)
-      ? "EAN-13 wymaga 13 cyfr w polu Kod EAN."
-      : !data
-        ? format === "CODE128"
-          ? 'Brak kodu CODE-128 — uzupełnij pole „CODE128" w danych produktu.'
-          : "Brak danych do wygenerowania kodu."
-        : null;
+  const ean = (item.product.eanCode ?? "").trim();
+  const code128Raw = (item.product.code128 ?? "").trim();
+  const code128 = sanitizeAscii(code128Raw);
+
+  const eanValid = /^\d{13}$/.test(ean);
+  const code128Valid = code128.length > 0 && /^[\x20-\x7E]+$/.test(code128);
 
   useEffect(() => {
-    if (!svgRef.current || !data || validationError) {
-      setError(null);
-      return;
+    if (eanRef.current && eanValid) {
+      try {
+        JsBarcode(eanRef.current, ean, {
+          format: "EAN13",
+          displayValue: true,
+          fontSize: 18,
+          margin: 4,
+          height: 80,
+          width: 2.2,
+        });
+      } catch {
+        /* noop */
+      }
     }
-    try {
-      JsBarcode(svgRef.current, data, {
-        format,
-        displayValue: true,
-        fontSize: 16,
-        margin: 8,
-        height: 70,
-        width: 2,
-      });
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setError(null);
-    } catch (e) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-            ? e
-            : "Błąd generowania";
-      setError(`JsBarcode: ${msg}`);
+    if (code128Ref.current && code128Valid) {
+      try {
+        JsBarcode(code128Ref.current, code128, {
+          format: "CODE128",
+          displayValue: true,
+          fontSize: 16,
+          margin: 4,
+          height: 70,
+          width: 2,
+        });
+      } catch {
+        /* noop */
+      }
     }
-  }, [data, format, validationError]);
-
-  const finalError = validationError ?? error;
+  }, [ean, code128, eanValid, code128Valid]);
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>
-          {format === "EAN13" ? "Kod EAN-13" : "Code 128"} — {item.product.name}
-        </DialogTitle>
+        <DialogTitle>Etykieta A6 — {item.product.name}</DialogTitle>
       </DialogHeader>
       <div className="space-y-3">
-        {finalError ? (
+        {!eanValid && !code128Valid ? (
           <Alert variant="destructive">
-            <AlertDescription>{finalError}</AlertDescription>
+            <AlertDescription>
+              Brak prawidłowego EAN-13 ani CODE-128 dla tego produktu.
+            </AlertDescription>
           </Alert>
         ) : (
-          <div className="print-label-container bg-white p-4 ring-1 ring-border rounded-md flex flex-col items-center gap-2">
-            <div className="font-semibold text-sm text-center">
-              {item.product.name}
+          <div className="bg-slate-100 rounded-md p-4 flex justify-center">
+            {/* A6 portrait podgląd — aspect 105/148 ≈ 0.71 */}
+            <div
+              className="bg-white ring-1 ring-slate-300 shadow-sm flex flex-col items-center px-6 py-5 gap-3 w-full"
+              style={{ aspectRatio: "105 / 148", maxWidth: "260px" }}
+            >
+              <div className="text-lg font-bold text-center text-slate-900 leading-tight break-all">
+                {item.product.productCode}
+              </div>
+              <div className="text-[11px] text-center text-slate-700 leading-snug line-clamp-2">
+                {item.product.name}
+              </div>
+              <div className="flex-1 flex flex-col justify-center items-center gap-2 w-full">
+                {eanValid && (
+                  <svg ref={eanRef} className="max-w-full" />
+                )}
+                {code128Valid && (
+                  <svg ref={code128Ref} className="max-w-full" />
+                )}
+              </div>
             </div>
-            <code className="text-xs text-muted-foreground">
-              {item.product.productCode}
-            </code>
-            <svg ref={svgRef} />
           </div>
         )}
+        <p className="text-[10px] text-muted-foreground text-center">
+          Podgląd 105×148mm (A6). Kliknij „Pobierz PDF (A6)" żeby zapisać do
+          druku — identyczny układ jak w ZIPie z etykietami.
+        </p>
       </div>
     </>
   );
