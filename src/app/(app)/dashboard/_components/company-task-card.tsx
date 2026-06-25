@@ -172,24 +172,30 @@ export function CompanyTaskCard({
         {task.title}
       </div>
 
-      {/* Description preview — opis jest HTML z TipTapa (StarterKit, bezpieczny);
-          stripujemy do plain textu dla zwięzłej miniaturki na karcie. Pełen
-          formatting widać w dialogu edycji. */}
+      {/* Description preview — opis to HTML z TipTapa (StarterKit, bezpieczny).
+          Renderujemy formatowanie (bold/italic/listy/nagłówki), z liniowym
+          przycięciem (line-clamp-3) + tight resetem marginesów żeby karta
+          się nie rozjeżdżała. */}
       {task.description &&
         (() => {
           const plain = task.description
-            .replace(/<\/(p|div|h\d|li|br)>/gi, "\n")
             .replace(/<[^>]+>/g, "")
             .replace(/&nbsp;/g, " ")
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
             .trim();
           if (!plain) return null;
           return (
-            <div className="text-[11px] text-slate-500 line-clamp-2 leading-snug whitespace-pre-line">
-              {plain}
-            </div>
+            <div
+              className={cn(
+                "text-[11px] text-slate-600 leading-snug line-clamp-3",
+                "[&_*]:m-0 [&_p]:m-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_ul]:list-disc [&_ol]:list-decimal",
+                "[&_li]:my-0 [&_strong]:font-semibold [&_em]:italic",
+                "[&_h1]:text-[12px] [&_h1]:font-bold [&_h2]:text-[12px] [&_h2]:font-bold",
+                "[&_h3]:text-[11px] [&_h3]:font-semibold [&_h4]:font-semibold",
+                "[&_a]:text-violet-600 [&_a]:underline",
+                "[&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-[10px]",
+              )}
+              dangerouslySetInnerHTML={{ __html: task.description }}
+            />
           );
         })()}
 
