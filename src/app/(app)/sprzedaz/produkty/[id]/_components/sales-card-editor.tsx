@@ -684,21 +684,21 @@ function PreviewSlot({
 function SectionDivider({ logoUrl }: { logoUrl: string | null }) {
   return (
     <div
-      className="flex items-center justify-center gap-3 sm:gap-5 py-4 select-none"
+      className="flex items-center justify-center gap-3 py-3 select-none"
       aria-hidden="true"
     >
-      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-700 to-slate-800 max-w-[40%]" />
+      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-slate-400 max-w-[42%]" />
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={logoUrl}
           alt=""
-          className="h-10 sm:h-12 w-auto shrink-0 object-contain"
+          className="h-5 w-auto shrink-0 object-contain opacity-60"
         />
       ) : (
-        <span className="size-2 rounded-full bg-slate-700 shrink-0" />
+        <span className="size-1.5 rounded-full bg-slate-400 shrink-0" />
       )}
-      <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-700 to-slate-800 max-w-[40%]" />
+      <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-300 to-slate-400 max-w-[42%]" />
     </div>
   );
 }
