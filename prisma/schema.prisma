@@ -539,6 +539,10 @@ model Product {
   /// Wypełniona treść: `{ [sectionId]: { leftText?, rightText?, leftImageUrl?, rightImageUrl? } }`.
   /// Schemat treści zależy od `layout` sekcji w szablonie (frontend filtruje).
   descriptionContentJson Json?
+  /// Notatki sprzedażowe — wolny tekst od operatora (cechy, USP, materiał,
+  /// wymiary, na co zwrócić uwagę). Dołączane jako KONTEKST do każdego promptu
+  /// generującego tekst/szablon AI w /sprzedaz/produkty/[id].
+  salesNotes             String?
 
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())

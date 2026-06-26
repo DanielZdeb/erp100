@@ -253,6 +253,32 @@ export async function setProductDescriptionTemplateAction(
   return { ok: true as const };
 }
 
+/**
+ * Zapis notatek sprzedażowych produktu — wolny tekst od operatora,
+ * dołączany jako kontekst do każdego promptu AI generującego tekst/szablon.
+ */
+export async function updateProductSalesNotesAction(
+  productId: string,
+  notes: string,
+) {
+  await requireUser();
+  const companyId = await getCurrentCompanyId();
+
+  const product = await db.product.findFirst({
+    where: { id: productId, companyId },
+    select: { id: true },
+  });
+  if (!product) throw new Error("Produkt nie istnieje.");
+
+  await db.product.update({
+    where: { id: productId },
+    data: { salesNotes: notes.trim() || null },
+  });
+
+  revalidatePath(`/sprzedaz/produkty/${productId}`);
+  return { ok: true as const };
+}
+
 /** Zapis wypełnionego contentu per sekcja na karcie produktu. */
 const contentSchema = z.record(
   z.string(),
@@ -294,6 +320,7 @@ export async function generateSectionTextAction(
           productCode: true,
           color: true,
           shortDescription: true,
+          salesNotes: true,
           category: { select: { name: true } },
         },
       }),
@@ -331,6 +358,7 @@ export async function generateSectionTextAction(
       product.category?.name && `Category: ${product.category.name}`,
       product.color && `Color: ${product.color}`,
       product.shortDescription && `Short description: ${product.shortDescription}`,
+      product.salesNotes && `Operator notes about this product (USE THESE FACTS):\n${product.salesNotes}`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -589,6 +617,7 @@ export async function aiGenerateSalesDraftForProductAction(
         colorCode: true,
         weightKg: true,
         shortDescription: true,
+        salesNotes: true,
         category: { select: { name: true } },
       },
     });
@@ -608,6 +637,7 @@ export async function aiGenerateSalesDraftForProductAction(
       product.colorCode && `Color code: ${product.colorCode}`,
       product.weightKg && `Weight: ${product.weightKg} kg`,
       product.shortDescription && `Existing short description: ${product.shortDescription}`,
+      product.salesNotes && `Operator notes about this product (USE THESE FACTS — they trump web research):\n${product.salesNotes}`,
     ]
       .filter(Boolean)
       .join("\n");

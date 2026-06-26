@@ -19,6 +19,7 @@ import { AddCustomPhotoButton } from "./_components/custom-photo-button";
 import { CopyFromProductButton } from "./_components/copy-from-product-button";
 import { UploadFromDiskButton } from "./_components/upload-from-disk-button";
 import { AiCostLog } from "./_components/ai-cost-log";
+import { SalesNotesEditor } from "./_components/sales-notes-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function SprzedazProduktDetailPage({
       compositionMode: true,
       descriptionTemplateId: true,
       descriptionContentJson: true,
+      salesNotes: true,
       category: { select: { name: true } },
       images: {
         orderBy: { sortOrder: "asc" },
@@ -182,6 +184,12 @@ export default async function SprzedazProduktDetailPage({
           </div>
         )}
       </Card>
+
+      {/* Notatki sprzedażowe — dołączane do każdego promptu AI */}
+      <SalesNotesEditor
+        productId={product.id}
+        initialNotes={product.salesNotes}
+      />
 
       {/* Edytor szablonu + zawartości */}
       <SalesCardEditor
