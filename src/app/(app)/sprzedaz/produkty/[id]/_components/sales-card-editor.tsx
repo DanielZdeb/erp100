@@ -8,7 +8,7 @@
  *  - Zapis treści przez setProductDescriptionContentAction
  */
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, ImageIcon, Save, Layers, Sparkles, Loader2, Wand2, AlertCircle, ChevronDown, Copy, Eye, X } from "lucide-react";
@@ -186,13 +186,53 @@ export function SalesCardEditor({
     });
   }
 
+  // ─── Autosave ────────────────────────────────────────────────────────
+  // Tekst zmieniany w textarea + URL-e wygenerowanych obrazów zapisują się
+  // automatycznie z debounce 1500ms. Wcześniej content siedział tylko w
+  // lokalnym state — jeśli user nie kliknął „Zapisz" przed odświeżeniem,
+  // grafika z AI (kosztowna!) przepadała. Save button zostawiamy jako manual
+  // override (force save bez czekania).
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Skip pierwsze odpalenie useEffect — initialContent z prop nie wymaga zapisu
+  const initialMountRef = useRef(true);
+  // contentRef żeby cleanup miał dostęp do najnowszego content
+  const contentRef = useRef(content);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    if (initialMountRef.current) {
+      initialMountRef.current = false;
+      return;
+    }
+    if (!templateId) return;
+    setAutoSaveState("saving");
+    const timer = setTimeout(async () => {
+      try {
+        await setProductDescriptionContentAction(productId, contentRef.current);
+        setAutoSaveState("saved");
+      } catch (e) {
+        setAutoSaveState("error");
+        toast.error(
+          e instanceof Error
+            ? `Autosave: ${e.message}`
+            : "Autosave: nie udało się",
+        );
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [content, templateId, productId]);
+
   function saveContent() {
     startTransition(async () => {
       try {
         await setProductDescriptionContentAction(productId, content);
+        setAutoSaveState("saved");
         toast.success("Zapisano opis");
         router.refresh();
       } catch (e) {
+        setAutoSaveState("error");
         toast.error(e instanceof Error ? e.message : "Nie udało się");
       }
     });
@@ -270,13 +310,27 @@ export function SalesCardEditor({
           >
             <Eye className="size-3.5" /> Podgląd opisu
           </Button>
-          <Button
-            onClick={saveContent}
-            disabled={pending || !templateId}
-            className="gap-1.5"
-          >
-            <Save className="size-3.5" /> Zapisz
-          </Button>
+          <div className="flex items-center gap-2">
+            {autoSaveState === "saving" && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                <Loader2 className="size-3 animate-spin" /> Zapisuję...
+              </span>
+            )}
+            {autoSaveState === "saved" && (
+              <span className="text-[11px] text-emerald-700">✓ Zapisane</span>
+            )}
+            {autoSaveState === "error" && (
+              <span className="text-[11px] text-rose-700">⚠ Błąd autosave</span>
+            )}
+            <Button
+              onClick={saveContent}
+              disabled={pending || !templateId}
+              className="gap-1.5"
+              title="Wymuś natychmiastowy zapis (autosave po 1.5s od zmiany)"
+            >
+              <Save className="size-3.5" /> Zapisz
+            </Button>
+          </div>
         </div>
       </header>
 
