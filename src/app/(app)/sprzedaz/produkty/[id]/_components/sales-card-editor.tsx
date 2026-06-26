@@ -85,6 +85,7 @@ export function SalesCardEditor({
   templates,
   selectedTemplateSections,
   availableImages,
+  sectionDividerLogoUrl,
 }: {
   productId: string;
   initialTemplateId: string | null;
@@ -92,6 +93,7 @@ export function SalesCardEditor({
   templates: TemplateView[];
   selectedTemplateSections: SectionView[] | null;
   availableImages: ImageAsset[];
+  sectionDividerLogoUrl: string | null;
 }) {
   const router = useRouter();
   const [templateId, setTemplateId] = useState<string | null>(initialTemplateId);
@@ -441,10 +443,13 @@ export function SalesCardEditor({
             const cur = content[s.id] ?? {};
             const [leftKind, rightKind] = layoutToKinds(s.layout);
             return (
-              <div
-                key={s.id}
-                className="rounded-lg ring-1 ring-slate-200 p-4 space-y-3"
-              >
+              <div key={s.id}>
+                {idx > 0 && (
+                  <SectionDivider logoUrl={sectionDividerLogoUrl} />
+                )}
+                <div
+                  className="rounded-lg ring-1 ring-slate-200 p-4 space-y-3"
+                >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] uppercase tracking-wide font-bold text-slate-500">
@@ -501,6 +506,7 @@ export function SalesCardEditor({
                     availableImages={availableImages}
                   />
                 </div>
+                </div>
               </div>
             );
           })}
@@ -522,6 +528,7 @@ export function SalesCardEditor({
         <PreviewDialog
           sections={sections}
           content={content}
+          dividerLogoUrl={sectionDividerLogoUrl}
           onClose={() => setPreviewOpen(false)}
         />
       )}
@@ -532,10 +539,12 @@ export function SalesCardEditor({
 function PreviewDialog({
   sections,
   content,
+  dividerLogoUrl,
   onClose,
 }: {
   sections: SectionView[];
   content: Record<string, SectionContent>;
+  dividerLogoUrl: string | null;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -576,22 +585,27 @@ function PreviewDialog({
                 Wybierz szablon i wypełnij sekcje żeby zobaczyć podgląd.
               </p>
             ) : (
-              sections.map((s) => {
+              sections.map((s, idx) => {
                 const cur = content[s.id] ?? {};
                 const [leftKind, rightKind] = layoutToKinds(s.layout);
                 return (
-                  <div key={s.id} className="bg-white rounded-lg ring-1 ring-slate-200 p-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
-                      <PreviewSlot
-                        kind={leftKind}
-                        text={cur.leftText}
-                        imageUrl={cur.leftImageUrl}
-                      />
-                      <PreviewSlot
-                        kind={rightKind}
-                        text={cur.rightText}
-                        imageUrl={cur.rightImageUrl}
-                      />
+                  <div key={s.id}>
+                    {idx > 0 && (
+                      <SectionDivider logoUrl={dividerLogoUrl} />
+                    )}
+                    <div className="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
+                        <PreviewSlot
+                          kind={leftKind}
+                          text={cur.leftText}
+                          imageUrl={cur.leftImageUrl}
+                        />
+                        <PreviewSlot
+                          kind={rightKind}
+                          text={cur.rightText}
+                          imageUrl={cur.rightImageUrl}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -659,6 +673,33 @@ function PreviewSlot({
       )}
       dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }}
     />
+  );
+}
+
+/**
+ * Separator między sekcjami opisu — 2 cienkie linie + logo firmy w środku.
+ * Renderowany w PreviewDialog (i potem w eksporcie HTML do sklepu).
+ * Fallback bez loga: same linie z subtelnym łącznikiem.
+ */
+function SectionDivider({ logoUrl }: { logoUrl: string | null }) {
+  return (
+    <div
+      className="flex items-center justify-center gap-3 sm:gap-5 py-4 select-none"
+      aria-hidden="true"
+    >
+      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-700 to-slate-800 max-w-[40%]" />
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-10 sm:h-12 w-auto shrink-0 object-contain"
+        />
+      ) : (
+        <span className="size-2 rounded-full bg-slate-700 shrink-0" />
+      )}
+      <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-700 to-slate-800 max-w-[40%]" />
+    </div>
   );
 }
 

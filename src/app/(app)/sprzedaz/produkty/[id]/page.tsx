@@ -73,6 +73,15 @@ export default async function SprzedazProduktDetailPage({
   const selectedTemplate =
     templates.find((t) => t.id === product.descriptionTemplateId) ?? null;
 
+  // Logo do separatorów między sekcjami w podglądzie/eksporcie opisu.
+  // Preferujemy BW-on-white (czyste, działa zawsze) → fallback color.
+  const company = await db.company.findFirst({
+    where: { id: companyId },
+    select: { logoBwOnWhiteUrl: true, logoColorUrl: true },
+  });
+  const sectionDividerLogoUrl =
+    company?.logoBwOnWhiteUrl ?? company?.logoColorUrl ?? null;
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center justify-between gap-2 text-xs">
@@ -239,6 +248,7 @@ export default async function SprzedazProduktDetailPage({
           thumbnailWebpUrl: img.thumbnailWebpUrl,
           alt: img.alt,
         }))}
+        sectionDividerLogoUrl={sectionDividerLogoUrl}
       />
     </div>
   );
