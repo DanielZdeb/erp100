@@ -578,7 +578,7 @@ function PreviewDialog({
             <X className="size-4" />
           </button>
         </div>
-        <div className="overflow-y-auto px-6 py-6 flex-1 min-h-0 bg-slate-50">
+        <div className="overflow-y-auto px-6 py-6 flex-1 min-h-0 bg-white">
           <div className="max-w-4xl mx-auto space-y-6">
             {sections.length === 0 ? (
               <p className="text-center text-sm text-slate-500 py-12">
@@ -593,7 +593,7 @@ function PreviewDialog({
                     {idx > 0 && (
                       <SectionDivider logoUrl={dividerLogoUrl} />
                     )}
-                    <div className="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+                    <div className="bg-white rounded-lg p-5">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
                         <PreviewSlot
                           kind={leftKind}
@@ -644,7 +644,7 @@ function PreviewSlot({
       );
     }
     return (
-      <div className="rounded overflow-hidden bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center">
+      <div className="rounded overflow-hidden bg-white flex items-center justify-center">
         {/* Obraz w calosci, naturalne proporcje (h-auto), sekcja rosnie z nim. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={imageUrl} alt="" className="block w-full h-auto" />
