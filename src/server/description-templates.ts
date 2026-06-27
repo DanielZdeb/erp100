@@ -513,6 +513,26 @@ export async function generateSectionImageAction(
       folder: `products/${product.id}/images`,
     });
 
+    // Dorzucamy też do galerii produktu — żeby wygenerowane przez szablon
+    // grafiki były dostępne jako zwykłe ProductImage (do dalszego użycia
+    // w innych sekcjach, ofercie, marketingu). Best-effort: błąd w tej
+    // operacji nie wywala całej akcji (URL z descriptionContent zostaje
+    // niezależnie). isPrimary=false — generowane przez szablon nie powinny
+    // przejąć roli głównej miniatury produktu.
+    void db.productImage
+      .create({
+        data: {
+          productId: product.id,
+          url: uploaded.url,
+          thumbnailWebpUrl: uploaded.thumbnailWebpUrl,
+          alt: `${section.name} (${side})`,
+          isPrimary: false,
+          status: "READY",
+          prompt: finalPrompt,
+        },
+      })
+      .catch(() => undefined);
+
     void logProductAiCost({
       productId: product.id,
       companyId,
@@ -527,6 +547,8 @@ export async function generateSectionImageAction(
         regenerate: !!regenerateFromUrl,
       },
     });
+    revalidatePath(`/sprzedaz/produkty/${product.id}`);
+    revalidatePath(`/produkty/${product.id}`);
     return { ok: true, url: uploaded.url };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Błąd AI." };

@@ -980,6 +980,7 @@ function SlotEditor({
   onChange: (v: string | null) => void;
   availableImages: ImageAsset[];
 }) {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   // Dla obrazka: regenerateFromUrl=URL kiedy uzytkownik klika "Edit AI" na istniejacym
   const [regenerateUrl, setRegenerateUrl] = useState<string | null>(null);
@@ -1147,6 +1148,9 @@ function SlotEditor({
             onChange(v);
             setDialogOpen(false);
             setRegenerateUrl(null);
+            // Refresh żeby galeria produktu pokazała nowe zdjęcie
+            // (server action dorzuca ProductImage do galerii).
+            router.refresh();
           }}
         />
       )}
