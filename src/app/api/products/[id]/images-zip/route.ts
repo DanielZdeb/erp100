@@ -3,6 +3,9 @@
  * zwraca jako ZIP. Server-side fetch — omija CORS dla obrazów hostowanych
  * na innych domenach (np. zdebu.pl). Pliki w ZIP: {SKU}-NNN.{ext}.
  */
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 
@@ -82,38 +85,63 @@ export async function GET(
   let ok = 0;
   const failures: { idx: number; url: string; reason: string }[] = [];
 
+  // Helper: ext z URL fallback gdy brak content-type
+  function extFromUrl(u: string, ct?: string): string {
+    if (ct) {
+      if (ct.includes("png")) return "png";
+      if (ct.includes("webp")) return "webp";
+      if (ct.includes("jpeg")) return "jpg";
+    }
+    const m = u.match(/\.([a-z0-9]{3,4})(?:\?|$)/i);
+    return m ? m[1].toLowerCase() : "jpg";
+  }
+
   // Sekwencyjnie — gentle na serwer i upstream hosty
   for (let idx = 0; idx < allImages.length; idx++) {
     const img = allImages[idx];
-    const targetUrl = resolveUrl(img.url);
+    const isLocal = img.url.startsWith("/uploads/");
+    const num = String(idx + 1).padStart(3, "0");
+
     try {
-      const res = await fetch(targetUrl, {
-        redirect: "follow",
-        // Bez wymyślania User-Agent — niektóre CDN-y blokują dziwne UA
-      });
-      if (!res.ok) {
-        failures.push({ idx: idx + 1, url: targetUrl, reason: `HTTP ${res.status}` });
-        continue;
+      let buf: Uint8Array;
+      let ext: string;
+
+      if (isLocal) {
+        // Czytamy z dysku — szybciej i bez HTTP layer (proxy/timeout).
+        const fsPath = path.join(process.cwd(), "public", img.url);
+        const data = await fs.readFile(fsPath);
+        buf = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        ext = extFromUrl(img.url);
+      } else {
+        const targetUrl = resolveUrl(img.url);
+        const res = await fetch(targetUrl, { redirect: "follow" });
+        if (!res.ok) {
+          failures.push({
+            idx: idx + 1,
+            url: targetUrl,
+            reason: `HTTP ${res.status}`,
+          });
+          continue;
+        }
+        const ab = await res.arrayBuffer();
+        buf = new Uint8Array(ab);
+        ext = extFromUrl(img.url, res.headers.get("content-type") ?? "");
       }
-      const ct = res.headers.get("content-type") ?? "";
-      let ext = "jpg";
-      if (ct.includes("png")) ext = "png";
-      else if (ct.includes("webp")) ext = "webp";
-      else if (ct.includes("jpeg")) ext = "jpg";
-      else {
-        const m = img.url.match(/\.([a-z0-9]{3,4})(?:\?|$)/i);
-        if (m) ext = m[1].toLowerCase();
-      }
-      const ab = await res.arrayBuffer();
-      const num = String(idx + 1).padStart(3, "0");
-      zip.file(`${product.productCode}-${num}.${ext}`, ab);
+
+      zip.file(`${product.productCode}-${num}.${ext}`, buf);
       ok++;
     } catch (e) {
       failures.push({
         idx: idx + 1,
-        url: targetUrl,
+        url: img.url,
         reason: e instanceof Error ? e.message : "unknown",
       });
+      // eslint-disable-next-line no-console
+      console.error(
+        `[images-zip] FAIL #${idx + 1} url=${img.url} reason=${
+          e instanceof Error ? e.message : "unknown"
+        }`,
+      );
     }
   }
 
