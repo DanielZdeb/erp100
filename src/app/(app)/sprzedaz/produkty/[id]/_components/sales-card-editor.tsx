@@ -71,12 +71,22 @@ interface ImageAsset {
   alt: string | null;
 }
 
+type LayoutT = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
+
 type SectionContent = {
   leftText?: string | null;
   rightText?: string | null;
   leftImageUrl?: string | null;
   rightImageUrl?: string | null;
+  layout?: LayoutT | null;
 };
+
+const LAYOUT_OPTIONS: { value: LayoutT; label: string }[] = [
+  { value: "TEXT_TEXT", label: "Tekst+Tekst" },
+  { value: "IMAGE_TEXT", label: "Obraz+Tekst" },
+  { value: "TEXT_IMAGE", label: "Tekst+Obraz" },
+  { value: "IMAGE_IMAGE", label: "Obraz+Obraz" },
+];
 
 export function SalesCardEditor({
   productId,
@@ -185,6 +195,19 @@ export function SalesCardEditor({
             ? "leftImageUrl"
             : "rightImageUrl";
       return { ...c, [sectionId]: { ...cur, [field]: value } };
+    });
+  }
+
+  /**
+   * Per-product override layoutu sekcji. Default = layout z szablonu.
+   * Kiedy user zmienia tu np. Tekst+Tekst → Obraz+Tekst, pierwotne
+   * texty zostają w stanie (na wypadek powrotu do tekstowego layoutu),
+   * tylko renderujemy je inaczej.
+   */
+  function setSectionLayout(sectionId: string, layout: LayoutT) {
+    setContent((c) => {
+      const cur = c[sectionId] ?? {};
+      return { ...c, [sectionId]: { ...cur, layout } };
     });
   }
 
@@ -441,7 +464,9 @@ export function SalesCardEditor({
         <div className="space-y-4">
           {sections.map((s, idx) => {
             const cur = content[s.id] ?? {};
-            const [leftKind, rightKind] = layoutToKinds(s.layout);
+            const effectiveLayout = (cur.layout ?? s.layout) as LayoutT;
+            const [leftKind, rightKind] = layoutToKinds(effectiveLayout);
+            const isOverridden = cur.layout != null && cur.layout !== s.layout;
             return (
               <div key={s.id}>
                 {idx > 0 && (
@@ -455,10 +480,42 @@ export function SalesCardEditor({
                     <span className="text-[10px] uppercase tracking-wide font-bold text-slate-500">
                       Sekcja {idx + 1}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-semibold">
-                      <Layers className="size-2.5 inline mr-0.5" />
-                      {layoutLabel(s.layout)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <Layers className="size-2.5 text-violet-700" />
+                      <select
+                        value={effectiveLayout}
+                        onChange={(e) =>
+                          setSectionLayout(s.id, e.target.value as LayoutT)
+                        }
+                        title={
+                          isOverridden
+                            ? `Zmieniono dla tego produktu (szablon: ${layoutLabel(s.layout)})`
+                            : "Zmień typ layoutu sekcji (per produkt)"
+                        }
+                        className={cn(
+                          "text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer outline-none",
+                          isOverridden
+                            ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300"
+                            : "bg-violet-100 text-violet-700 hover:bg-violet-200",
+                        )}
+                      >
+                        {LAYOUT_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      {isOverridden && (
+                        <button
+                          type="button"
+                          onClick={() => setSectionLayout(s.id, s.layout as LayoutT)}
+                          className="text-[10px] text-amber-700 hover:text-amber-900 underline"
+                          title="Wróć do layoutu z szablonu"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <h3 className="font-semibold text-sm">{s.name}</h3>
                 </div>
@@ -587,7 +644,8 @@ function PreviewDialog({
             ) : (
               sections.map((s, idx) => {
                 const cur = content[s.id] ?? {};
-                const [leftKind, rightKind] = layoutToKinds(s.layout);
+                const effectiveLayout = (cur.layout ?? s.layout) as LayoutT;
+                const [leftKind, rightKind] = layoutToKinds(effectiveLayout);
                 return (
                   <div key={s.id}>
                     {idx > 0 && (

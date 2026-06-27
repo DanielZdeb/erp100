@@ -287,6 +287,10 @@ const contentSchema = z.record(
     rightText: z.string().nullable().optional(),
     leftImageUrl: z.string().nullable().optional(),
     rightImageUrl: z.string().nullable().optional(),
+    // Per-product override layoutu sekcji — kiedy user zmieni typ slotu
+    // z poziomu /sprzedaz/produkty/[id] (np. Tekst+Tekst → Obraz+Tekst).
+    // Bez tego — używamy layoutu z szablonu.
+    layout: layoutEnum.nullable().optional(),
   }),
 );
 
