@@ -165,7 +165,10 @@ export default async function SprzedazProduktDetailPage({
             <DownloadAllImagesButton
               productCode={product.productCode}
               images={product.images
-                .filter((img) => !img.archived)
+                .filter(
+                  (img) =>
+                    !img.archived && img.status === "READY" && !!img.url,
+                )
                 .map((img) => ({ url: img.url, alt: img.alt }))}
             />
             <UploadFromDiskButton productId={product.id} />
