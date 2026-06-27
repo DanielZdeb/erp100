@@ -84,6 +84,7 @@ type SectionContent = {
   _isCustom?: boolean;
   _name?: string | null;
   _order?: number | null;
+  _hidden?: boolean;
 };
 
 const LAYOUT_OPTIONS: { value: LayoutT; label: string }[] = [
@@ -165,15 +166,23 @@ export function SalesCardEditor({
     }
   }
 
-  const templateSections =
+  const allTemplateSections =
     selectedTemplateSections ??
     templates.find((t) => t.id === templateId)?.sections ??
     [];
 
+  // Filtrujemy ukryte per-produkt — content[id]._hidden=true => pomijamy.
+  const templateSections = allTemplateSections.filter(
+    (s) => !content[s.id]?._hidden,
+  );
+  const hiddenTemplateSections = allTemplateSections.filter(
+    (s) => content[s.id]?._hidden,
+  );
+
   // Custom sekcje per-produkt — wyciągamy z content (klucze prefiksowane "custom-")
-  // i sortujemy po _order. Renderowane po szablonowych.
+  // i sortujemy po _order. Renderowane po szablonowych. Ukryte custom też filtrujemy.
   const customSections: SectionView[] = Object.entries(content)
-    .filter(([id, v]) => id.startsWith("custom-") && v._isCustom)
+    .filter(([id, v]) => id.startsWith("custom-") && v._isCustom && !v._hidden)
     .map(([id, v]) => ({
       id,
       name: v._name ?? "Nowa sekcja",
@@ -269,6 +278,17 @@ export function SalesCardEditor({
     setContent((c) => {
       const cur = c[sectionId] ?? {};
       return { ...c, [sectionId]: { ...cur, _name: name.trim() || "Nowa sekcja" } };
+    });
+  }
+
+  /**
+   * Ukrycie/przywrocenie sekcji z szablonu per-produkt. Treść zostaje
+   * w stanie — przy restore wszystko wraca jak było.
+   */
+  function setSectionHidden(sectionId: string, hidden: boolean) {
+    setContent((c) => {
+      const cur = c[sectionId] ?? {};
+      return { ...c, [sectionId]: { ...cur, _hidden: hidden } };
     });
   }
 
@@ -595,13 +615,23 @@ export function SalesCardEditor({
                     ) : (
                       <h3 className="font-semibold text-sm">{s.name}</h3>
                     )}
-                    {s.isCustom && (
+                    {s.isCustom ? (
                       <button
                         type="button"
                         onClick={() => deleteCustomSection(s.id)}
                         className="text-rose-600 hover:text-rose-800 size-6 grid place-items-center rounded hover:bg-rose-50"
                         title="Usuń sekcję"
                         aria-label="Usuń sekcję"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSectionHidden(s.id, true)}
+                        className="text-slate-400 hover:text-rose-600 size-6 grid place-items-center rounded hover:bg-rose-50"
+                        title="Ukryj tę sekcję dla tego produktu (treść zostaje, można przywrócić)"
+                        aria-label="Ukryj sekcję"
                       >
                         <X className="size-3.5" />
                       </button>
@@ -656,6 +686,12 @@ export function SalesCardEditor({
               </div>
             );
           })}
+          {hiddenTemplateSections.length > 0 && (
+            <HiddenSectionsPanel
+              hiddenSections={hiddenTemplateSections}
+              onRestore={(id) => setSectionHidden(id, false)}
+            />
+          )}
           {templateId && (
             <AddCustomSectionRow onAdd={addCustomSection} />
           )}
@@ -823,6 +859,45 @@ function PreviewSlot({
       )}
       dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }}
     />
+  );
+}
+
+/**
+ * Panel ukrytych sekcji szablonu — pokazany pod listą tylko gdy są ukryte.
+ * Klik chip-a = przywrócenie sekcji (z zachowaną treścią).
+ */
+function HiddenSectionsPanel({
+  hiddenSections,
+  onRestore,
+}: {
+  hiddenSections: SectionView[];
+  onRestore: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-lg ring-1 ring-slate-200 bg-slate-50/60 p-3 space-y-2">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide font-bold text-slate-600">
+        Ukryte sekcje ({hiddenSections.length})
+        <span className="text-[10px] font-normal normal-case text-slate-500">
+          · klik aby przywrócić — treść zachowana
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {hiddenSections.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onRestore(s.id)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white ring-1 ring-slate-200 text-xs text-slate-700 hover:ring-emerald-400 hover:text-emerald-700 hover:bg-emerald-50/60 transition-colors"
+          >
+            <span className="text-emerald-600 text-sm leading-none">+</span>
+            {s.name}
+            <span className="text-[10px] text-slate-400">
+              ({layoutLabel(s.layout)})
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

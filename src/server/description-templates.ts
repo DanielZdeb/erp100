@@ -296,6 +296,9 @@ const contentSchema = z.record(
     _isCustom: z.boolean().optional(),
     _name: z.string().nullable().optional(),
     _order: z.number().nullable().optional(),
+    // Per-produkt ukrycie sekcji z szablonu (nie ruszamy szablonu, tylko
+    // pomijamy ja w renderze dla tego produktu). User moze przywrocic.
+    _hidden: z.boolean().optional(),
   }),
 );
 
