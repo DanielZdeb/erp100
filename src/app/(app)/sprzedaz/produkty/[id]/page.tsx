@@ -163,13 +163,14 @@ export default async function SprzedazProduktDetailPage({
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <DownloadAllImagesButton
+              productId={product.id}
               productCode={product.productCode}
-              images={product.images
-                .filter(
+              imagesCount={
+                product.images.filter(
                   (img) =>
                     !img.archived && img.status === "READY" && !!img.url,
-                )
-                .map((img) => ({ url: img.url, alt: img.alt }))}
+                ).length
+              }
             />
             <UploadFromDiskButton productId={product.id} />
             <CopyFromProductButton productId={product.id} source="others" />

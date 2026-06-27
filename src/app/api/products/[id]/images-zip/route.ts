@@ -1,0 +1,113 @@
+/**
+ * Pobiera wszystkie aktywne grafiki produktu (status=READY, !archived) i
+ * zwraca jako ZIP. Server-side fetch — omija CORS dla obrazów hostowanych
+ * na innych domenach (np. zdebu.pl). Pliki w ZIP: {SKU}-NNN.{ext}.
+ */
+import { NextResponse } from "next/server";
+import JSZip from "jszip";
+
+import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { getCurrentCompanyId } from "@/lib/tenant";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Brak autoryzacji" }, { status: 401 });
+  }
+  const { id } = await params;
+  const companyId = await getCurrentCompanyId();
+
+  const product = await db.product.findFirst({
+    where: { id, companyId },
+    select: {
+      productCode: true,
+      images: {
+        where: { archived: false, status: "READY" },
+        orderBy: { sortOrder: "asc" },
+        select: { url: true },
+      },
+    },
+  });
+  if (!product) {
+    return NextResponse.json({ error: "Produkt nie istnieje" }, { status: 404 });
+  }
+  if (product.images.length === 0) {
+    return NextResponse.json({ error: "Brak grafik" }, { status: 404 });
+  }
+
+  // Resolve URL — względne /uploads/X → absolutne (file system albo proxy)
+  function resolveUrl(u: string): string {
+    if (u.startsWith("http://") || u.startsWith("https://")) return u;
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.NEXTAUTH_URL ??
+      "https://erp100.pl";
+    return `${origin.replace(/\/$/, "")}${u.startsWith("/") ? "" : "/"}${u}`;
+  }
+
+  const zip = new JSZip();
+  let ok = 0;
+  const failures: { idx: number; url: string; reason: string }[] = [];
+
+  // Sekwencyjnie — gentle na serwer i upstream hosty
+  for (let idx = 0; idx < product.images.length; idx++) {
+    const img = product.images[idx];
+    const targetUrl = resolveUrl(img.url);
+    try {
+      const res = await fetch(targetUrl, {
+        redirect: "follow",
+        // Bez wymyślania User-Agent — niektóre CDN-y blokują dziwne UA
+      });
+      if (!res.ok) {
+        failures.push({ idx: idx + 1, url: targetUrl, reason: `HTTP ${res.status}` });
+        continue;
+      }
+      const ct = res.headers.get("content-type") ?? "";
+      let ext = "jpg";
+      if (ct.includes("png")) ext = "png";
+      else if (ct.includes("webp")) ext = "webp";
+      else if (ct.includes("jpeg")) ext = "jpg";
+      else {
+        const m = img.url.match(/\.([a-z0-9]{3,4})(?:\?|$)/i);
+        if (m) ext = m[1].toLowerCase();
+      }
+      const ab = await res.arrayBuffer();
+      const num = String(idx + 1).padStart(3, "0");
+      zip.file(`${product.productCode}-${num}.${ext}`, ab);
+      ok++;
+    } catch (e) {
+      failures.push({
+        idx: idx + 1,
+        url: targetUrl,
+        reason: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }
+
+  if (ok === 0) {
+    return NextResponse.json(
+      { error: "Wszystkie pobrania nie powiodły się", failures },
+      { status: 502 },
+    );
+  }
+
+  const zipBuf = await zip.generateAsync({ type: "uint8array" });
+  // Header X-Download-Stats — klient może to wyświetlić w toaście
+  const stats = JSON.stringify({ ok, total: product.images.length, failures: failures.length });
+  return new NextResponse(zipBuf as unknown as BodyInit, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${product.productCode}-grafiki.zip"`,
+      "Content-Length": String(zipBuf.length),
+      "X-Download-Stats": stats,
+      "Cache-Control": "no-store",
+    },
+  });
+}
