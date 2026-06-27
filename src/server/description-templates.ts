@@ -543,7 +543,10 @@ export async function generateSectionImageAction(
           prompt: finalPrompt,
         },
       })
-      .catch(() => undefined);
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("[generateSectionImageAction] gallery add failed:", err);
+      });
 
     void logProductAiCost({
       productId: product.id,

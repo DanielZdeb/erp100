@@ -165,12 +165,35 @@ export default async function SprzedazProduktDetailPage({
             <DownloadAllImagesButton
               productId={product.id}
               productCode={product.productCode}
-              imagesCount={
-                product.images.filter(
-                  (img) =>
-                    !img.archived && img.status === "READY" && !!img.url,
-                ).length
-              }
+              imagesCount={(() => {
+                const galleryUrls = new Set(
+                  product.images
+                    .filter(
+                      (img) =>
+                        !img.archived &&
+                        img.status === "READY" &&
+                        !!img.url,
+                    )
+                    .map((img) => img.url),
+                );
+                const dc = product.descriptionContentJson as
+                  | Record<
+                      string,
+                      {
+                        leftImageUrl?: string | null;
+                        rightImageUrl?: string | null;
+                      }
+                    >
+                  | null;
+                if (dc && typeof dc === "object") {
+                  for (const sec of Object.values(dc)) {
+                    for (const u of [sec?.leftImageUrl, sec?.rightImageUrl]) {
+                      if (u && typeof u === "string") galleryUrls.add(u);
+                    }
+                  }
+                }
+                return galleryUrls.size;
+              })()}
             />
             <UploadFromDiskButton productId={product.id} />
             <CopyFromProductButton productId={product.id} source="others" />

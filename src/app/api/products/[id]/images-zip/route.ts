@@ -28,6 +28,7 @@ export async function GET(
     where: { id, companyId },
     select: {
       productCode: true,
+      descriptionContentJson: true,
       images: {
         where: { archived: false, status: "READY" },
         orderBy: { sortOrder: "asc" },
@@ -38,7 +39,32 @@ export async function GET(
   if (!product) {
     return NextResponse.json({ error: "Produkt nie istnieje" }, { status: 404 });
   }
-  if (product.images.length === 0) {
+
+  // Dodatkowe URL-e z descriptionContentJson — grafiki sekcji szablonu
+  // sprzedazowego, ktore mogly nie trafic do galerii (silent failure
+  // auto-add albo legacy przed backfillem). Dedup wzgledem gallery URL-i.
+  const sectionUrls: string[] = [];
+  const seen = new Set(product.images.map((i) => i.url));
+  const dc = product.descriptionContentJson as
+    | Record<string, { leftImageUrl?: string | null; rightImageUrl?: string | null }>
+    | null;
+  if (dc && typeof dc === "object") {
+    for (const sec of Object.values(dc)) {
+      for (const u of [sec?.leftImageUrl, sec?.rightImageUrl]) {
+        if (u && typeof u === "string" && !seen.has(u)) {
+          sectionUrls.push(u);
+          seen.add(u);
+        }
+      }
+    }
+  }
+
+  const allImages: { url: string }[] = [
+    ...product.images,
+    ...sectionUrls.map((u) => ({ url: u })),
+  ];
+
+  if (allImages.length === 0) {
     return NextResponse.json({ error: "Brak grafik" }, { status: 404 });
   }
 
@@ -57,8 +83,8 @@ export async function GET(
   const failures: { idx: number; url: string; reason: string }[] = [];
 
   // Sekwencyjnie — gentle na serwer i upstream hosty
-  for (let idx = 0; idx < product.images.length; idx++) {
-    const img = product.images[idx];
+  for (let idx = 0; idx < allImages.length; idx++) {
+    const img = allImages[idx];
     const targetUrl = resolveUrl(img.url);
     try {
       const res = await fetch(targetUrl, {
@@ -100,7 +126,7 @@ export async function GET(
 
   const zipBuf = await zip.generateAsync({ type: "uint8array" });
   // Header X-Download-Stats — klient może to wyświetlić w toaście
-  const stats = JSON.stringify({ ok, total: product.images.length, failures: failures.length });
+  const stats = JSON.stringify({ ok, total: allImages.length, failures: failures.length });
   return new NextResponse(zipBuf as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/zip",
