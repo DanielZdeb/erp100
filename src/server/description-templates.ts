@@ -291,6 +291,11 @@ const contentSchema = z.record(
     // z poziomu /sprzedaz/produkty/[id] (np. Tekst+Tekst → Obraz+Tekst).
     // Bez tego — używamy layoutu z szablonu.
     layout: layoutEnum.nullable().optional(),
+    // Custom-section markers — sekcje dodane per-produkt (poza szablonem).
+    // Renderowane na koncu listy w kolejnosci _order asc.
+    _isCustom: z.boolean().optional(),
+    _name: z.string().nullable().optional(),
+    _order: z.number().nullable().optional(),
   }),
 );
 

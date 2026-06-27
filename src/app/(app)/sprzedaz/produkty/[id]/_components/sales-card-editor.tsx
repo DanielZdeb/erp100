@@ -57,6 +57,8 @@ interface SectionView {
   rightImagePrompt?: string | null;
   leftTextPrompt?: string | null;
   rightTextPrompt?: string | null;
+  /** true gdy sekcja dodana per-produkt (poza szablonem) — kasowalna, edytowalny name. */
+  isCustom?: boolean;
 }
 
 interface TemplateView {
@@ -79,6 +81,9 @@ type SectionContent = {
   leftImageUrl?: string | null;
   rightImageUrl?: string | null;
   layout?: LayoutT | null;
+  _isCustom?: boolean;
+  _name?: string | null;
+  _order?: number | null;
 };
 
 const LAYOUT_OPTIONS: { value: LayoutT; label: string }[] = [
@@ -160,10 +165,30 @@ export function SalesCardEditor({
     }
   }
 
-  const sections =
+  const templateSections =
     selectedTemplateSections ??
     templates.find((t) => t.id === templateId)?.sections ??
     [];
+
+  // Custom sekcje per-produkt — wyciągamy z content (klucze prefiksowane "custom-")
+  // i sortujemy po _order. Renderowane po szablonowych.
+  const customSections: SectionView[] = Object.entries(content)
+    .filter(([id, v]) => id.startsWith("custom-") && v._isCustom)
+    .map(([id, v]) => ({
+      id,
+      name: v._name ?? "Nowa sekcja",
+      layout: (v.layout ?? "TEXT_TEXT") as Layout,
+      leftHint: null,
+      rightHint: null,
+      isCustom: true,
+    }))
+    .sort((a, b) => {
+      const oa = content[a.id]?._order ?? 0;
+      const ob = content[b.id]?._order ?? 0;
+      return oa - ob;
+    });
+
+  const sections: SectionView[] = [...templateSections, ...customSections];
 
   function selectTemplate(newId: string | null) {
     setTemplateId(newId);
@@ -208,6 +233,42 @@ export function SalesCardEditor({
     setContent((c) => {
       const cur = c[sectionId] ?? {};
       return { ...c, [sectionId]: { ...cur, layout } };
+    });
+  }
+
+  /** Dodaje custom sekcję per-produkt (nie ruszamy szablonu). */
+  function addCustomSection(name: string, layout: LayoutT) {
+    const id = `custom-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+    setContent((c) => {
+      const existingOrders = Object.values(c)
+        .filter((v) => v._isCustom && typeof v._order === "number")
+        .map((v) => v._order as number);
+      const maxOrder = existingOrders.length > 0 ? Math.max(...existingOrders) : 0;
+      return {
+        ...c,
+        [id]: {
+          _isCustom: true,
+          _name: name.trim(),
+          _order: maxOrder + 1,
+          layout,
+        },
+      };
+    });
+  }
+
+  function deleteCustomSection(sectionId: string) {
+    if (!confirm("Usunąć tę sekcję? Operacja nieodwracalna.")) return;
+    setContent((c) => {
+      const next = { ...c };
+      delete next[sectionId];
+      return next;
+    });
+  }
+
+  function renameCustomSection(sectionId: string, name: string) {
+    setContent((c) => {
+      const cur = c[sectionId] ?? {};
+      return { ...c, [sectionId]: { ...cur, _name: name.trim() || "Nowa sekcja" } };
     });
   }
 
@@ -505,7 +566,7 @@ export function SalesCardEditor({
                           </option>
                         ))}
                       </select>
-                      {isOverridden && (
+                      {isOverridden && !s.isCustom && (
                         <button
                           type="button"
                           onClick={() => setSectionLayout(s.id, s.layout as LayoutT)}
@@ -515,9 +576,37 @@ export function SalesCardEditor({
                           reset
                         </button>
                       )}
+                      {s.isCustom && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">
+                          + custom
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <h3 className="font-semibold text-sm">{s.name}</h3>
+                  <div className="flex items-center gap-2">
+                    {s.isCustom ? (
+                      <input
+                        type="text"
+                        defaultValue={s.name}
+                        onBlur={(e) => renameCustomSection(s.id, e.target.value)}
+                        className="font-semibold text-sm text-right outline-none border-b border-transparent focus:border-emerald-400 px-1 min-w-[140px]"
+                        placeholder="Nazwa sekcji"
+                      />
+                    ) : (
+                      <h3 className="font-semibold text-sm">{s.name}</h3>
+                    )}
+                    {s.isCustom && (
+                      <button
+                        type="button"
+                        onClick={() => deleteCustomSection(s.id)}
+                        className="text-rose-600 hover:text-rose-800 size-6 grid place-items-center rounded hover:bg-rose-50"
+                        title="Usuń sekcję"
+                        aria-label="Usuń sekcję"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-stretch">
                   <SlotEditor
@@ -567,6 +656,9 @@ export function SalesCardEditor({
               </div>
             );
           })}
+          {templateId && (
+            <AddCustomSectionRow onAdd={addCustomSection} />
+          )}
         </div>
       )}
 
@@ -731,6 +823,94 @@ function PreviewSlot({
       )}
       dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }}
     />
+  );
+}
+
+/**
+ * Wiersz "Dodaj sekcję" na końcu listy sekcji — inline form z name + layout.
+ * Tworzy custom sekcję per-produkt (nie modyfikuje szablonu).
+ */
+function AddCustomSectionRow({
+  onAdd,
+}: {
+  onAdd: (name: string, layout: LayoutT) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [layout, setLayout] = useState<LayoutT>("TEXT_TEXT");
+
+  function submit() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Podaj nazwę sekcji");
+      return;
+    }
+    onAdd(trimmed, layout);
+    setName("");
+    setLayout("TEXT_TEXT");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full rounded-lg ring-1 ring-dashed ring-slate-300 p-4 text-sm text-slate-500 hover:ring-emerald-400 hover:text-emerald-700 hover:bg-emerald-50/50 transition-colors flex items-center justify-center gap-2"
+      >
+        <span className="text-lg leading-none">+</span>
+        Dodaj sekcję (tylko dla tego produktu)
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg ring-1 ring-emerald-300 bg-emerald-50/30 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide font-bold text-emerald-700">
+        Nowa sekcja
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto_auto] gap-2 items-center">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          placeholder="np. Często zadawane pytania"
+          className="px-3 py-1.5 text-sm rounded-md ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") setOpen(false);
+          }}
+        />
+        <select
+          value={layout}
+          onChange={(e) => setLayout(e.target.value as LayoutT)}
+          className="px-3 py-1.5 text-sm rounded-md ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer"
+        >
+          {LAYOUT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          size="sm"
+          onClick={submit}
+          className="bg-emerald-600 hover:bg-emerald-700 gap-1"
+        >
+          Dodaj
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setOpen(false)}
+        >
+          Anuluj
+        </Button>
+      </div>
+    </div>
   );
 }
 
