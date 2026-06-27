@@ -20,6 +20,7 @@ import { CopyFromProductButton } from "./_components/copy-from-product-button";
 import { UploadFromDiskButton } from "./_components/upload-from-disk-button";
 import { AiCostLog } from "./_components/ai-cost-log";
 import { SalesNotesEditor } from "./_components/sales-notes-editor";
+import { DownloadAllImagesButton } from "./_components/download-all-images-button";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,12 @@ export default async function SprzedazProduktDetailPage({
             )}
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
+            <DownloadAllImagesButton
+              productCode={product.productCode}
+              images={product.images
+                .filter((img) => !img.archived)
+                .map((img) => ({ url: img.url, alt: img.alt }))}
+            />
             <UploadFromDiskButton productId={product.id} />
             <CopyFromProductButton productId={product.id} source="others" />
             <CopyFromProductButton productId={product.id} source="current" />
