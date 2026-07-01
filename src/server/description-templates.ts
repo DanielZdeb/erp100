@@ -950,6 +950,9 @@ export async function listProductsWithTemplateAction(
     where: {
       companyId,
       archived: false,
+      // Produkt jest kwalifikowany jako źródło jeśli ma szablon.
+      // Content-only (custom sekcje) obsluzymy w kolejnym kroku,
+      // ale nadal potrzebujemy szablonu do klonowania struktury.
       descriptionTemplateId: { not: null },
       ...(q
         ? {
@@ -962,7 +965,7 @@ export async function listProductsWithTemplateAction(
         : {}),
     },
     orderBy: { name: "asc" },
-    take: 200,
+    take: 500,
     select: {
       id: true,
       name: true,
@@ -1087,15 +1090,46 @@ export async function copyDescriptionTemplateFromProductAction(
       > | null) ?? {};
 
     // Stworz nowy DescriptionTemplate (kopia struktury)
+    // Zdejmujemy ogon "— kopia — kopia — kopia..." zeby nazwa nie rosla
+    // w nieskonczonosc i nie kolidowala z unique(companyId, name) po
+    // truncate do 120 znakow.
+    const strippedSrcName = source.descriptionTemplate.name
+      .replace(/(\s*—\s*kopia)+\s*$/i, "")
+      .trim();
     const baseName =
       mode === "ai-adjust"
-        ? `${source.descriptionTemplate.name} (dla ${dest.name})`
-        : `${source.descriptionTemplate.name} — kopia`;
+        ? `${strippedSrcName} (dla ${dest.name})`
+        : `${strippedSrcName} — kopia`;
+
+    // Auto-suffix (2), (3), ... gdy nazwa juz istnieje w firmie
+    async function uniqueName(candidate: string): Promise<string> {
+      const trimmed = candidate.slice(0, 120);
+      const existing = await db.descriptionTemplate.findFirst({
+        where: { companyId, name: trimmed },
+        select: { id: true },
+      });
+      if (!existing) return trimmed;
+      // Sprobuj (2), (3), ... az znajdziemy wolne
+      for (let n = 2; n < 100; n++) {
+        const suffix = ` (${n})`;
+        const withSuffix = candidate.slice(0, 120 - suffix.length) + suffix;
+        const clash = await db.descriptionTemplate.findFirst({
+          where: { companyId, name: withSuffix },
+          select: { id: true },
+        });
+        if (!clash) return withSuffix;
+      }
+      // Last resort: dorzuc random
+      const rnd = Math.random().toString(36).slice(2, 8);
+      const withRnd = candidate.slice(0, 120 - rnd.length - 1) + "-" + rnd;
+      return withRnd;
+    }
+    const finalName = await uniqueName(baseName);
 
     const newTemplate = await db.descriptionTemplate.create({
       data: {
         companyId,
-        name: baseName.slice(0, 120),
+        name: finalName,
         sections: {
           create: source.descriptionTemplate.sections.map((s) => ({
             name: s.name,
