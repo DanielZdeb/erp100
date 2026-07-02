@@ -1214,14 +1214,30 @@ export async function reorderProductImagesAction(
       return { ok: false, error: "Niektore zdjecia nie naleza do tego produktu." };
     }
 
-    await db.$transaction(
-      orderedImageIds.map((id, idx) =>
+    await db.$transaction([
+      // Reindex sortOrder wg nowej kolejnosci
+      ...orderedImageIds.map((id, idx) =>
         db.productImage.update({
           where: { id },
           data: { sortOrder: idx },
         }),
       ),
-    );
+      // Zdejmij isPrimary ze wszystkich zdjec produktu
+      db.productImage.updateMany({
+        where: { productId },
+        data: { isPrimary: false },
+      }),
+      // Ustaw isPrimary na PIERWSZE (aktywne) zdjecie z nowej kolejnosci —
+      // to gwarantuje ze thumbnail w listach = pierwsze w galerii.
+      ...(orderedImageIds.length > 0
+        ? [
+            db.productImage.update({
+              where: { id: orderedImageIds[0] },
+              data: { isPrimary: true },
+            }),
+          ]
+        : []),
+    ]);
 
     revalidateProductPaths(productId);
     return { ok: true };
