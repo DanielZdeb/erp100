@@ -85,6 +85,13 @@ export function CopyFromProductButton({
 
   useEffect(() => {
     if (!open) return;
+    // W trybie "others" nie pokazujemy niczego dopóki user nie wpisze
+    // czegoś — bez tego dialog ładował 500 produktów i było wolno.
+    if (source === "others" && query.trim().length === 0) {
+      setProducts([]);
+      setLoadingList(false);
+      return;
+    }
     let cancelled = false;
     setLoadingList(true);
     const t = setTimeout(async () => {
@@ -128,6 +135,32 @@ export function CopyFromProductButton({
       const next = new Map(prev);
       if (next.has(imageId)) next.delete(imageId);
       else next.set(imageId, { url, productName });
+      return next;
+    });
+  }
+
+  /** Zaznacz/odznacz wszystkie zdjęcia jednego produktu (limit 20 łącznie). */
+  function toggleAllFromProduct(product: {
+    name: string;
+    images: Array<{ id: string; url: string }>;
+  }) {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      const allInProduct = product.images;
+      const allSelected = allInProduct.every((img) => next.has(img.id));
+      if (allSelected) {
+        // Odznacz wszystkie z tego produktu
+        allInProduct.forEach((img) => next.delete(img.id));
+      } else {
+        // Zaznacz wszystkie (do limitu 20)
+        for (const img of allInProduct) {
+          if (next.size >= 20 && !next.has(img.id)) {
+            toast.warning("Limit 20 zdjęć — pozostałe pominięte.");
+            break;
+          }
+          next.set(img.id, { url: img.url, productName: product.name });
+        }
+      }
       return next;
     });
   }
@@ -249,13 +282,25 @@ export function CopyFromProductButton({
                 Laduje produkty...
               </div>
             )}
-            {!loadingList && products.length === 0 && (
-              <div className="text-center py-8 text-sm text-slate-500">
-                {source === "current"
-                  ? "Ten produkt nie ma jeszcze zadnych zdjec."
-                  : "Brak produktow do wyboru."}
-              </div>
-            )}
+            {!loadingList &&
+              source === "others" &&
+              query.trim().length === 0 && (
+                <div className="text-center py-12 text-sm text-slate-400 space-y-2">
+                  <Search className="size-8 mx-auto text-slate-300" />
+                  <div>
+                    Zacznij pisać nazwę, SKU lub EAN żeby zobaczyć produkty.
+                  </div>
+                </div>
+              )}
+            {!loadingList &&
+              products.length === 0 &&
+              !(source === "others" && query.trim().length === 0) && (
+                <div className="text-center py-8 text-sm text-slate-500">
+                  {source === "current"
+                    ? "Ten produkt nie ma jeszcze zadnych zdjec."
+                    : "Brak produktow do wyboru."}
+                </div>
+              )}
             {!loadingList &&
               products.length > 0 &&
               products.every((p) => p.images.length === 0) && (
@@ -290,6 +335,20 @@ export function CopyFromProductButton({
                       <span className="text-[10px] text-slate-400 ml-auto">
                         {p.images.length} grafik
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAllFromProduct(p)}
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 rounded ring-1 transition-all",
+                          p.images.every((img) => selected.has(img.id))
+                            ? "bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100"
+                            : "bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100",
+                        )}
+                      >
+                        {p.images.every((img) => selected.has(img.id))
+                          ? "Odznacz wszystkie"
+                          : "Zaznacz wszystkie"}
+                      </button>
                     </div>
                     <div className="flex gap-1.5 overflow-x-auto pb-1">
                       {p.images.map((img) => {
