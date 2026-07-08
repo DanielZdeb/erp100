@@ -25,11 +25,15 @@ import {
   Search,
   Puzzle,
   Archive,
+  GripVertical,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { reorderProductImagesAction } from "@/server/product-photos";
 
 interface ImageItem {
   id: string;
@@ -593,27 +597,156 @@ function GalleryView({
               Brak grafik — dodaj na karcie sprzedażowej.
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {p.images.map((img, idx) => (
-                <button
-                  key={img.id}
-                  type="button"
-                  onClick={() => onOpenImage(p.id, idx)}
-                  className="group relative aspect-square rounded ring-1 ring-slate-200 overflow-hidden bg-slate-50 hover:ring-2 hover:ring-emerald-400 transition-all"
-                  title="Klik = powiększ"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.thumbnailWebpUrl ?? img.url}
-                    alt={img.alt ?? p.name}
-                    className="size-full object-cover transition-transform group-hover:scale-105"
-                  />
-                </button>
-              ))}
-            </div>
+            <ProductImageGallery
+              productId={p.id}
+              productName={p.name}
+              images={p.images}
+              onOpenImage={(idx) => onOpenImage(p.id, idx)}
+            />
           )}
         </Card>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Galeria z drag&drop reorderingiem. Optimistic update lokalnego stanu,
+ * serwer action w tle. Pierwsze zdjęcie = primary (thumbnail listy).
+ */
+function ProductImageGallery({
+  productId,
+  productName,
+  images,
+  onOpenImage,
+}: {
+  productId: string;
+  productName: string;
+  images: ImageItem[];
+  onOpenImage: (idx: number) => void;
+}) {
+  const router = useRouter();
+  const [order, setOrder] = useState(images);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Sync po zmianie props (np. router.refresh po dodaniu zdjęcia)
+  useEffect(() => {
+    setOrder(images);
+  }, [images]);
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) {
+      setDraggingId(null);
+      setDropTargetId(null);
+      return;
+    }
+    const from = order.findIndex((i) => i.id === draggingId);
+    const to = order.findIndex((i) => i.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...order];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setOrder(next);
+    setDraggingId(null);
+    setDropTargetId(null);
+
+    setSaving(true);
+    reorderProductImagesAction(
+      productId,
+      next.map((i) => i.id),
+    )
+      .then((r) => {
+        if (r.ok) {
+          router.refresh();
+        } else {
+          toast.error(r.error);
+          setOrder(images); // rollback
+        }
+      })
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : "Nie udało się");
+        setOrder(images);
+      })
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+        <GripVertical className="size-3" />
+        Przeciągnij żeby zmienić kolejność · pierwsze = miniatura na liście
+        {saving && (
+          <span className="inline-flex items-center gap-1 text-emerald-700">
+            <Loader2 className="size-3 animate-spin" /> zapis...
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+        {order.map((img, idx) => (
+          <div
+            key={img.id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", img.id);
+              setDraggingId(img.id);
+            }}
+            onDragEnd={() => {
+              setDraggingId(null);
+              setDropTargetId(null);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (draggingId && draggingId !== img.id) {
+                setDropTargetId(img.id);
+              }
+            }}
+            onDragLeave={() => {
+              if (dropTargetId === img.id) setDropTargetId(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop(img.id);
+            }}
+            className={cn(
+              "group relative aspect-square rounded ring-1 overflow-hidden bg-slate-50 cursor-grab active:cursor-grabbing transition-all",
+              draggingId === img.id
+                ? "opacity-30 scale-95 ring-slate-300"
+                : dropTargetId === img.id
+                  ? "ring-2 ring-violet-500 scale-105"
+                  : idx === 0
+                    ? "ring-2 ring-emerald-400"
+                    : "ring-slate-200 hover:ring-2 hover:ring-emerald-400",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => onOpenImage(idx)}
+              className="block size-full"
+              title={idx === 0 ? "Miniatura (pierwsze zdjęcie)" : "Klik = powiększ"}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.thumbnailWebpUrl ?? img.url}
+                alt={img.alt ?? productName}
+                className="size-full object-cover transition-transform group-hover:scale-105 pointer-events-none"
+                draggable={false}
+              />
+            </button>
+            {idx === 0 && (
+              <span className="absolute top-1 left-1 text-[8px] font-bold uppercase tracking-wide bg-emerald-500 text-white px-1 py-0.5 rounded shadow">
+                Główne
+              </span>
+            )}
+            <span className="absolute top-1 right-1 size-4 rounded-full bg-slate-900/60 text-white text-[9px] font-bold grid place-items-center opacity-0 group-hover:opacity-100 pointer-events-none">
+              {idx + 1}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
