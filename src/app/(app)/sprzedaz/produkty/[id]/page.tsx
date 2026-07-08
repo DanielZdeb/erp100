@@ -262,6 +262,8 @@ export default async function SprzedazProduktDetailPage({
             rightImagePrompt: s.rightImagePrompt,
             leftTextPrompt: s.leftTextPrompt,
             rightTextPrompt: s.rightTextPrompt,
+            leftGalleryPos: s.leftGalleryPos,
+            rightGalleryPos: s.rightGalleryPos,
           })),
         }))}
         selectedTemplateSections={
@@ -275,6 +277,8 @@ export default async function SprzedazProduktDetailPage({
             rightImagePrompt: s.rightImagePrompt,
             leftTextPrompt: s.leftTextPrompt,
             rightTextPrompt: s.rightTextPrompt,
+            leftGalleryPos: s.leftGalleryPos,
+            rightGalleryPos: s.rightGalleryPos,
           })) ?? null
         }
         availableImages={product.images.map((img) => ({

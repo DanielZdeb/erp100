@@ -624,6 +624,12 @@ model DescriptionTemplateSection {
   ///           of the material. Focus on benefits for the customer."
   leftTextPrompt   String?
   rightTextPrompt  String?
+  /// Auto-mapowanie na konkretną pozycję zdjęcia z galerii produktu (1-based).
+  /// Gdy content jest pusty, UI/preview używa gallery[leftGalleryPos - 1].
+  /// Umożliwia szablon typu "sekcja 7 to zawsze zdjęcie #4" bez ręcznego
+  /// przypisywania per produkt.
+  leftGalleryPos   Int?
+  rightGalleryPos  Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

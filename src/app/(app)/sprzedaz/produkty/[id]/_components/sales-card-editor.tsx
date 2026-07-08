@@ -57,8 +57,26 @@ interface SectionView {
   rightImagePrompt?: string | null;
   leftTextPrompt?: string | null;
   rightTextPrompt?: string | null;
+  /** Automatyczne mapowanie na pozycję z galerii produktu (1-based).
+   *  -1 = ostatnie zdjęcie. Gdy content pusty, użyj gallery[pos-1].url. */
+  leftGalleryPos?: number | null;
+  rightGalleryPos?: number | null;
   /** true gdy sekcja dodana per-produkt (poza szablonem) — kasowalna, edytowalny name. */
   isCustom?: boolean;
+}
+
+/**
+ * Rozwiązanie pozycji galerii (1-based) na URL zdjęcia z produktu.
+ * pos = -1 oznacza "ostatnie zdjęcie w galerii".
+ */
+function resolveGalleryUrl(
+  pos: number | null | undefined,
+  gallery: ImageAsset[],
+): string | null {
+  if (pos == null || gallery.length === 0) return null;
+  const idx = pos === -1 ? gallery.length - 1 : pos - 1;
+  if (idx < 0 || idx >= gallery.length) return null;
+  return gallery[idx].url;
 }
 
 interface TemplateView {
@@ -657,8 +675,12 @@ export function SalesCardEditor({
                     aiTextPrompt={s.leftTextPrompt ?? null}
                     aiImagePrompt={s.leftImagePrompt ?? null}
                     value={
-                      leftKind === "TEXT" ? cur.leftText ?? null : cur.leftImageUrl ?? null
+                      leftKind === "TEXT"
+                        ? cur.leftText ?? null
+                        : cur.leftImageUrl ??
+                          resolveGalleryUrl(s.leftGalleryPos, availableImages)
                     }
+                    galleryPos={leftKind === "IMAGE" ? s.leftGalleryPos ?? null : null}
                     onChange={(v) =>
                       setSlot(
                         s.id,
@@ -679,8 +701,12 @@ export function SalesCardEditor({
                       aiTextPrompt={s.rightTextPrompt ?? null}
                       aiImagePrompt={s.rightImagePrompt ?? null}
                       value={
-                        rightKind === "TEXT" ? cur.rightText ?? null : cur.rightImageUrl ?? null
+                        rightKind === "TEXT"
+                          ? cur.rightText ?? null
+                          : cur.rightImageUrl ??
+                            resolveGalleryUrl(s.rightGalleryPos, availableImages)
                       }
+                      galleryPos={rightKind === "IMAGE" ? s.rightGalleryPos ?? null : null}
                       onChange={(v) =>
                         setSlot(
                           s.id,
@@ -725,6 +751,7 @@ export function SalesCardEditor({
           sections={sections}
           content={content}
           dividerLogoUrl={sectionDividerLogoUrl}
+          availableImages={availableImages}
           onClose={() => setPreviewOpen(false)}
         />
       )}
@@ -736,11 +763,13 @@ function PreviewDialog({
   sections,
   content,
   dividerLogoUrl,
+  availableImages,
   onClose,
 }: {
   sections: SectionView[];
   content: Record<string, SectionContent>;
   dividerLogoUrl: string | null;
+  availableImages: ImageAsset[];
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -785,6 +814,12 @@ function PreviewDialog({
                 const cur = content[s.id] ?? {};
                 const effectiveLayout = (cur.layout ?? s.layout) as LayoutT;
                 const [leftKind, rightKind] = layoutToKinds(effectiveLayout);
+                const leftImg =
+                  cur.leftImageUrl ??
+                  resolveGalleryUrl(s.leftGalleryPos, availableImages);
+                const rightImg =
+                  cur.rightImageUrl ??
+                  resolveGalleryUrl(s.rightGalleryPos, availableImages);
                 return (
                   <div key={s.id}>
                     {idx > 0 && (
@@ -802,13 +837,13 @@ function PreviewDialog({
                         <PreviewSlot
                           kind={leftKind as "TEXT" | "IMAGE"}
                           text={cur.leftText}
-                          imageUrl={cur.leftImageUrl}
+                          imageUrl={leftImg}
                         />
                         {rightKind !== null && (
                           <PreviewSlot
                             kind={rightKind as "TEXT" | "IMAGE"}
                             text={cur.rightText}
-                            imageUrl={cur.rightImageUrl}
+                            imageUrl={rightImg}
                           />
                         )}
                       </div>
@@ -1301,6 +1336,7 @@ function SlotEditor({
   value,
   onChange,
   availableImages,
+  galleryPos = null,
 }: {
   productId: string;
   sectionId: string;
@@ -1312,6 +1348,7 @@ function SlotEditor({
   value: string | null;
   onChange: (v: string | null) => void;
   availableImages: ImageAsset[];
+  galleryPos?: number | null;
 }) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1380,6 +1417,14 @@ function SlotEditor({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
             <ImageIcon className="size-3" /> Obraz
+            {galleryPos != null && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-bold normal-case ring-1 ring-sky-300"
+                title={`Auto z galerii — pozycja ${galleryPos === -1 ? "ostatnia" : galleryPos}. Nadpisz klikając na inne zdjęcie z galerii poniżej.`}
+              >
+                auto #{galleryPos === -1 ? "ost." : galleryPos}
+              </span>
+            )}
           </div>
           {aiImagePrompt ? (
             <Button
