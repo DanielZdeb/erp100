@@ -45,7 +45,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
+type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE" | "SINGLE_TEXT" | "SINGLE_IMAGE";
 
 interface SectionView {
   id: string;
@@ -73,7 +73,7 @@ interface ImageAsset {
   alt: string | null;
 }
 
-type LayoutT = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
+type LayoutT = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE" | "SINGLE_TEXT" | "SINGLE_IMAGE";
 
 type SectionContent = {
   leftText?: string | null;
@@ -88,6 +88,8 @@ type SectionContent = {
 };
 
 const LAYOUT_OPTIONS: { value: LayoutT; label: string }[] = [
+  { value: "SINGLE_TEXT", label: "Tekst (pełna szer.)" },
+  { value: "SINGLE_IMAGE", label: "Obraz (pełna szer.)" },
   { value: "TEXT_TEXT", label: "Tekst+Tekst" },
   { value: "IMAGE_TEXT", label: "Obraz+Tekst" },
   { value: "TEXT_IMAGE", label: "Tekst+Obraz" },
@@ -638,12 +640,19 @@ export function SalesCardEditor({
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 items-stretch">
+                <div
+                  className={cn(
+                    "grid gap-3 items-stretch",
+                    isSingleLayout(effectiveLayout)
+                      ? "grid-cols-1"
+                      : "grid-cols-2",
+                  )}
+                >
                   <SlotEditor
                     productId={productId}
                     sectionId={s.id}
                     side="left"
-                    kind={leftKind}
+                    kind={leftKind as "TEXT" | "IMAGE"}
                     hint={s.leftHint}
                     aiTextPrompt={s.leftTextPrompt ?? null}
                     aiImagePrompt={s.leftImagePrompt ?? null}
@@ -660,27 +669,29 @@ export function SalesCardEditor({
                     }
                     availableImages={availableImages}
                   />
-                  <SlotEditor
-                    productId={productId}
-                    sectionId={s.id}
-                    side="right"
-                    kind={rightKind}
-                    hint={s.rightHint}
-                    aiTextPrompt={s.rightTextPrompt ?? null}
-                    aiImagePrompt={s.rightImagePrompt ?? null}
-                    value={
-                      rightKind === "TEXT" ? cur.rightText ?? null : cur.rightImageUrl ?? null
-                    }
-                    onChange={(v) =>
-                      setSlot(
-                        s.id,
-                        "right",
-                        rightKind === "TEXT" ? "text" : "image",
-                        v,
-                      )
-                    }
-                    availableImages={availableImages}
-                  />
+                  {rightKind !== null && (
+                    <SlotEditor
+                      productId={productId}
+                      sectionId={s.id}
+                      side="right"
+                      kind={rightKind as "TEXT" | "IMAGE"}
+                      hint={s.rightHint}
+                      aiTextPrompt={s.rightTextPrompt ?? null}
+                      aiImagePrompt={s.rightImagePrompt ?? null}
+                      value={
+                        rightKind === "TEXT" ? cur.rightText ?? null : cur.rightImageUrl ?? null
+                      }
+                      onChange={(v) =>
+                        setSlot(
+                          s.id,
+                          "right",
+                          rightKind === "TEXT" ? "text" : "image",
+                          v,
+                        )
+                      }
+                      availableImages={availableImages}
+                    />
+                  )}
                 </div>
                 </div>
               </div>
@@ -780,17 +791,26 @@ function PreviewDialog({
                       <SectionDivider logoUrl={dividerLogoUrl} />
                     )}
                     <div className="bg-white rounded-lg p-5">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
+                      <div
+                        className={cn(
+                          "grid gap-5 items-stretch",
+                          isSingleLayout(effectiveLayout)
+                            ? "grid-cols-1"
+                            : "grid-cols-1 sm:grid-cols-2",
+                        )}
+                      >
                         <PreviewSlot
-                          kind={leftKind}
+                          kind={leftKind as "TEXT" | "IMAGE"}
                           text={cur.leftText}
                           imageUrl={cur.leftImageUrl}
                         />
-                        <PreviewSlot
-                          kind={rightKind}
-                          text={cur.rightText}
-                          imageUrl={cur.rightImageUrl}
-                        />
+                        {rightKind !== null && (
+                          <PreviewSlot
+                            kind={rightKind as "TEXT" | "IMAGE"}
+                            text={cur.rightText}
+                            imageUrl={cur.rightImageUrl}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1778,16 +1798,25 @@ function SlotGenerationDialog({
   );
 }
 
-function layoutToKinds(l: Layout): readonly ["TEXT" | "IMAGE", "TEXT" | "IMAGE"] {
+function layoutToKinds(l: Layout): readonly ["TEXT" | "IMAGE", "TEXT" | "IMAGE" | null] {
   if (l === "TEXT_TEXT") return ["TEXT", "TEXT"] as const;
   if (l === "IMAGE_TEXT") return ["IMAGE", "TEXT"] as const;
   if (l === "TEXT_IMAGE") return ["TEXT", "IMAGE"] as const;
-  return ["IMAGE", "IMAGE"] as const;
+  if (l === "IMAGE_IMAGE") return ["IMAGE", "IMAGE"] as const;
+  if (l === "SINGLE_TEXT") return ["TEXT", null] as const;
+  return ["IMAGE", null] as const; // SINGLE_IMAGE
+}
+
+/** True gdy sekcja to full-width (jedno pole na całej szerokości). */
+function isSingleLayout(l: Layout): boolean {
+  return l === "SINGLE_TEXT" || l === "SINGLE_IMAGE";
 }
 
 function layoutLabel(l: Layout): string {
   if (l === "TEXT_TEXT") return "Tekst+Tekst";
   if (l === "IMAGE_TEXT") return "Obraz+Tekst";
   if (l === "TEXT_IMAGE") return "Tekst+Obraz";
-  return "Obraz+Obraz";
+  if (l === "IMAGE_IMAGE") return "Obraz+Obraz";
+  if (l === "SINGLE_TEXT") return "Tekst (pełna szer.)";
+  return "Obraz (pełna szer.)";
 }

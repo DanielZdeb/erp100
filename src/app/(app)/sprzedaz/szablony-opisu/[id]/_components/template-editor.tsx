@@ -33,7 +33,7 @@ import {
 } from "@/server/description-templates";
 import { IMAGE_PROMPTS, TEXT_PROMPTS } from "@/lib/prompt-library";
 
-type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE";
+type Layout = "TEXT_TEXT" | "IMAGE_TEXT" | "TEXT_IMAGE" | "IMAGE_IMAGE" | "SINGLE_TEXT" | "SINGLE_IMAGE";
 
 interface SectionVM {
   id: string;
@@ -53,6 +53,8 @@ const LAYOUT_LABELS: Record<Layout, string> = {
   IMAGE_TEXT: "Obraz + Tekst",
   TEXT_IMAGE: "Tekst + Obraz",
   IMAGE_IMAGE: "Obraz + Obraz",
+  SINGLE_TEXT: "Tekst (pełna szer.)",
+  SINGLE_IMAGE: "Obraz (pełna szer.)",
 };
 
 function SlotPreview({ kind, hint }: { kind: "TEXT" | "IMAGE"; hint?: string | null }) {

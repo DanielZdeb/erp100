@@ -563,13 +563,16 @@ model Product {
 // `Product.descriptionContentJson` per sectionId.
 // ─────────────────────────────────────────────────────────────────────
 
-/// 4 layouty sekcji opisu — wybierane przy tworzeniu szablonu.
+/// Layouty sekcji opisu — wybierane przy tworzeniu szablonu.
 /// Kolejność: LEWY_PRAWY (np. IMAGE_TEXT = lewy slot to obraz, prawy to tekst).
+/// SINGLE_* to full-width (jedno pole na całej szerokości).
 enum DescriptionSectionLayout {
   TEXT_TEXT
   IMAGE_TEXT
   TEXT_IMAGE
   IMAGE_IMAGE
+  SINGLE_TEXT
+  SINGLE_IMAGE
 }
 
 /// Zbiór sekcji tworzących jednolity wygląd opisu sprzedażowego.
