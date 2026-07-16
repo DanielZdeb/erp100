@@ -307,7 +307,7 @@ async function drawProductPage(
   const innerX = PAD;
   const innerW = PAGE_W - 2 * PAD;
 
-  // SKU — bold 18pt, wycentrowany
+  // SKU — bold 18pt, wycentrowany. Bez nazwy/koloru, tylko sam kod.
   const skuY = PAGE_H - PAD - mm(8);
   const skuText = clipText(item.productCode, fontBold, 18, innerW);
   const skuWidth = fontBold.widthOfTextAtSize(skuText, 18);
@@ -319,34 +319,6 @@ async function drawProductPage(
     color: COLORS.black,
   });
 
-  // Nazwa produktu — max 2 linijki, 11pt, wycentrowane
-  const nameLines = wrapText(item.productName, fontRegular, 11, innerW, 2);
-  let nameY = skuY - mm(7);
-  for (const line of nameLines) {
-    const w = fontRegular.widthOfTextAtSize(line, 11);
-    page.drawText(line, {
-      x: (PAGE_W - w) / 2,
-      y: nameY,
-      font: fontRegular,
-      size: 11,
-      color: COLORS.slate700,
-    });
-    nameY -= mm(5);
-  }
-
-  // Kolor (jeśli jest), małym fontem, wycentrowany
-  if (item.color && item.color.trim() !== "") {
-    const w = fontRegular.widthOfTextAtSize(item.color, 9);
-    page.drawText(item.color, {
-      x: (PAGE_W - w) / 2,
-      y: nameY,
-      font: fontRegular,
-      size: 9,
-      color: COLORS.slate500,
-    });
-    nameY -= mm(5);
-  }
-
   // Kody kreskowe — rysowane WEKTOROWO (rectangles + text), żeby PDF zachował
   // ostrość przy dowolnym zoomie i żeby cyfry były selectable/searchable.
   const eanValid =
@@ -355,7 +327,8 @@ async function drawProductPage(
     item.code128 != null &&
     isValidBarcodeValue(item.code128.trim(), "CODE128");
 
-  let barY = nameY - mm(4);
+  // Barcode bliżej SKU — mały gap 3mm zamiast wcześniejszego offsetu.
+  let barY = skuY - mm(3);
   if (eanValid) {
     const usedH = drawBarcodeVector(page, item.eanCode!.trim(), "EAN13", {
       x: innerX,
