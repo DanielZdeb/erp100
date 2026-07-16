@@ -154,7 +154,9 @@ export function drawBarcodeVector(
 
   // 2) Zostaw miejsce na cyfry pod kodem
   const textSize = opts.textSize ?? 10;
-  const textGap = textSize * 0.25;
+  // Odstęp cyfry-pod-kodem od pasków: bardzo mały (0.05 * text) —
+  // wcześniej 0.25 dawało zauważalną szparę.
+  const textGap = textSize * 0.05;
   const textTotalH = textSize + textGap;
   const barsAreaH = opts.maxHeight - textTotalH;
   if (barsAreaH <= 0) return null;
@@ -327,8 +329,9 @@ async function drawProductPage(
     item.code128 != null &&
     isValidBarcodeValue(item.code128.trim(), "CODE128");
 
-  // Barcode bliżej SKU — mały gap 3mm zamiast wcześniejszego offsetu.
-  let barY = skuY - mm(3);
+  // Barcode bardzo blisko SKU — 1mm gap. Margin=4 (mniejsza quiet zone
+  // niż default 10) też zmniejsza padding wokół pasków.
+  let barY = skuY - mm(1);
   if (eanValid) {
     const usedH = drawBarcodeVector(page, item.eanCode!.trim(), "EAN13", {
       x: innerX,
@@ -337,8 +340,9 @@ async function drawProductPage(
       maxHeight: mm(32),
       font: fontBold,
       textSize: 16,
+      margin: 4,
     });
-    if (usedH != null) barY -= usedH + mm(4);
+    if (usedH != null) barY -= usedH + mm(2);
   }
   if (code128Valid) {
     drawBarcodeVector(page, item.code128!.trim(), "CODE128", {
@@ -348,6 +352,7 @@ async function drawProductPage(
       maxHeight: mm(28),
       font: fontBold,
       textSize: 14,
+      margin: 4,
     });
   }
 
