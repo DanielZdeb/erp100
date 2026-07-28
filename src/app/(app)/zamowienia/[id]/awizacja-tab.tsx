@@ -671,13 +671,15 @@ function DownloadPzCsvButton({
       toast.error("Brak pozycji w zamówieniu");
       return;
     }
-    const lines: string[] = ["KODTOWARU;ilość;cena netto"];
+    const lines: string[] = ["KODTOWARU;ilość;cena netto;EAN"];
     for (const it of items) {
       // Cena netto: 2 miejsca po przecinku, separator `,`
       const priceFormatted = it.landedCostPerUnitPln
         .toFixed(2)
         .replace(".", ",");
-      lines.push(`${it.productCode};${it.quantity};${priceFormatted}`);
+      lines.push(
+        `${it.productCode};${it.quantity};${priceFormatted};${it.eanCode ?? ""}`,
+      );
     }
     // BOM dla Excela żeby poprawnie czytał polskie znaki
     const bom = "﻿";
