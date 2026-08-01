@@ -1127,6 +1127,57 @@ export async function updateAwizacjaAction(
 }
 
 /**
+ * Awizacja per kontener — CRUD dla wierszy w tabeli OrderContainerAwizacja.
+ * Każdy wiersz = 1 kontener z osobnymi danymi kierowcy/pojazdu.
+ */
+export async function upsertContainerAwizacjaAction(
+  orderId: string,
+  data: {
+    id?: string;
+    containerNumber?: string | null;
+    containerType?: "TWENTY_FT" | "FORTY_FT" | "CUSTOM" | null;
+    driverName?: string | null;
+    driverPhone?: string | null;
+    vehiclePlate?: string | null;
+    sortOrder?: number;
+  },
+) {
+  await requireUser();
+  const str = (v: string | null | undefined): string | null =>
+    v == null || v.trim() === "" ? null : v.trim();
+  const payload = {
+    containerNumber: str(data.containerNumber),
+    containerType: data.containerType ?? null,
+    driverName: str(data.driverName),
+    driverPhone: str(data.driverPhone),
+    vehiclePlate: str(data.vehiclePlate),
+    sortOrder: data.sortOrder ?? 0,
+  };
+  if (data.id) {
+    await db.orderContainerAwizacja.update({
+      where: { id: data.id },
+      data: payload,
+    });
+  } else {
+    await db.orderContainerAwizacja.create({
+      data: { ...payload, orderId },
+    });
+  }
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+export async function deleteContainerAwizacjaAction(
+  orderId: string,
+  id: string,
+) {
+  await requireUser();
+  await db.orderContainerAwizacja.delete({ where: { id } });
+  revalidatePath(`/zamowienia/${orderId}`);
+  return { ok: true as const };
+}
+
+/**
  * Oznacz awizację jako wygenerowaną (zapisz timestamp). Używane przy
  * wydrukowaniu / wygenerowaniu PDF — żeby wiedzieć kiedy wystawiono.
  */

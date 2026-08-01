@@ -27,10 +27,21 @@ export type XlsxGoodsItem = {
   boxDepthCm: number | null;
 };
 
+export type XlsxContainer = {
+  index: number;
+  containerNumber: string | null;
+  containerType: string;
+  driverName: string | null;
+  driverPhone: string | null;
+  vehiclePlate: string | null;
+};
+
 export type XlsxInput = {
   orderNumber: string;
   orderName: string | null;
   items: XlsxGoodsItem[];
+  /** LEGACY: pojedynczy zestaw dla wstecznej kompatybilności. Nowe generacje
+   *  używają `containers[]`. */
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
@@ -41,6 +52,8 @@ export type XlsxInput = {
   warehouseAddress: string;
   palletCount: number;
   palletLabel: string;
+  /** Lista kontenerów per awizacja — każdy z osobnym kierowcą/rejestracją. */
+  containers?: XlsxContainer[];
 };
 
 // Kolory ARGB (Excel używa AARRGGBB, A = alpha FF dla nieprzezroczystego)
@@ -153,23 +166,47 @@ export async function generateAwizacjaXlsx(input: XlsxInput): Promise<Blob> {
   ws.getRow(row).height = 16;
   row++;
 
-  // ── KIEROWCA + POJAZD (2 wiersze: nagłówki, dane) ────────────────
-  drawSectionHeader(ws, row, "A", "E", "KIEROWCA");
-  drawSectionHeader(ws, row, "F", "J", "POJAZD");
+  // ── KONTENERY: nagłówek + wiersz per kontener (nr / typ / kierowca / rej)
+  drawSectionHeader(ws, row, "A", "B", "KONTENER #");
+  drawSectionHeader(ws, row, "C", "D", "NUMER");
+  drawSectionHeader(ws, row, "E", "E", "TYP");
+  drawSectionHeader(ws, row, "F", "G", "KIEROWCA");
+  drawSectionHeader(ws, row, "H", "H", "TELEFON");
+  drawSectionHeader(ws, row, "I", "J", "REJESTRACJA");
   ws.getRow(row).height = 14;
   row++;
-  ws.mergeCells(`A${row}:E${row}`);
-  const driverCell = ws.getCell(`A${row}`);
-  driverCell.value = `${input.driverName || "—"} · ${input.driverPhone || "—"}`;
-  driverCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: COLORS.slate900 } };
-  driverCell.alignment = { horizontal: "left", indent: 1, vertical: "middle" };
-  ws.mergeCells(`F${row}:J${row}`);
-  const vehicleCell = ws.getCell(`F${row}`);
-  vehicleCell.value = `${input.vehiclePlate || "—"}${input.vehicleType ? " · " + input.vehicleType : ""}`;
-  vehicleCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: COLORS.slate900 } };
-  vehicleCell.alignment = { horizontal: "left", indent: 1, vertical: "middle" };
-  ws.getRow(row).height = 16;
-  row++;
+  const containersList: XlsxContainer[] =
+    input.containers && input.containers.length > 0
+      ? input.containers
+      : [
+          {
+            index: 1,
+            containerNumber: null,
+            containerType: input.vehicleType || "",
+            driverName: input.driverName,
+            driverPhone: input.driverPhone,
+            vehiclePlate: input.vehiclePlate,
+          },
+        ];
+  for (const c of containersList) {
+    ws.mergeCells(`A${row}:B${row}`);
+    ws.getCell(`A${row}`).value = `#${c.index}`;
+    ws.mergeCells(`C${row}:D${row}`);
+    ws.getCell(`C${row}`).value = c.containerNumber || "—";
+    ws.getCell(`E${row}`).value = c.containerType || "—";
+    ws.mergeCells(`F${row}:G${row}`);
+    ws.getCell(`F${row}`).value = c.driverName || "—";
+    ws.getCell(`H${row}`).value = c.driverPhone || "—";
+    ws.mergeCells(`I${row}:J${row}`);
+    ws.getCell(`I${row}`).value = c.vehiclePlate || "—";
+    for (const col of ["A", "C", "E", "F", "H", "I"]) {
+      const cell = ws.getCell(`${col}${row}`);
+      cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: COLORS.slate900 } };
+      cell.alignment = { horizontal: "left", indent: 1, vertical: "middle" };
+    }
+    ws.getRow(row).height = 16;
+    row++;
+  }
 
   // ── TERMIN + PALETY (1 wiersz nagłówek, 1 wiersz dane) ───────────
   drawSectionHeader(ws, row, "A", "F", "TERMIN DOSTAWY");

@@ -29,7 +29,28 @@ import { cn } from "@/lib/utils";
 import {
   markAwizacjaPrintedAction,
   updateAwizacjaAction,
+  upsertContainerAwizacjaAction,
+  deleteContainerAwizacjaAction,
 } from "@/server/orders";
+
+type ContainerAwizacja = {
+  id: string;
+  containerNumber: string | null;
+  containerType: "TWENTY_FT" | "FORTY_FT" | "CUSTOM" | null;
+  driverName: string | null;
+  driverPhone: string | null;
+  vehiclePlate: string | null;
+  sortOrder: number;
+};
+
+function containerTypeLabel(
+  t: "TWENTY_FT" | "FORTY_FT" | "CUSTOM" | null | undefined,
+): string {
+  if (t === "TWENTY_FT") return "20 ft";
+  if (t === "FORTY_FT") return "40 ft";
+  if (t === "CUSTOM") return "Custom";
+  return "";
+}
 
 type AwizacjaData = {
   orderId: string;
@@ -42,6 +63,7 @@ type AwizacjaData = {
   deliveryDate: Date | null;
   awizacjaNotes: string | null;
   awizacjaPrintedAt: Date | null;
+  containerAwizacje: ContainerAwizacja[];
 };
 
 type GoodsItem = {
@@ -84,17 +106,33 @@ export function AwizacjaTab({
   containerCount: number;
 }) {
   const [pending, startTransition] = useTransition();
-  const [driverName, setDriverName] = useState(data.driverName ?? "");
-  const [driverPhone, setDriverPhone] = useState(data.driverPhone ?? "");
-  // driverIdNumber — usunięte (nr dowodu/paszportu zbędny w awizacji)
-  const [vehiclePlate, setVehiclePlate] = useState(data.vehiclePlate ?? "");
-  const [vehicleType, setVehicleType] = useState(data.vehicleType ?? "");
   const [deliveryDate, setDeliveryDate] = useState(
     data.deliveryDate
       ? new Date(data.deliveryDate).toISOString().slice(0, 16)
       : "",
   );
   const [awizacjaNotes, setAwizacjaNotes] = useState(data.awizacjaNotes ?? "");
+  // Lista awizacji per kontener (nowy model)
+  const [containers, setContainers] = useState<ContainerAwizacja[]>(
+    data.containerAwizacje.length > 0
+      ? data.containerAwizacje
+      : // Legacy fallback: jeśli w starym schemacie były tylko pojedyncze
+        // pola driverName/etc, przenieś je jako pierwszy kontener w UI
+        // (użytkownik może potem edytować/dodać kolejne).
+        data.driverName || data.driverPhone || data.vehiclePlate
+        ? [
+            {
+              id: "legacy-tmp",
+              containerNumber: null,
+              containerType: containerType,
+              driverName: data.driverName,
+              driverPhone: data.driverPhone,
+              vehiclePlate: data.vehiclePlate,
+              sortOrder: 0,
+            },
+          ]
+        : [],
+  );
 
   function saveField(
     field: keyof Parameters<typeof updateAwizacjaAction>[1],
@@ -107,6 +145,94 @@ export function AwizacjaTab({
         toast.error(e instanceof Error ? e.message : "Nie udało się zapisać");
       }
     });
+  }
+
+  function addContainer() {
+    const tempId = `tmp-${Date.now()}`;
+    const newCont: ContainerAwizacja = {
+      id: tempId,
+      containerNumber: null,
+      containerType: containerType,
+      driverName: null,
+      driverPhone: null,
+      vehiclePlate: null,
+      sortOrder: containers.length,
+    };
+    setContainers([...containers, newCont]);
+    // Zapisz do bazy — server zwróci realne id
+    startTransition(async () => {
+      try {
+        await upsertContainerAwizacjaAction(data.orderId, {
+          containerNumber: null,
+          containerType: containerType,
+          driverName: null,
+          driverPhone: null,
+          vehiclePlate: null,
+          sortOrder: containers.length,
+        });
+        // Odśwież stronę żeby dostać real id
+        window.location.reload();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Nie udało się dodać");
+        setContainers(containers);
+      }
+    });
+  }
+
+  function updateContainer(id: string, patch: Partial<ContainerAwizacja>) {
+    setContainers((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    );
+  }
+
+  function saveContainer(c: ContainerAwizacja) {
+    if (c.id.startsWith("tmp-") || c.id === "legacy-tmp") {
+      // Nowy — create
+      startTransition(async () => {
+        try {
+          await upsertContainerAwizacjaAction(data.orderId, {
+            containerNumber: c.containerNumber,
+            containerType: c.containerType,
+            driverName: c.driverName,
+            driverPhone: c.driverPhone,
+            vehiclePlate: c.vehiclePlate,
+            sortOrder: c.sortOrder,
+          });
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Nie udało się");
+        }
+      });
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await upsertContainerAwizacjaAction(data.orderId, {
+          id: c.id,
+          containerNumber: c.containerNumber,
+          containerType: c.containerType,
+          driverName: c.driverName,
+          driverPhone: c.driverPhone,
+          vehiclePlate: c.vehiclePlate,
+          sortOrder: c.sortOrder,
+        });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Nie udało się");
+      }
+    });
+  }
+
+  function removeContainer(id: string) {
+    if (!confirm("Usunąć awizację tego kontenera?")) return;
+    setContainers((prev) => prev.filter((c) => c.id !== id));
+    if (!id.startsWith("tmp-") && id !== "legacy-tmp") {
+      startTransition(async () => {
+        try {
+          await deleteContainerAwizacjaAction(data.orderId, id);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Nie udało się");
+        }
+      });
+    }
   }
 
   const totalQty = items.reduce((s, it) => s + it.quantity, 0);
@@ -126,18 +252,20 @@ export function AwizacjaTab({
     containerCount,
   );
 
-  const allDriverFilled =
-    driverName.trim() && driverPhone.trim() && vehiclePlate.trim();
+  // Awizacja gotowa gdy przynajmniej 1 kontener z kompletem danych
+  const allDriverFilled = containers.some(
+    (c) => c.driverName?.trim() && c.driverPhone?.trim() && c.vehiclePlate?.trim(),
+  );
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr] gap-4">
       {/* Lewa kolumna — formularz danych kierowcy + dostawa */}
       <div className="space-y-4">
         <Card className="p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gradient-to-r from-amber-50 to-orange-100/50 flex items-center gap-2">
+          <div className="px-4 py-3 border-b bg-gradient-to-r from-amber-50 to-orange-100/50 flex items-center gap-2 flex-wrap">
             <Truck className="size-5 text-amber-700" />
             <h3 className="text-base font-heading font-semibold text-amber-900">
-              Dane kierowcy i pojazdu
+              Kontenery do awizacji ({containers.length})
             </h3>
             <span className="ml-auto text-[10px] text-amber-700 uppercase tracking-wide">
               wymagane do awizacji
@@ -145,24 +273,6 @@ export function AwizacjaTab({
           </div>
           <div className="p-4 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FieldWithIcon icon={User} label="Imię i nazwisko kierowcy *">
-                <Input
-                  value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                  onBlur={(e) => saveField("driverName", e.target.value)}
-                  placeholder="Jan Kowalski"
-                  disabled={pending}
-                />
-              </FieldWithIcon>
-              <FieldWithIcon icon={Phone} label="Telefon kierowcy *">
-                <Input
-                  value={driverPhone}
-                  onChange={(e) => setDriverPhone(e.target.value)}
-                  onBlur={(e) => saveField("driverPhone", e.target.value)}
-                  placeholder="+48 600 000 000"
-                  disabled={pending}
-                />
-              </FieldWithIcon>
               <FieldWithIcon
                 icon={Calendar}
                 label="Planowana data i godzina dostawy"
@@ -172,27 +282,6 @@ export function AwizacjaTab({
                   value={deliveryDate}
                   onChange={(e) => setDeliveryDate(e.target.value)}
                   onBlur={(e) => saveField("deliveryDate", e.target.value)}
-                  disabled={pending}
-                />
-              </FieldWithIcon>
-              <FieldWithIcon icon={CreditCard} label="Numer rejestracyjny *">
-                <Input
-                  value={vehiclePlate}
-                  onChange={(e) =>
-                    setVehiclePlate(e.target.value.toUpperCase())
-                  }
-                  onBlur={(e) => saveField("vehiclePlate", e.target.value)}
-                  placeholder="KR 12345"
-                  className="font-mono uppercase"
-                  disabled={pending}
-                />
-              </FieldWithIcon>
-              <FieldWithIcon icon={Truck} label="Typ pojazdu">
-                <Input
-                  value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value)}
-                  onBlur={(e) => saveField("vehicleType", e.target.value)}
-                  placeholder="np. TIR, Bus 3.5t, Solo"
                   disabled={pending}
                 />
               </FieldWithIcon>
@@ -207,6 +296,120 @@ export function AwizacjaTab({
                 disabled={pending}
               />
             </FieldWithIcon>
+
+            {/* Lista kontenerów */}
+            {containers.length === 0 && (
+              <div className="rounded-lg ring-1 ring-dashed ring-slate-300 p-6 text-center text-sm text-slate-500">
+                Brak kontenerów. Dodaj pierwszy klikając „+ Dodaj kontener" poniżej.
+              </div>
+            )}
+            {containers.map((c, idx) => (
+              <div
+                key={c.id}
+                className="rounded-lg ring-1 ring-slate-200 p-3 space-y-2 bg-slate-50/40"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] uppercase tracking-wide font-bold text-slate-600">
+                    Kontener #{idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeContainer(c.id)}
+                    className="ml-auto text-[11px] text-rose-600 hover:text-rose-800"
+                    title="Usuń kontener"
+                  >
+                    Usuń
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <FieldWithIcon icon={Truck} label="Numer kontenera">
+                    <Input
+                      value={c.containerNumber ?? ""}
+                      onChange={(e) =>
+                        updateContainer(c.id, {
+                          containerNumber: e.target.value.toUpperCase(),
+                        })
+                      }
+                      onBlur={() => saveContainer(c)}
+                      placeholder="MSKU1234567"
+                      className="font-mono uppercase"
+                      disabled={pending}
+                    />
+                  </FieldWithIcon>
+                  <FieldWithIcon icon={Truck} label="Rodzaj kontenera">
+                    <select
+                      value={c.containerType ?? containerType}
+                      onChange={(e) => {
+                        updateContainer(c.id, {
+                          containerType: e.target.value as
+                            | "TWENTY_FT"
+                            | "FORTY_FT"
+                            | "CUSTOM",
+                        });
+                        saveContainer({
+                          ...c,
+                          containerType: e.target.value as
+                            | "TWENTY_FT"
+                            | "FORTY_FT"
+                            | "CUSTOM",
+                        });
+                      }}
+                      className="w-full h-9 px-3 text-sm rounded-md ring-1 ring-slate-200 focus:ring-2 focus:ring-amber-400 outline-none"
+                      disabled={pending}
+                    >
+                      <option value="TWENTY_FT">20 ft (28 m³)</option>
+                      <option value="FORTY_FT">40 ft (68 m³)</option>
+                      <option value="CUSTOM">Custom</option>
+                    </select>
+                  </FieldWithIcon>
+                  <FieldWithIcon icon={User} label="Imię i nazwisko kierowcy">
+                    <Input
+                      value={c.driverName ?? ""}
+                      onChange={(e) =>
+                        updateContainer(c.id, { driverName: e.target.value })
+                      }
+                      onBlur={() => saveContainer(c)}
+                      placeholder="Jan Kowalski"
+                      disabled={pending}
+                    />
+                  </FieldWithIcon>
+                  <FieldWithIcon icon={Phone} label="Telefon">
+                    <Input
+                      value={c.driverPhone ?? ""}
+                      onChange={(e) =>
+                        updateContainer(c.id, { driverPhone: e.target.value })
+                      }
+                      onBlur={() => saveContainer(c)}
+                      placeholder="+48 600 000 000"
+                      disabled={pending}
+                    />
+                  </FieldWithIcon>
+                  <FieldWithIcon icon={CreditCard} label="Numer rejestracyjny">
+                    <Input
+                      value={c.vehiclePlate ?? ""}
+                      onChange={(e) =>
+                        updateContainer(c.id, {
+                          vehiclePlate: e.target.value.toUpperCase(),
+                        })
+                      }
+                      onBlur={() => saveContainer(c)}
+                      placeholder="KR 12345"
+                      className="font-mono uppercase"
+                      disabled={pending}
+                    />
+                  </FieldWithIcon>
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addContainer}
+              disabled={pending}
+              className="w-full ring-1 ring-dashed ring-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              + Dodaj kontener
+            </Button>
           </div>
         </Card>
 
@@ -222,10 +425,8 @@ export function AwizacjaTab({
               orderNumber={data.orderNumber}
               orderName={data.orderName}
               items={items}
-              driverName={driverName}
-              driverPhone={driverPhone}
-              vehiclePlate={vehiclePlate}
-              vehicleType={vehicleType}
+              containers={containers}
+              containerType={containerType}
               deliveryDate={deliveryDate}
               awizacjaNotes={awizacjaNotes}
               companyName={companyName}
@@ -237,10 +438,7 @@ export function AwizacjaTab({
               orderNumber={data.orderNumber}
               orderName={data.orderName}
               items={items}
-              driverName={driverName}
-              driverPhone={driverPhone}
-              vehiclePlate={vehiclePlate}
-              vehicleType={vehicleType}
+              containers={containers}
               deliveryDate={deliveryDate}
               awizacjaNotes={awizacjaNotes}
               companyName={companyName}
@@ -299,35 +497,41 @@ export function AwizacjaTab({
             <div className="text-muted-foreground">{warehouseAddress}</div>
           </Section>
 
-          <Section title="Kierowca">
-            <KvRow
-              label="Imię i nazwisko"
-              value={driverName || "—"}
-              empty={!driverName}
-            />
-            <KvRow
-              label="Telefon"
-              value={driverPhone || "—"}
-              empty={!driverPhone}
-            />
-          </Section>
-
-          <Section title="Pojazd">
-            <KvRow
-              label="Numer rejestracyjny"
-              value={
-                <span className="font-mono uppercase">
-                  {vehiclePlate || "—"}
-                </span>
-              }
-              empty={!vehiclePlate}
-            />
-            <KvRow
-              label="Typ pojazdu"
-              value={vehicleType || "—"}
-              empty={!vehicleType}
-            />
-          </Section>
+          {containers.length === 0 && (
+            <Section title="Kontenery">
+              <div className="text-muted-foreground italic">
+                Brak — dodaj kontener po lewej.
+              </div>
+            </Section>
+          )}
+          {containers.map((c, i) => (
+            <Section key={c.id} title={`Kontener #${i + 1}${c.containerNumber ? ` — ${c.containerNumber}` : ""}`}>
+              <KvRow
+                label="Rodzaj"
+                value={containerTypeLabel(c.containerType) || "—"}
+                empty={!c.containerType}
+              />
+              <KvRow
+                label="Kierowca"
+                value={c.driverName || "—"}
+                empty={!c.driverName}
+              />
+              <KvRow
+                label="Telefon"
+                value={c.driverPhone || "—"}
+                empty={!c.driverPhone}
+              />
+              <KvRow
+                label="Nr rejestracyjny"
+                value={
+                  <span className="font-mono uppercase">
+                    {c.vehiclePlate || "—"}
+                  </span>
+                }
+                empty={!c.vehiclePlate}
+              />
+            </Section>
+          ))}
 
           <Section title="Termin dostawy">
             <div
@@ -1107,10 +1311,7 @@ function DownloadAwizacjaXlsxButton(params: {
   orderNumber: string;
   orderName: string | null;
   items: GoodsItem[];
-  driverName: string;
-  driverPhone: string;
-  vehiclePlate: string;
-  vehicleType: string;
+  containers: ContainerAwizacja[];
   deliveryDate: string;
   awizacjaNotes: string;
   companyName: string;
@@ -1121,7 +1322,7 @@ function DownloadAwizacjaXlsxButton(params: {
   function handleDownload() {
     if (!params.ready) {
       toast.error(
-        "Uzupełnij dane kierowcy (imię, telefon, numer rejestracyjny) przed pobraniem.",
+        "Uzupełnij dane przynajmniej jednego kontenera przed pobraniem.",
       );
       return;
     }
@@ -1135,6 +1336,8 @@ function DownloadAwizacjaXlsxButton(params: {
           totalCbm,
           params.containerCount,
         );
+        // Fallback: pierwszy kontener → legacy pola (driverName/etc)
+        const first = params.containers[0];
         const { generateAwizacjaXlsx } = await import("./awizacja-xlsx");
         const blob = await generateAwizacjaXlsx({
           orderNumber: params.orderNumber,
@@ -1153,16 +1356,24 @@ function DownloadAwizacjaXlsxButton(params: {
             boxHeightCm: it.boxHeightCm,
             boxDepthCm: it.boxDepthCm,
           })),
-          driverName: params.driverName,
-          driverPhone: params.driverPhone,
-          vehiclePlate: params.vehiclePlate,
-          vehicleType: params.vehicleType,
+          driverName: first?.driverName ?? "",
+          driverPhone: first?.driverPhone ?? "",
+          vehiclePlate: first?.vehiclePlate ?? "",
+          vehicleType: containerTypeLabel(first?.containerType ?? params.containerType),
           deliveryDate: params.deliveryDate,
           awizacjaNotes: params.awizacjaNotes,
           companyName: params.companyName,
           warehouseAddress: params.warehouseAddress,
           palletCount: palletInfo.count,
           palletLabel: palletInfo.label,
+          containers: params.containers.map((c, i) => ({
+            index: i + 1,
+            containerNumber: c.containerNumber,
+            containerType: containerTypeLabel(c.containerType ?? params.containerType),
+            driverName: c.driverName,
+            driverPhone: c.driverPhone,
+            vehiclePlate: c.vehiclePlate,
+          })),
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1205,10 +1416,8 @@ function InteractivePdfButton(params: {
   orderNumber: string;
   orderName: string | null;
   items: GoodsItem[];
-  driverName: string;
-  driverPhone: string;
-  vehiclePlate: string;
-  vehicleType: string;
+  containers: ContainerAwizacja[];
+  containerType: "TWENTY_FT" | "FORTY_FT" | "CUSTOM";
   deliveryDate: string;
   awizacjaNotes: string;
   companyName: string;
@@ -1220,12 +1429,12 @@ function InteractivePdfButton(params: {
   async function handleClick() {
     if (!params.ready) {
       toast.error(
-        "Uzupełnij dane kierowcy (imię, telefon, numer rejestracyjny).",
+        "Uzupełnij dane przynajmniej jednego kontenera przed pobraniem.",
       );
       return;
     }
     try {
-      // Dynamiczny import — pdf-lib ~150kB, ładujemy tylko gdy potrzebne
+      const first = params.containers[0];
       const { generateInteractiveAwizacjaPdf } = await import(
         "./interactive-pdf"
       );
@@ -1249,16 +1458,24 @@ function InteractivePdfButton(params: {
           boxHeightCm: it.boxHeightCm,
           boxDepthCm: it.boxDepthCm,
         })),
-        driverName: params.driverName,
-        driverPhone: params.driverPhone,
-        vehiclePlate: params.vehiclePlate,
-        vehicleType: params.vehicleType,
+        driverName: first?.driverName ?? "",
+        driverPhone: first?.driverPhone ?? "",
+        vehiclePlate: first?.vehiclePlate ?? "",
+        vehicleType: containerTypeLabel(first?.containerType ?? params.containerType),
         deliveryDate: params.deliveryDate,
         awizacjaNotes: params.awizacjaNotes,
         companyName: params.companyName,
         warehouseAddress: params.warehouseAddress,
         palletCount: params.palletInfo.count,
         palletLabel: params.palletInfo.label,
+        containers: params.containers.map((c, i) => ({
+          index: i + 1,
+          containerNumber: c.containerNumber,
+          containerType: containerTypeLabel(c.containerType ?? params.containerType),
+          driverName: c.driverName,
+          driverPhone: c.driverPhone,
+          vehiclePlate: c.vehiclePlate,
+        })),
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

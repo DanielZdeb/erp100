@@ -35,10 +35,21 @@ export type PdfGoodsItem = {
   boxDepthCm: number | null;
 };
 
+export type PdfContainer = {
+  index: number;
+  containerNumber: string | null;
+  containerType: string;
+  driverName: string | null;
+  driverPhone: string | null;
+  vehiclePlate: string | null;
+};
+
 export type PdfAwizacjaInput = {
   orderNumber: string;
   orderName: string | null;
   items: PdfGoodsItem[];
+  /** LEGACY: pojedynczy zestaw (backward-compat). Nowe generacje używają
+   *  `containers[]` — pojedyncze pola są ignorowane gdy containers niepuste. */
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
@@ -49,6 +60,8 @@ export type PdfAwizacjaInput = {
   warehouseAddress: string;
   palletCount: number;
   palletLabel: string;
+  /** Wiele kontenerów — każdy z osobnym kierowcą/rejestracją. */
+  containers?: PdfContainer[];
 };
 
 // A4 portrait w punktach PDF (1pt = 1/72 cala, 1mm ≈ 2.834pt)
@@ -141,34 +154,45 @@ export async function generateInteractiveAwizacjaPdf(
   });
   y -= 14;
 
-  // KIEROWCA + POJAZD w 2 kolumnach
+  // KONTENERY — jeden wiersz per kontener, wszystko na pełnej szerokości
   const col1X = mm(8);
   const col2X = PAGE_W / 2 + mm(2);
-  const sectionTopY = y;
-
-  drawSectionHeader(page, "KIEROWCA", col1X, y, fontBold);
-  let leftY = y - 11;
-  drawKv(page, "Imię i nazwisko:", input.driverName || "—", col1X, leftY, fontRegular, fontBold);
-  leftY -= 10;
-  drawKv(page, "Telefon:", input.driverPhone || "—", col1X, leftY, fontRegular, fontBold);
-  leftY -= 12;
-
-  drawSectionHeader(page, "POJAZD", col2X, sectionTopY, fontBold);
-  let rightY = sectionTopY - 11;
-  drawKv(
-    page,
-    "Numer rejestracyjny:",
-    input.vehiclePlate || "—",
-    col2X,
-    rightY,
-    fontRegular,
-    fontBold,
-  );
-  rightY -= 10;
-  drawKv(page, "Typ pojazdu:", input.vehicleType || "—", col2X, rightY, fontRegular, fontBold);
-  rightY -= 12;
-
-  y = Math.min(leftY, rightY) - 2;
+  const containersList: PdfContainer[] =
+    input.containers && input.containers.length > 0
+      ? input.containers
+      : [
+          {
+            index: 1,
+            containerNumber: null,
+            containerType: input.vehicleType || "",
+            driverName: input.driverName,
+            driverPhone: input.driverPhone,
+            vehiclePlate: input.vehiclePlate,
+          },
+        ];
+  drawSectionHeader(page, `KONTENERY (${containersList.length})`, col1X, y, fontBold);
+  y -= 11;
+  for (const c of containersList) {
+    const line1 = `#${c.index}  ${c.containerNumber || "—"}  (${c.containerType || "—"})`;
+    drawText(page, line1, {
+      x: col1X,
+      y,
+      font: fontBold,
+      size: 9,
+      color: COLORS.black,
+    });
+    y -= 10;
+    const line2 = `Kierowca: ${c.driverName || "—"} · tel. ${c.driverPhone || "—"} · rej. ${c.vehiclePlate || "—"}`;
+    drawText(page, line2, {
+      x: col1X + mm(3),
+      y,
+      font: fontRegular,
+      size: 8,
+      color: COLORS.slate700,
+    });
+    y -= 12;
+  }
+  y -= 2;
 
   // Termin dostawy + palety
   drawSectionHeader(page, "TERMIN DOSTAWY", mm(8), y, fontBold);

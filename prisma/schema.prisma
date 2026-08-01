@@ -1232,6 +1232,7 @@ model ImportOrder {
   payments      ImportOrderPayment[]
   files         OrderFile[]
   statusHistory OrderStatusHistory[]
+  containerAwizacje OrderContainerAwizacja[]
   priceHistory  ProductPriceHistory[]
   pdfSections   ImportOrderPdfSection[]
 
@@ -1245,6 +1246,29 @@ model ImportOrder {
 /// Numerowane linki śledzenia per kontener. Zamówienie importowe może mieć
 /// wiele kontenerów; każdy ma swój numer (np. „MSKU1234567") i URL do
 /// trackingu armatora. W liście zamówień wyświetlane jako klikalne kafelki.
+/// Dane kierowcy/pojazdu per kontener w zamówieniu. Zamówienie może mieć
+/// wiele kontenerów, każdy z osobnym kierowcą (np. inne transporty
+/// z tego samego zamówienia). Wypełniane w tabie „Awizacja i PZ",
+/// używane przy generowaniu PDF/XLSX awizacji.
+model OrderContainerAwizacja {
+  id              String      @id @default(cuid())
+  orderId         String
+  order           ImportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  containerNumber String?
+  /// Typ kontenera (TWENTY_FT / FORTY_FT / CUSTOM). Może być inny niż
+  /// domyślny typ zamówienia — gdy jedno zamówienie idzie różnymi
+  /// kontenerami. Null = użyj default z zamówienia.
+  containerType   ContainerType?
+  driverName      String?
+  driverPhone     String?
+  vehiclePlate    String?
+  sortOrder       Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([orderId])
+}
+
 model ImportOrderContainerLink {
   id              String      @id @default(cuid())
   orderId         String

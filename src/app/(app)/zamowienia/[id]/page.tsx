@@ -224,6 +224,7 @@ export default async function ZamowienieDetailPage({
       },
       costs: { orderBy: { createdAt: "asc" } },
       goodsTranches: { orderBy: { phase: "asc" } },
+      containerAwizacje: { orderBy: { sortOrder: "asc" } },
       tasks: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       payments: { orderBy: { createdAt: "asc" } },
       files: { orderBy: { createdAt: "desc" } },
@@ -1218,6 +1219,15 @@ export default async function ZamowienieDetailPage({
                   deliveryDate: order.deliveryDate,
                   awizacjaNotes: order.awizacjaNotes,
                   awizacjaPrintedAt: order.awizacjaPrintedAt,
+                  containerAwizacje: order.containerAwizacje.map((c) => ({
+                    id: c.id,
+                    containerNumber: c.containerNumber,
+                    containerType: c.containerType,
+                    driverName: c.driverName,
+                    driverPhone: c.driverPhone,
+                    vehiclePlate: c.vehiclePlate,
+                    sortOrder: c.sortOrder,
+                  })),
                 }}
                 items={order.items.map((it, i) => {
                   const cbm = it.cbmPerUnit ?? it.product.cbmPerUnit ?? 0;
