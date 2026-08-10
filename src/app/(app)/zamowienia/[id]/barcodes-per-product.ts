@@ -441,12 +441,17 @@ export async function generateBarcodesZip(
  * Layout etykiety: SKU (top, bold) + EAN-13 barcode + cyfry.
  * Ideal do drukarek etykietowych na arkuszach naklejkowych.
  */
+// Wymiary dopasowane do standardowego arkusza Avery L7159 / 3421
+// (24 naklejek 63.5×33.9mm na A4, marginesy 15.15mm top / 7.21mm side,
+// odstęp 2.54mm poziomo między naklejkami, 0 pionowo).
 const A4_W = mm(210);
 const A4_H = mm(297);
-const A4_MARGIN_TOP = mm(1.5);
-const A4_MARGIN_SIDE = mm(0.5);
-const CELL_W = mm(70);
-const CELL_H = mm(35);
+const A4_MARGIN_TOP = mm(15.15);
+const A4_MARGIN_SIDE = mm(7.21);
+const CELL_W = mm(63.5);
+const CELL_H = mm(33.9);
+const GAP_X = mm(2.54);
+const GAP_Y = mm(0);
 const COLS = 3;
 const ROWS = 8;
 const PER_PAGE = COLS * ROWS; // 24
@@ -532,8 +537,8 @@ export async function generateBarcodesA4GridPdf(
     for (let idx = 0; idx < PER_PAGE; idx++) {
       const col = idx % COLS;
       const row = Math.floor(idx / COLS);
-      const cellX = A4_MARGIN_SIDE + col * CELL_W;
-      const cellY = A4_H - A4_MARGIN_TOP - row * CELL_H;
+      const cellX = A4_MARGIN_SIDE + col * (CELL_W + GAP_X);
+      const cellY = A4_H - A4_MARGIN_TOP - row * (CELL_H + GAP_Y);
       drawCellLabel(page, item, cellX, cellY, fontBold);
     }
   }
