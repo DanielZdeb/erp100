@@ -3451,16 +3451,16 @@ function BarcodeModal({
   state: { item: Item; format: "EAN13" | "CODE128" } | null;
   onClose: () => void;
 }) {
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<null | "a6" | "a4">(null);
 
-  async function downloadA6() {
+  async function downloadPdf(kind: "a6" | "a4") {
     if (!state) return;
-    setDownloading(true);
+    setDownloading(kind);
     try {
-      const { generateBarcodesMultipagePdf } = await import(
-        "./barcodes-per-product"
-      );
-      const result = await generateBarcodesMultipagePdf([
+      const mod = await import("./barcodes-per-product");
+      const generate =
+        kind === "a6" ? mod.generateBarcodesMultipagePdf : mod.generateBarcodesA4GridPdf;
+      const result = await generate([
         {
           productCode: state.item.product.productCode,
           productName: state.item.product.name,
@@ -3472,7 +3472,10 @@ function BarcodeModal({
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `etykieta-${state.item.product.productCode}.pdf`;
+      a.download =
+        kind === "a6"
+          ? `etykieta-${state.item.product.productCode}.pdf`
+          : `etykiety-a4-${state.item.product.productCode}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -3480,7 +3483,7 @@ function BarcodeModal({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Nie udało się");
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   }
 
@@ -3488,17 +3491,27 @@ function BarcodeModal({
     <Dialog open={state !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         {state && <BarcodeBody item={state.item} />}
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
             Zamknij
           </Button>
           <Button
             type="button"
-            onClick={downloadA6}
-            disabled={downloading}
+            variant="outline"
+            onClick={() => downloadPdf("a4")}
+            disabled={downloading !== null}
+            className="gap-2"
+            title="24 identyczne etykiety 70×35mm na A4 (do arkusza naklejek)"
+          >
+            {downloading === "a4" ? "Generuję..." : "PDF A4 (24×)"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => downloadPdf("a6")}
+            disabled={downloading !== null}
             className="gap-2"
           >
-            {downloading ? "Generuję..." : "Pobierz PDF (A6)"}
+            {downloading === "a6" ? "Generuję..." : "PDF A6 (1×)"}
           </Button>
         </DialogFooter>
       </DialogContent>
