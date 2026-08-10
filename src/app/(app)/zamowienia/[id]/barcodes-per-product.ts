@@ -451,7 +451,7 @@ const COLS = 3;
 const ROWS = 8;
 const PER_PAGE = COLS * ROWS; // 24
 
-/** Rysuje pojedynczą etykietę w cell (70×35mm). */
+/** Rysuje pojedynczą etykietę w cell (70×35mm) z paddingami dookoła. */
 function drawCellLabel(
   page: PDFPage,
   item: BarcodeItem,
@@ -459,31 +459,35 @@ function drawCellLabel(
   cellY: number, // top-left w PDF coords (y-down odjęte)
   fontBold: PDFFont,
 ) {
-  const padX = mm(2);
+  // Równe paddingi z każdej strony — barcode/SKU odsunięte od krawędzi cell.
+  const padX = mm(4);
+  const padTop = mm(3);
+  const padBottom = mm(3);
   const innerX = cellX + padX;
   const innerW = CELL_W - 2 * padX;
+  const innerTopY = cellY - padTop;
 
-  // SKU u góry — bold ~9pt (małe cell 35mm)
-  const skuY = cellY - mm(3) - 9;
+  // SKU u góry
   const skuText = clipText(item.productCode, fontBold, 9, innerW);
   const skuW = fontBold.widthOfTextAtSize(skuText, 9);
   page.drawText(skuText, {
     x: cellX + (CELL_W - skuW) / 2,
-    y: skuY + 9,
+    y: innerTopY - 9,
     font: fontBold,
     size: 9,
     color: COLORS.black,
   });
 
-  // Barcode bezpośrednio pod SKU
+  // Barcode: pod SKU z małym gapem, od góry do dolnego padding
   const ean = item.eanCode?.trim() ?? "";
   const code128 = item.code128?.trim() ?? "";
   const useEan = isValidBarcodeValue(ean, "EAN13");
   const useCode128 = !useEan && isValidBarcodeValue(code128, "CODE128");
   if (!useEan && !useCode128) return;
 
-  const barY = skuY - mm(0.5);
-  const barMaxH = CELL_H - mm(3) - 9 - mm(0.5); // wysokość cell - padding top - SKU - gap
+  const gapAfterSku = mm(1.5);
+  const barY = innerTopY - 9 - gapAfterSku;
+  const barMaxH = barY - (cellY - CELL_H + padBottom);
   drawBarcodeVector(
     page,
     useEan ? ean : code128,
