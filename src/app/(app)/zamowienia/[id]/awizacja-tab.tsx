@@ -462,6 +462,10 @@ export function AwizacjaTab({
               orderNumber={data.orderNumber}
               items={items}
             />
+            <GenerateBarcodesA4GridButton
+              orderNumber={data.orderNumber}
+              items={items}
+            />
           </div>
           {data.awizacjaPrintedAt && (
             <p className="text-[11px] text-emerald-700 inline-flex items-center gap-1 mt-2">
@@ -1125,6 +1129,76 @@ export function GenerateBarcodesMultipagePdfButton({
         Kody kreskowe (PDF){" "}
         <span className="text-[9px] uppercase tracking-wide opacity-80">
           · 1 strona / SKU · A6
+        </span>
+      </span>
+    </Button>
+  );
+}
+
+/**
+ * A4 3×8 grid (24 identyczne etykiety per SKU, 70×35mm) — do drukarek
+ * z arkuszami naklejek.
+ */
+export function GenerateBarcodesA4GridButton({
+  orderNumber,
+  items,
+}: {
+  orderNumber: string;
+  items: BarcodeItemRow[];
+}) {
+  const [pending, startTransition] = useTransition();
+  function handleClick() {
+    if (items.length === 0) {
+      toast.error("Brak pozycji w zamówieniu");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        toast.loading("Generuję etykiety A4 (3×8)…", { id: "a4-grid" });
+        const { generateBarcodesA4GridPdf } = await import(
+          "./barcodes-per-product"
+        );
+        const result = await generateBarcodesA4GridPdf(
+          items.map((it) => ({
+            productCode: it.productCode,
+            productName: it.productName,
+            color: it.color,
+            eanCode: it.eanCode,
+            code128: it.code128,
+          })),
+        );
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement("a");
+        const datePart = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `Etykiety_A4_${orderNumber}_${datePart}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(
+          `Pobrano ${result.pageCount} stron A4 · 24 identyczne etykiety / SKU`,
+          { id: "a4-grid" },
+        );
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Błąd generowania", {
+          id: "a4-grid",
+        });
+      }
+    });
+  }
+  return (
+    <Button
+      type="button"
+      onClick={handleClick}
+      disabled={pending}
+      className="gap-2 justify-start bg-slate-800 hover:bg-slate-900 text-white"
+    >
+      <Barcode className="size-4" />
+      <span className="text-left">
+        Etykiety A4 (3×8){" "}
+        <span className="text-[9px] uppercase tracking-wide opacity-80">
+          · 24 × ta sama etykieta 70×35mm / SKU
         </span>
       </span>
     </Button>

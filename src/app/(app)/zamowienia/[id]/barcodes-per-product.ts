@@ -436,6 +436,112 @@ export async function generateBarcodesZip(
 }
 
 /**
+ * A4 3×8 grid — 24 identyczne etykiety na stronę, 1 strona per SKU.
+ * Cell 70×35 mm, marginesy: top/bottom 1.5mm, side 0.5mm.
+ * Layout etykiety: SKU (top, bold) + EAN-13 barcode + cyfry.
+ * Ideal do drukarek etykietowych na arkuszach naklejkowych.
+ */
+const A4_W = mm(210);
+const A4_H = mm(297);
+const A4_MARGIN_TOP = mm(1.5);
+const A4_MARGIN_SIDE = mm(0.5);
+const CELL_W = mm(70);
+const CELL_H = mm(35);
+const COLS = 3;
+const ROWS = 8;
+const PER_PAGE = COLS * ROWS; // 24
+
+/** Rysuje pojedynczą etykietę w cell (70×35mm). */
+function drawCellLabel(
+  page: PDFPage,
+  item: BarcodeItem,
+  cellX: number,
+  cellY: number, // top-left w PDF coords (y-down odjęte)
+  fontBold: PDFFont,
+) {
+  const padX = mm(2);
+  const innerX = cellX + padX;
+  const innerW = CELL_W - 2 * padX;
+
+  // SKU u góry — bold ~9pt (małe cell 35mm)
+  const skuY = cellY - mm(3) - 9;
+  const skuText = clipText(item.productCode, fontBold, 9, innerW);
+  const skuW = fontBold.widthOfTextAtSize(skuText, 9);
+  page.drawText(skuText, {
+    x: cellX + (CELL_W - skuW) / 2,
+    y: skuY + 9,
+    font: fontBold,
+    size: 9,
+    color: COLORS.black,
+  });
+
+  // Barcode bezpośrednio pod SKU
+  const ean = item.eanCode?.trim() ?? "";
+  const code128 = item.code128?.trim() ?? "";
+  const useEan = isValidBarcodeValue(ean, "EAN13");
+  const useCode128 = !useEan && isValidBarcodeValue(code128, "CODE128");
+  if (!useEan && !useCode128) return;
+
+  const barY = skuY - mm(0.5);
+  const barMaxH = CELL_H - mm(3) - 9 - mm(0.5); // wysokość cell - padding top - SKU - gap
+  drawBarcodeVector(
+    page,
+    useEan ? ean : code128,
+    useEan ? "EAN13" : "CODE128",
+    {
+      x: innerX,
+      y: barY,
+      maxWidth: innerW,
+      maxHeight: barMaxH,
+      font: fontBold,
+      textSize: 6,
+      margin: 2,
+    },
+  );
+}
+
+/**
+ * Generuje 1-stronicowy PDF (A4) z 24 identycznymi etykietami per SKU.
+ * Dla listy N produktów zwraca PDF z N stronami (24×N etykiet total).
+ */
+export async function generateBarcodesA4GridPdf(
+  items: BarcodeItem[],
+): Promise<{ blob: Blob; pageCount: number }> {
+  const labels = sortByColorHierarchy(
+    items.filter((it) => it.eanCode || it.code128),
+  );
+  if (labels.length === 0) {
+    throw new Error(
+      "Żaden produkt nie ma EAN-13 ani CODE-128 — nie ma czego drukować",
+    );
+  }
+  const { bold } = await loadRobotoFonts();
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
+  const fontBold = await pdfDoc.embedFont(bold, { subset: true });
+
+  const seenSku = new Set<string>();
+  for (const item of labels) {
+    if (seenSku.has(item.productCode)) continue;
+    seenSku.add(item.productCode);
+    const page = pdfDoc.addPage([A4_W, A4_H]);
+    for (let idx = 0; idx < PER_PAGE; idx++) {
+      const col = idx % COLS;
+      const row = Math.floor(idx / COLS);
+      const cellX = A4_MARGIN_SIDE + col * CELL_W;
+      const cellY = A4_H - A4_MARGIN_TOP - row * CELL_H;
+      drawCellLabel(page, item, cellX, cellY, fontBold);
+    }
+  }
+
+  const bytes = await pdfDoc.save();
+  return {
+    blob: new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
+    pageCount: seenSku.size,
+  };
+}
+
+/**
  * Zwraca jeden wielostronicowy PDF — każda strona to jeden SKU.
  */
 export async function generateBarcodesMultipagePdf(
