@@ -1447,6 +1447,16 @@ export default async function ProduktyPage({
                   let bundleProwizjaPln: number | null = null;
                   let bundleCloPln: number | null = null;
                   if (p.compositionMode === "ZESTAW" && p.components.length > 0) {
+                    // Preferuj ręcznie wpisaną CENĘ BAZOWĄ na zestawie
+                    // (defaultUnitPricePln) — user może chcieć ustalić cenę
+                    // fabryczną zestawu bez sumowania komponentów (np. gdy
+                    // dostał od dostawcy zryczałtowaną cenę za komplet).
+                    if (
+                      p.defaultUnitPricePln != null &&
+                      p.defaultUnitPricePln > 0
+                    ) {
+                      bundlePurchasePln = p.defaultUnitPricePln;
+                    }
                     let purchaseSum = 0;
                     let logisticsSum = 0;
                     let prowizjaSum = 0;
@@ -1545,7 +1555,10 @@ export default async function ProduktyPage({
                         else cloSum += compClo * c.quantity;
                       }
                     }
-                    if (!anyPurchaseMissing) bundlePurchasePln = purchaseSum;
+                    // Nie nadpisuj bundlePurchasePln jeśli już ustawiony
+                    // z defaultUnitPricePln (cena bazowa zestawu ma priorytet).
+                    if (bundlePurchasePln == null && !anyPurchaseMissing)
+                      bundlePurchasePln = purchaseSum;
                     if (!anyLogisticsMissing) bundleLogisticsPln = logisticsSum;
                     if (!anyProwizjaMissing) bundleProwizjaPln = prowizjaSum;
                     if (!anyCloMissing) bundleCloPln = cloSum;
