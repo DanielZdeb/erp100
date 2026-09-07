@@ -1479,10 +1479,18 @@ export default async function ProduktyPage({
                     };
                     const leaves: Leaf[] = [];
                     for (const c of p.components) {
-                      if (
+                      // Zagniezdzony ZESTAW z wpisana CENA BAZOWA (defaultUnitPricePln):
+                      // uzyj tej ceny bezposrednio, nie rozwijaj do jego komponentow.
+                      // (np. Krzeslo TYP A jako komponent zestawu stol+krzesla —
+                      //  krzeslo ma juz wyliczona cene fabryczna, nie musimy sumowac
+                      //  siedziska + nog + montazu).
+                      const isNestedZestaw =
                         c.component.compositionMode === "ZESTAW" &&
-                        (c.component.components?.length ?? 0) > 0
-                      ) {
+                        (c.component.components?.length ?? 0) > 0;
+                      const hasOwnPrice =
+                        c.component.defaultUnitPricePln != null &&
+                        c.component.defaultUnitPricePln > 0;
+                      if (isNestedZestaw && !hasOwnPrice) {
                         for (const sub of c.component.components ?? []) {
                           leaves.push({
                             componentId: sub.componentId,
