@@ -709,6 +709,24 @@ export default async function ProduktyPage({
     }
   }
 
+  // ── Globalne fallbackowe kursy walut z NAJŚWIEŻSZEGO zamówienia
+  // (używane gdy komponent ma defaultUnitPriceUsd/Cny ale nigdy nie był
+  // importowany — brak compLast → brak rate). Bierzemy ostatnie
+  // zamówienie z ustawionym kursem żeby przybliżyć.
+  const lastRateOrder = await db.importOrder.findFirst({
+    where: {
+      companyId,
+      OR: [
+        { cnyToPlnRate: { not: null } },
+        { usdToPlnRate: { not: null } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { cnyToPlnRate: true, usdToPlnRate: true },
+  });
+  const globalCnyRate = lastRateOrder?.cnyToPlnRate ?? null;
+  const globalUsdRate = lastRateOrder?.usdToPlnRate ?? null;
+
   // ── Ekonomika per pozycja — SNAPSHOT z ProductPriceHistory ──────────
   // Lista produktów NIE liczy `kalkulujKontener` live. Czyta gotowe wartości
   // ze snapshotów zapisywanych przy przejściu zamówienia w status
@@ -1479,10 +1497,12 @@ export default async function ProduktyPage({
                       const cnyRate =
                         compLast?.cnyToPlnRate ??
                         compLast?.order.cnyToPlnRate ??
+                        globalCnyRate ??
                         null;
                       const usdRate =
                         compLast?.usdToPlnRate ??
                         compLast?.order.usdToPlnRate ??
+                        globalUsdRate ??
                         null;
                       let compPricePln: number | null = null;
                       if (cny != null && cnyRate) compPricePln = cny * cnyRate;
@@ -2529,10 +2549,12 @@ export default async function ProduktyPage({
                         const cnyRate =
                           compLast?.cnyToPlnRate ??
                           compLast?.order.cnyToPlnRate ??
+                          globalCnyRate ??
                           null;
                         const usdRate =
                           compLast?.usdToPlnRate ??
                           compLast?.order.usdToPlnRate ??
+                          globalUsdRate ??
                           null;
                         let compPricePln: number | null = null;
                         if (cny != null && cnyRate)
