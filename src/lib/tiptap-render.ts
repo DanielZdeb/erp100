@@ -128,6 +128,32 @@ function renderNode(node: Node): string {
       const size = w && h ? ` width="${w}" height="${h}"` : "";
       return `<img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}"${title ? ` title="${escapeAttr(title)}"` : ""}${size} loading="lazy" />`;
     }
+    case "callout":
+      return `<div class="manual-callout">${renderNodes(node.content)}</div>`;
+    case "pageBreak":
+      return `<div class="manual-page-break"></div>`;
+    case "sectionLayout": {
+      const layout = (node.attrs?.layout as string) ?? "imageRight";
+      const imageSrc = (node.attrs?.imageSrc as string) ?? "";
+      const imageWidthAttr = node.attrs?.imageWidth as number | null | undefined;
+      const verticalCenter = Boolean(node.attrs?.verticalCenter);
+      const defW = layout === "imageOnly" ? 70 : 40;
+      const imgW = Math.max(20, Math.min(100, imageWidthAttr ?? defW));
+      const inner = renderNodes(node.content);
+      const vc = verticalCenter ? " manual-section--vc" : "";
+      if (layout === "imageOnly") {
+        const img = imageSrc
+          ? `<div class="manual-section__img" style="width:${imgW}%"><img src="${escapeAttr(imageSrc)}" alt="" loading="lazy" /></div>`
+          : "";
+        return `<div class="manual-section manual-section--image-only${vc}">${img}<div class="manual-section__text manual-section__text--center">${inner}</div></div>`;
+      }
+      if (layout === "textText" || !imageSrc) {
+        return `<div class="manual-section manual-section--text${vc}">${inner}</div>`;
+      }
+      const dirClass = layout === "imageLeft" ? "manual-section--image-left" : "manual-section--image-right";
+      const img = `<div class="manual-section__img" style="width:${imgW}%"><img src="${escapeAttr(imageSrc)}" alt="" loading="lazy" /></div>`;
+      return `<div class="manual-section ${dirClass}${vc}"><div class="manual-section__text">${inner}</div>${img}</div>`;
+    }
     case "table":
       return `<table>${renderNodes(node.content)}</table>`;
     case "tableRow":
