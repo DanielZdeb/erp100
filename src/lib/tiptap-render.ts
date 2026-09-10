@@ -172,3 +172,44 @@ export function tiptapJsonToHtml(json: unknown): string {
   if (!json || typeof json !== "object") return "";
   return renderNode(json as Node);
 }
+
+/**
+ * Dzieli doc TipTap na sekcje po nagłówkach top-level H1/H2.
+ * Nagłówek zaczyna nową sekcję (i staje się jej tytułem + pierwszym nodem).
+ * Treść przed pierwszym nagłówkiem staje się sekcją "Wstęp" (title="").
+ * Wraca jako gotowe HTML-e per sekcja.
+ */
+export function splitDocIntoSections(
+  json: unknown,
+): Array<{ title: string; html: string }> {
+  if (!json || typeof json !== "object") return [];
+  const root = json as Node;
+  if (root.type !== "doc" || !Array.isArray(root.content)) {
+    return [{ title: "", html: tiptapJsonToHtml(json) }];
+  }
+  const sections: Array<{ title: string; nodes: Node[] }> = [];
+  let current: { title: string; nodes: Node[] } | null = null;
+  for (const node of root.content) {
+    const level = (node.attrs?.level as number | undefined) ?? 0;
+    const isBreak = node.type === "heading" && level > 0 && level <= 2;
+    if (isBreak) {
+      if (current && current.nodes.length > 0) sections.push(current);
+      current = { title: extractPlainText(node), nodes: [node] };
+    } else {
+      if (!current) current = { title: "", nodes: [] };
+      current.nodes.push(node);
+    }
+  }
+  if (current && current.nodes.length > 0) sections.push(current);
+  if (sections.length === 0) return [{ title: "", html: "" }];
+  return sections.map((s) => ({
+    title: s.title,
+    html: tiptapJsonToHtml({ type: "doc", content: s.nodes }),
+  }));
+}
+
+function extractPlainText(node: Node): string {
+  if (node.type === "text") return node.text ?? "";
+  if (!node.content) return "";
+  return node.content.map(extractPlainText).join("").trim();
+}

@@ -3,9 +3,10 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { tiptapJsonToHtml } from "@/lib/tiptap-render";
+import { splitDocIntoSections } from "@/lib/tiptap-render";
 
 import { LangSwitcher } from "./_components/lang-switcher";
+import { ManualPager } from "./_components/manual-pager";
 
 // Strona jest dynamiczna (odczytujemy searchParams.lang), więc revalidate nie ma sensu.
 
@@ -77,11 +78,12 @@ export default async function InstrukcjaPage({
     activeLangs[0] ??
     "PL";
 
-  // Renderujemy tylko strony w wybranym języku
+  // Strony w wybranym języku (zazwyczaj 1 na język w schemacie ProductManual).
   const pagesInLang = pages.filter((p) => (p.lang ?? "PL") === chosenLang);
-  const html = pagesInLang
-    .map((p) => tiptapJsonToHtml(p.content))
-    .join('\n<div class="page-break"></div>\n');
+
+  // Każdą stronę TipTap dzielimy na sekcje po nagłówkach H1/H2 i sklejamy
+  // w jedną, wspólną listę sekcji dla pagera.
+  const sections = pagesInLang.flatMap((p) => splitDocIntoSections(p.content));
 
   return (
     <div className="min-h-screen">
@@ -110,15 +112,12 @@ export default async function InstrukcjaPage({
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {pagesInLang.length === 0 ? (
+        {sections.length === 0 ? (
           <div className="rounded-xl bg-slate-100 p-8 text-center text-slate-500">
             Brak treści w języku {LANG_LABEL[chosenLang] ?? chosenLang}.
           </div>
         ) : (
-          <article
-            className="manual-content"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <ManualPager sections={sections} />
         )}
       </main>
 
