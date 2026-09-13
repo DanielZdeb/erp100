@@ -35,13 +35,13 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      // welcome.acro4f.com/ → publiczny reader instrukcji ACRO4F.
+      // welcome.acro4f.com/ → publiczna home (wybór języka + kafle instrukcji/zwrot).
       // Subdomena celowo pusta z pozostałych ścieżek — nikt tam nie loguje
       // się do ERP, tylko klienci ACRO4F z kodów QR.
       {
         source: "/",
         has: [{ type: "host", value: "welcome.acro4f.com" }],
-        destination: "/publiczne/instrukcje",
+        destination: "/publiczne",
         permanent: false,
       },
     ];

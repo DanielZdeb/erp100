@@ -22,7 +22,7 @@ export function proxy(request: NextRequest, ev: any) {
       pathname === "/favicon.ico";
     if (!isAllowed) {
       const url = request.nextUrl.clone();
-      url.pathname = "/publiczne/instrukcje";
+      url.pathname = "/publiczne";
       url.search = "";
       return NextResponse.redirect(url);
     }

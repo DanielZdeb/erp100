@@ -91,11 +91,10 @@ export default async function InstrukcjaPage({
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
           <Link
-            href="/publiczne/instrukcje"
+            href={`/publiczne/instrukcje?lang=${chosenLang}`}
             className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
           >
             <ArrowLeft className="size-4" />
-            Wszystkie instrukcje
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="text-sm sm:text-base font-semibold truncate">
@@ -107,6 +106,12 @@ export default async function InstrukcjaPage({
             available={activeLangs}
             current={chosenLang}
             labels={LANG_LABEL}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/uploads/brand/acro4f-logo.svg"
+            alt="ACRO4F"
+            className="h-6 w-auto hidden sm:block"
           />
         </div>
       </header>
