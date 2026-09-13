@@ -33,6 +33,19 @@ const nextConfig: NextConfig = {
     // mogą siedzieć w głębokich katalogach (products/<id>/images/<file>).
     localPatterns: [{ pathname: "/uploads/**" }],
   },
+  async redirects() {
+    return [
+      // welcome.acro4f.com/ → publiczny reader instrukcji ACRO4F.
+      // Subdomena celowo pusta z pozostałych ścieżek — nikt tam nie loguje
+      // się do ERP, tylko klienci ACRO4F z kodów QR.
+      {
+        source: "/",
+        has: [{ type: "host", value: "welcome.acro4f.com" }],
+        destination: "/publiczne/instrukcje",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
