@@ -1819,7 +1819,7 @@ export default async function ProduktyPage({
                             title="Cło importowe / szt"
                           >
                             {econ.cloPerUnit > 0
-                              ? fmtNum(econ.cloPerUnit)
+                              ? fmtNum(dpln(econ.cloPerUnit))
                               : "0"}
                           </span>
                           <span className="text-muted-foreground/60 select-none">
@@ -2813,7 +2813,7 @@ export default async function ProduktyPage({
                                   +
                                 </span>
                                 <span title="Cło / szt">
-                                  {compClo > 0 ? fmtNum(compClo) : "0"}
+                                  {compClo > 0 ? fmtNum(dpln2(compClo)) : "0"}
                                 </span>
                                 <span className="text-muted-foreground/40 select-none text-[10px]">
                                   +
