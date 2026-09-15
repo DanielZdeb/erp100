@@ -41,6 +41,7 @@ import {
 import { DuplicateProductButton, NewProductDialog } from "./product-form-dialog";
 import { NewProductWizardDialog } from "./new-product-wizard";
 import { QuickPackagingImportButton } from "./_components/quick-packaging-import-button";
+import { RefreshPricesButton } from "./_components/refresh-prices-button";
 import { NewBundleWizardDialog } from "./new-bundle-wizard";
 import { ProductRowActions } from "./product-row-actions";
 import { EditableSaleCell } from "./editable-sale-cell";
@@ -855,6 +856,7 @@ export default async function ProduktyPage({
           </p>
         </div>
         <div className="flex gap-2">
+          <RefreshPricesButton />
           {featureFlags.componentsEnabled && (
             <NewProductWizardDialog
               categories={categories}
