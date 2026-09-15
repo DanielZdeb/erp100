@@ -311,8 +311,14 @@ function redistributeCustoms(
   return items.map((it) => {
     const share = it.goodsValuePln / goodsSum;
     const newCustoms = round2(totalExternalCustomsPln * share);
+    // Prowizja pośrednika musi być zachowana w landedTotal — inaczej
+    // suma na items-tab i /produkty pokazuje mniej niż faktyczny koszt
+    // (bo redistributePerValue już policzył prowizję, a tu ją zerowaliśmy).
     const newLandedTotal = round2(
-      it.goodsValuePln + it.allocatedLogisticsPln + newCustoms,
+      it.goodsValuePln +
+        it.allocatedLogisticsPln +
+        it.allocatedBrokerCommissionPln +
+        newCustoms,
     );
     const newLandedPerUnit =
       it.quantity > 0 ? round2(newLandedTotal / it.quantity) : 0;
