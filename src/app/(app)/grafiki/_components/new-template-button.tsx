@@ -55,7 +55,7 @@ export function NewTemplateButton() {
   const [logoPlacement, setLogoPlacement] = useState("");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [quality, setQuality] = useState<"STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO" | "OPENAI_SUNBURST">(
-    "STANDARD",
+    "OPENAI_SUNBURST",
   );
   const [pending, startTransition] = useTransition();
 

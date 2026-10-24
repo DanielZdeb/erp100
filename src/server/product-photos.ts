@@ -37,7 +37,7 @@ const templateSchema = z.object({
   logoPlacementRule: z.string().nullable().optional(),
   referenceImages: z.array(z.string()).default([]),
   aspectRatio: z.string().default("1:1"),
-  defaultQuality: z.enum(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO", "OPENAI_SUNBURST"]).default("STANDARD"),
+  defaultQuality: z.enum(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO", "OPENAI_SUNBURST"]).default("OPENAI_SUNBURST"),
 });
 
 export async function createPhotoTemplateAction(input: unknown) {
