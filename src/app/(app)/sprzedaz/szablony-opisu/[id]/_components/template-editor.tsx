@@ -502,7 +502,7 @@ function SlotConfigBlock({
       {kind === "IMAGE" ? (
         <div className="space-y-1">
           <Label className="text-[10px] uppercase tracking-wide text-violet-700 flex items-center gap-1">
-            <Sparkles className="size-3" /> Prompt AI do zdjęcia (Nano Banana Pro)
+            <Sparkles className="size-3" /> Prompt AI do zdjęcia (GPT Image 2.5 Sunburst)
           </Label>
           <PromptPicker
             kind="IMAGE"
@@ -516,7 +516,7 @@ function SlotConfigBlock({
             className="text-xs"
           />
           <p className="text-[9px] text-slate-500">
-            Operator w karcie produktu kliknie „Generuj AI" — Nano Banana
+            Operator w karcie produktu kliknie „Generuj AI" — GPT Image 2.5
             wygeneruje obraz na podstawie tego prompta + galerii produktu jako referencji.
           </p>
         </div>

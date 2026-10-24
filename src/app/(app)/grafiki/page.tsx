@@ -66,8 +66,8 @@ export default async function GrafikiPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             Twórz spójne grafiki produktowe na białym tle, z postacią, w
-            realnym użytkowaniu — masowo, jednym kliknięciem, przez Imagen
-            (Nano Banana). Najpierw zdefiniuj{" "}
+            realnym użytkowaniu — masowo, jednym kliknięciem, przez
+            GPT Image 2.5 Sunburst. Najpierw zdefiniuj{" "}
             <strong>Template</strong> (styl + zestaw rzutów), potem stwórz{" "}
             <strong>Batch</strong> (wybrane produkty × rzuty).
           </p>

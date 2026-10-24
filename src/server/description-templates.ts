@@ -9,7 +9,7 @@ import { getCurrentCompanyId } from "@/lib/tenant";
 import { logProductAiCost } from "@/server/product-ai-costs";
 import { markdownToHtml } from "@/lib/markdown-to-html";
 
-const NANO_BANANA_PRO_USD = 0.134;
+const OPENAI_SUNBURST_USD = 0.17;
 
 async function requireUser() {
   const session = await auth();
@@ -509,7 +509,7 @@ export async function generateSectionImageAction(
 
     const result = await generateProductPhoto({
       prompt: finalPrompt,
-      quality: "NANO_BANANA_PRO",
+      quality: "OPENAI_SUNBURST",
       aspectRatio: "1:1",
       referenceImageUrls: refs,
     });
@@ -555,7 +555,7 @@ export async function generateSectionImageAction(
       label: regenerateFromUrl
         ? `Re-edit obraz sekcji "${section.name}" (${side})`
         : `Generuj obraz sekcji "${section.name}" (${side})`,
-      usd: NANO_BANANA_PRO_USD,
+      usd: OPENAI_SUNBURST_USD,
       metadata: {
         model: "gemini-3-pro-image-preview",
         refs: refs.length,
@@ -698,7 +698,7 @@ export async function aiGenerateSalesDraftForProductAction(
       `   - Each section has a 2-column layout from: TEXT_TEXT, IMAGE_TEXT, TEXT_IMAGE, IMAGE_IMAGE.`,
       `   - Be strategic: hero, korzysci, specyfikacja, dla kogo, uzycie, FAQ, CTA — wybierz co pasuje, nie wszystko.`,
       `   - Mix image and text — visual products need more IMAGE slots, technical ones more TEXT.`,
-      `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise photography brief WRITTEN IN POLISH (used later by Nano Banana Pro / Gemini, which understands Polish well). Opisz po polsku: styl ujęcia, kadr, oświetlenie, tło, mood. Możesz mieszać polskie zdania z anglojęzycznymi terminami fotograficznymi (np. "studio packshot na białym tle, soft light, top-down, no humans").`,
+      `3. For each IMAGE slot fill 'leftImagePrompt' or 'rightImagePrompt' with a precise photography brief WRITTEN IN POLISH (used later by GPT Image 2.5 Sunburst, which understands Polish well). Opisz po polsku: styl ujęcia, kadr, oświetlenie, tło, mood. Możesz mieszać polskie zdania z anglojęzycznymi terminami fotograficznymi (np. "studio packshot na białym tle, soft light, top-down, no humans").`,
       `4. For each TEXT slot fill 'leftTextPrompt' or 'rightTextPrompt' with a Claude prompt FOR REGENERATING that copy on demand. Napisz prompt po POLSKU — instrukcję dla Claude jak ma napisać tekst tej sekcji (ton, długość, format, focus).`,
       `5. Also fill 'content.leftText' / 'content.rightText' with READY-TO-USE Polish copy. CRITICAL: return HTML (not Markdown). Use ONLY these tags: <h1>, <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>, <br>.`,
       `   - <h2> for main section heading (if any), <h3> for sub-sections.`,

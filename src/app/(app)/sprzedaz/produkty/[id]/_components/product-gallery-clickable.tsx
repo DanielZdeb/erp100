@@ -758,7 +758,7 @@ function EditAiDialog({
         <DialogHeader className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="text-base flex items-center gap-2">
             <Sparkles className="size-4 text-violet-600" />
-            Edycja AI (Nano Banana Pro)
+            Edycja AI (GPT Image 2.5 Sunburst)
           </DialogTitle>
         </DialogHeader>
 
@@ -788,7 +788,7 @@ function EditAiDialog({
                 autoFocus
               />
               <p className="text-[10px] text-slate-500">
-                Nano Banana Pro zachowa kompozycje, kat kamery i pozycje
+                GPT Image 2.5 zachowa kompozycje, kat kamery i pozycje
                 produktu oryginalu — zmieni tylko to o co poprosisz.
               </p>
             </div>
@@ -803,8 +803,8 @@ function EditAiDialog({
           />
 
           <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
-            <strong>Koszt:</strong> {formatUsd(0.134, 3)} (~{formatPln(0.134)}) /
-            edycja (Nano Banana Pro 2K)
+            <strong>Koszt:</strong> {formatUsd(0.17, 3)} (~{formatPln(0.17)}) /
+            edycja (GPT Image 2.5 Sunburst)
           </div>
         </div>
 
@@ -893,7 +893,7 @@ function BulkEditDialog({
         <DialogHeader className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="text-base flex items-center gap-2">
             <Sparkles className="size-4 text-violet-600" />
-            Edycja AI ({selectedIds.length} zdjec) — Nano Banana Pro
+            Edycja AI ({selectedIds.length} zdjec) — GPT Image 2.5 Sunburst
           </DialogTitle>
         </DialogHeader>
 
@@ -918,10 +918,10 @@ function BulkEditDialog({
               autoFocus
             />
             <p className="text-[10px] text-slate-500">
-              Koszt: ~{formatUsd(0.134, 3)} × {selectedIds.length} ={" "}
+              Koszt: ~{formatUsd(0.17, 3)} × {selectedIds.length} ={" "}
               <strong>
-                ~{formatUsd(0.134 * selectedIds.length, 2)} (
-                {formatPln(0.134 * selectedIds.length)})
+                ~{formatUsd(0.17 * selectedIds.length, 2)} (
+                {formatPln(0.17 * selectedIds.length)})
               </strong>
             </p>
           </div>
@@ -1138,7 +1138,7 @@ function RefsPicker({
 
       <p className="text-[10px] text-slate-500">
         Pierwsza referencja zawsze = oryginal (kompozycja). Dodatkowe sluza jako
-        wzorce koloru / materialu / detalu, do ktorych Nano Banana ma sie odniesc.
+        wzorce koloru / materialu / detalu, do ktorych GPT Image 2.5 ma sie odniesc.
       </p>
 
       {otherOpen && (

@@ -889,7 +889,7 @@ async function runEditInBackground(params: {
 
   const result = await generateProductPhoto({
     prompt: editPrompt,
-    quality: "NANO_BANANA_PRO",
+    quality: "OPENAI_SUNBURST",
     aspectRatio: "1:1",
     referenceImageUrls: [params.originalUrl, ...params.extraRefUrls],
   });
@@ -1077,7 +1077,7 @@ async function runCustomGenerationInBackground(params: {
 
     const result = await generateProductPhoto({
       prompt: finalPrompt,
-      quality: "NANO_BANANA_PRO",
+      quality: "OPENAI_SUNBURST",
       aspectRatio: params.aspectRatio,
       referenceImageUrls: refs,
     });

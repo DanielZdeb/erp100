@@ -10,7 +10,7 @@
  *  - Lista ujęć (1-12), każde z:
  *      • własnym promptem
  *      • opcjonalnie własną referencją kompozycyjną (wybór z galerii)
- *  - Submit → generowanie w tle (Nano Banana Pro), dialog się zamyka
+ *  - Submit → generowanie w tle (GPT Image 2.5 Sunburst), dialog się zamyka
  *  - Polling galerii pokazuje nowe zdjęcia jak się skończą
  */
 
@@ -230,7 +230,7 @@ export function AddCustomPhotoButton({
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2">
               <Sparkles className="size-4 text-violet-600" />
-              Generuj własne zdjęcia (Nano Banana Pro)
+              Generuj własne zdjęcia (GPT Image 2.5 Sunburst)
             </DialogTitle>
           </DialogHeader>
 
@@ -394,9 +394,9 @@ export function AddCustomPhotoButton({
             </div>
 
             <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
-              <strong>Koszt:</strong> {shots.length} × {formatUsd(0.134, 3)} ={" "}
-              <strong>{formatUsd(shots.length * 0.134, 3)}</strong>{" "}
-              (~{formatPln(shots.length * 0.134)}) (Nano Banana Pro 2K).
+              <strong>Koszt:</strong> {shots.length} × {formatUsd(0.17, 3)} ={" "}
+              <strong>{formatUsd(shots.length * 0.17, 3)}</strong>{" "}
+              (~{formatPln(shots.length * 0.17)}) (GPT Image 2.5 Sunburst).
               Generowanie leci w tle — możesz zamknąć dialog, zdjęcia pojawią
               się w galerii za 30-90 s.
             </div>

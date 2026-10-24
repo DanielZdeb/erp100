@@ -1642,9 +1642,9 @@ function SlotGenerationDialog({
           <DialogTitle className="text-base flex items-center gap-2">
             <Sparkles className={cn("size-4", isImage ? "text-violet-600" : "text-emerald-600")} />
             {regenerateFromUrl
-              ? "Edytuj AI (Nano Banana Pro)"
+              ? "Edytuj AI (GPT Image 2.5 Sunburst)"
               : isImage
-                ? "Generuj obraz AI (Nano Banana Pro)"
+                ? "Generuj obraz AI (GPT Image 2.5 Sunburst)"
                 : "Generuj tekst AI (Claude)"}
           </DialogTitle>
         </DialogHeader>
@@ -1806,8 +1806,8 @@ function SlotGenerationDialog({
           )}
 
           <div className="rounded p-2 text-[10px] bg-violet-50 text-violet-700">
-            Koszt: {isImage ? "$0.134 (~0.54 zł)" : "~$0.003 (~0.01 zł)"} ·{" "}
-            {isImage ? "Nano Banana Pro 2K" : "Claude Sonnet 4.6"}
+            Koszt: {isImage ? "$0.17 (~0.69 zł)" : "~$0.003 (~0.01 zł)"} ·{" "}
+            {isImage ? "GPT Image 2.5 Sunburst" : "Claude Sonnet 4.6"}
           </div>
         </div>
 

@@ -8,7 +8,7 @@
  *  2. Zaznacz N zdjec z dowolnych produktow (mozna mieszac)
  *  3. Wybierz tryb:
  *     - "Kopia 1:1" (instant, bez kosztu AI)
- *     - "Modyfikacja przez AI" (Nano Banana edit per zdjecie, wymaga promptu)
+ *     - "Modyfikacja przez AI" (GPT Image 2.5 edit per zdjecie, wymaga promptu)
  *  4. Submit
  *
  * Po stronie serwera: copyImagesFromProductAction(destProductId, sourceIds, mode, opts).
@@ -430,12 +430,12 @@ export function CopyFromProductButton({
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    Nano Banana Pro edytuje kazde wedlug Twojego promptu (np.
+                    GPT Image 2.5 Sunburst edytuje kazde wedlug Twojego promptu (np.
                     zmiana koloru / tla). Koszt: {selected.size} ×{" "}
-                    {formatUsd(0.134, 3)} ={" "}
+                    {formatUsd(0.17, 3)} ={" "}
                     <strong>
-                      {formatUsd(selected.size * 0.134, 2)} (
-                      {formatPln(selected.size * 0.134)})
+                      {formatUsd(selected.size * 0.17, 2)} (
+                      {formatPln(selected.size * 0.17)})
                     </strong>
                   </p>
                 </button>
