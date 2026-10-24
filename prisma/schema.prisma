@@ -1862,6 +1862,11 @@ enum PhotoQuality {
   // Nano Banana Pro = Gemini 3 Pro Image. Inny silnik niż Imagen 4 (powyższe
   // 3 quality) — multi-reference, thinking, świetny tekst na obrazku, 2K.
   NANO_BANANA_PRO
+  // OpenAI gpt-image-2.5-sunburst — najmocniejszy model OpenAI (zastępca
+  // wycofanego 23.10.2026 gpt-image-1). xhigh/max quality, edycja z maskami,
+  // referencje, do 3840px. Dispatcher w photo-gemini.ts rozpoznaje prefix
+  // "gpt-image-" i wysyła do photo-openai.ts (nie Gemini).
+  OPENAI_SUNBURST
 }
 
 enum PhotoBatchStatus {

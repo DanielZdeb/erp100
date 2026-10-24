@@ -13,7 +13,7 @@ import { QUALITY_SPEC } from "./photo-shots-presets";
 
 export type GenerateImageInput = {
   prompt: string;
-  quality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO";
+  quality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO" | "OPENAI_SUNBURST";
   aspectRatio: string;
   /** Seed dla spójności — wszystkie zdjęcia w batchu używają tego samego.
    *  Uwaga: tylko Imagen wspiera explicit seed; Gemini Image używa wewnętrznej
@@ -50,15 +50,23 @@ export type GenerateImageResult =
 export async function generateProductPhoto(
   input: GenerateImageInput,
 ): Promise<GenerateImageResult> {
+  const spec = QUALITY_SPEC[input.quality];
+
+  // Dispatcher: model po prefiksie.
+  //  - "gpt-image-*" → OpenAI /v1/images (osobny provider, osobny klucz)
+  //  - "gemini-*"    → Gemini Image API (:generateContent)
+  //  - "imagen-*"    → Imagen 4 (:predict) — fallthrough poniżej
+  if (spec.model.startsWith("gpt-image-")) {
+    // lazy import żeby nie ciągnąć photo-openai do bundla gdy nie trzeba
+    const { generateViaOpenAI } = await import("./photo-openai");
+    return generateViaOpenAI(input);
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return generateMockPhoto(input);
   }
 
-  const spec = QUALITY_SPEC[input.quality];
-
-  // Dispatcher: model po prefiksie. Nano Banana / Nano Banana Pro chodzi
-  // przez Gemini Image API (:generateContent), Imagen 4 przez :predict.
   if (spec.model.startsWith("gemini-")) {
     return generateViaGeminiImage(input, spec, apiKey);
   }
@@ -297,7 +305,7 @@ async function generateViaGeminiImage(
  * Używamy minimal SVG renderowanego do PNG przez Canvas... ale na Node nie ma
  * Canvas. Zwracamy zatem czysty PNG bytes z prostym wzorem opartym o hash promptu.
  */
-async function generateMockPhoto(
+export async function generateMockPhoto(
   input: GenerateImageInput,
 ): Promise<GenerateImageResult> {
   // Symulujemy 1-2s opóźnienie

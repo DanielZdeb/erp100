@@ -106,7 +106,7 @@ export function BatchWizard({
   categoryTree,
 }: {
   templateId: string;
-  defaultQuality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO";
+  defaultQuality: "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO" | "OPENAI_SUNBURST";
   shots: Shot[];
   products: ProductFromCatalog[];
   categoryTree: CategoryTreeNode[];
@@ -114,7 +114,7 @@ export function BatchWizard({
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [name, setName] = useState(`Kampania ${today}`);
-  const [quality, setQuality] = useState<"STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO">(
+  const [quality, setQuality] = useState<"STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO" | "OPENAI_SUNBURST">(
     defaultQuality,
   );
 
@@ -378,7 +378,7 @@ export function BatchWizard({
               Jakość
             </Label>
             <div className="flex gap-1">
-              {(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO"] as const).map((q) => (
+              {(["STANDARD", "HIGH", "ULTRA", "NANO_BANANA_PRO", "OPENAI_SUNBURST"] as const).map((q) => (
                 <button
                   key={q}
                   type="button"

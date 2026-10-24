@@ -92,7 +92,7 @@ export const SHOT_PRESETS: ShotPreset[] = [
  *   - `gemini-*` → REST endpoint `:generateContent` (Gemini Image API,
  *     m.in. Nano Banana / Nano Banana Pro). */
 export const QUALITY_SPEC: Record<
-  "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO",
+  "STANDARD" | "HIGH" | "ULTRA" | "NANO_BANANA_PRO" | "OPENAI_SUNBURST",
   {
     model: string;
     /** Cena w USD per generated image — używana do estymaty kosztu */
@@ -144,5 +144,19 @@ export const QUALITY_SPEC: Record<
     label: "Nano Banana (Flash 3.1)",
     description:
       "Gemini 3.1 Flash Image — 2K, dobra jakość detali, edycja kolorów i tła w ~15s ($0.039/szt). Pro tymczasowo niedostępny.",
+  },
+  // OpenAI gpt-image-2.5-sunburst — najmocniejszy model OpenAI (zastąpił
+  // gpt-image-1 wycofany 23.10.2026). Jakosc xhigh/max, do 3840px, edycja
+  // z maskami, obrazy referencyjne. Dispatcher kieruje po prefix "gpt-image-"
+  // do photo-openai.ts (nie Gemini).
+  // Cena: standard $8/1M input + $30/1M output tokens (per obraz zalezy od
+  // rozmiaru/jakosci). ~$0.17 za typowy 1024x1024 high quality — przyblizenie
+  // na podstawie dokumentacji; dokladny koszt zwracany jest w response.usage.
+  OPENAI_SUNBURST: {
+    model: "gpt-image-2.5-sunburst",
+    costPerImage: 0.17,
+    label: "OpenAI Sunburst",
+    description:
+      "GPT Image 2.5 Sunburst — najmocniejszy OpenAI, xhigh/max jakosc, edycja z referencjami, do 3840px (~$0.17/szt). Wymaga OPENAI_API_KEY.",
   },
 };
