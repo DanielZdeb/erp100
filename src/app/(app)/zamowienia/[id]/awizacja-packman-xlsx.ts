@@ -1,5 +1,5 @@
 /**
- * Generator XLSX awizacji w formacie e-Packman — 1 wiersz per SKU, qty=1.
+ * Generator XLSX awizacji w formacie e-Packman — 1 wiersz per SKU.
  *
  * Kolumny (1:1 jak w `awizacja-packman.xlsx` od Packmana):
  *   Product name | SKU | EAN | Unit | Quantity | Unit net price |
@@ -8,8 +8,8 @@
  *   Track date | Track batch number | Track bio | Track food |
  *   Track insert | Track fragile
  *
- * Uzupełniane: Product name, SKU, EAN, Unit, Quantity (=1), Weight,
- * Width/Length/Height (z wymiarów pojedynczej sztuki), Lot number
+ * Uzupełniane: Product name, SKU, EAN, Unit, Quantity (= ilość z zamówienia),
+ * Weight, Width/Length/Height (z wymiarów pojedynczej sztuki), Lot number
  * (= numer zamówienia). Reszta pustа — magazyn wypełnia u siebie.
  */
 
@@ -19,6 +19,7 @@ export type PackmanXlsxItem = {
   productCode: string;
   productName: string;
   eanCode: string | null;
+  quantity: number;
   weightKg: number | null;
   widthCm: number | null;
   heightCm: number | null;
@@ -101,7 +102,7 @@ export async function generateAwizacjaPackmanXlsx(
       SKU: it.productCode,
       EAN: it.eanCode ?? "",
       Unit: "szt",
-      Quantity: 1,
+      Quantity: it.quantity,
       "Unit net price": "",
       "VAT rate": "",
       "Unit gross price": "",

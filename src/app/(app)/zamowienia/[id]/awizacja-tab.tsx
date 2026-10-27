@@ -1516,6 +1516,7 @@ function DownloadPackmanXlsxButton({
             productCode: it.productCode,
             productName: it.productName,
             eanCode: it.eanCode,
+            quantity: it.quantity,
             weightKg: it.weightKg,
             widthCm: it.widthCm,
             heightCm: it.heightCm,
@@ -1552,7 +1553,7 @@ function DownloadPackmanXlsxButton({
       <span className="text-left">
         Awizacja Packman (XLSX){" "}
         <span className="text-[9px] uppercase tracking-wide opacity-80">
-          · 1 szt per SKU
+          · ilości z zamówienia
         </span>
       </span>
     </Button>
