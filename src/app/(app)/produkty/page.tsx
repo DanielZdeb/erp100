@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import {
@@ -39,10 +39,9 @@ import {
   type ProductStatusT,
 } from "@/lib/product-status";
 import { DuplicateProductButton, NewProductDialog } from "./product-form-dialog";
-import { NewProductWizardDialog } from "./new-product-wizard";
 import { QuickPackagingImportButton } from "./_components/quick-packaging-import-button";
 import { RefreshPricesButton } from "./_components/refresh-prices-button";
-import { NewBundleWizardDialog } from "./new-bundle-wizard";
+import { WizardTriggers, WizardTriggersFallback } from "./_components/wizard-triggers";
 import { ProductRowActions } from "./product-row-actions";
 import { EditableSaleCell } from "./editable-sale-cell";
 import { ChannelViewSwitcher } from "./channel-view-switcher";
@@ -60,7 +59,6 @@ import {
   getSaleChannelDefaults,
 } from "@/server/system-settings";
 import { getCompanyFeatureFlags } from "@/server/company-settings";
-import { fetchNbpRate } from "@/lib/nbp-rates";
 import { calculateShipping } from "@/lib/shipping-calc";
 
 export const dynamic = "force-dynamic";
@@ -71,74 +69,37 @@ export const dynamic = "force-dynamic";
 // ale każde wejście na /produkty je pobiera. Po edycji produktu/kategorii
 // odpalamy `revalidateTag("products")` żeby cache się zresetował (server
 // actions już to robią — patrz `src/server/products.ts`).
-const getWizardLibrary = unstable_cache(
+// Tania część biblioteki wizarda — tylko pudełka. Potrzebna w wielu miejscach
+// (edycja pudełka w wierszu, DuplicateButton), więc fetchowana eagerly.
+// Invalidacja TYLKO przez tag "boxes" (edycja produktu nie resetuje tego cache).
+const getBoxesLibrary = unstable_cache(
   async (companyId: string) => {
-    const [boxes, categoryDuty, existingComponents, componentRules] =
-      await Promise.all([
-        db.shippingBox.findMany({
-          where: { companyId, archived: false },
-          orderBy: { name: "asc" },
-          select: {
-            id: true,
-            name: true,
-            internalCode: true,
-            packagingType: true,
-            widthCm: true,
-            heightCm: true,
-            depthCm: true,
-            cardboardLayers: true,
-            origin: true,
-            isCollective: true,
-            purchasePricePln: true,
-            purposeText: true,
-            innerBoxesPerMaster: true,
-          },
-        }),
-        db.category.findMany({
-          where: { companyId },
-          select: { id: true, customsDutyPct: true },
-        }),
-        db.product.findMany({
-          where: { companyId, archived: false },
-          orderBy: [{ isComponent: "desc" }, { name: "asc" }],
-          select: {
-            id: true,
-            name: true,
-            productCode: true,
-            code128: true,
-            categoryId: true,
-            isComponent: true,
-            weightKg: true,
-            shippingBoxWidthCm: true,
-            shippingBoxHeightCm: true,
-            shippingBoxDepthCm: true,
-            shippingBoxWeightKg: true,
-            unitsPerShippingBox: true,
-            defaultUnitPriceUsd: true,
-            defaultUnitPriceCny: true,
-            defaultUnitPricePln: true,
-            images: {
-              where: { archived: false, status: "READY" },
-              orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
-              take: 1,
-              select: { url: true, thumbnailWebpUrl: true },
-            },
-          },
-        }),
-        db.componentCategoryRule.findMany({
-          where: { component: { companyId } },
-          select: {
-            componentId: true,
-            categoryId: true,
-            quantity: true,
-          },
-        }),
-      ]);
-    return { boxes, categoryDuty, existingComponents, componentRules };
+    return db.shippingBox.findMany({
+      where: { companyId, archived: false },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        internalCode: true,
+        packagingType: true,
+        widthCm: true,
+        heightCm: true,
+        depthCm: true,
+        cardboardLayers: true,
+        origin: true,
+        isCollective: true,
+        purchasePricePln: true,
+        purposeText: true,
+        innerBoxesPerMaster: true,
+      },
+    });
   },
-  ["produkty-wizard-library"],
-  { revalidate: 300, tags: ["products", "categories", "boxes"] },
+  ["produkty-boxes-library"],
+  { revalidate: 300, tags: ["boxes"] },
 );
+
+// Droga część (products + rules + duty) + NBP rates fetchowane w <WizardTriggers>
+// pod <Suspense> — patrz src/app/(app)/produkty/_components/wizard-triggers.tsx
 
 type SearchParams = Promise<{
   q?: string;
@@ -233,12 +194,15 @@ export default async function ProduktyPage({
         : {}),
   };
 
+  // Pojedyncze zapytanie SQL: liczniki per kategoria (dla nav + wizard) wg
+  // 2 wariantow filtrow. Jedno GROUP BY zamiast 2×88 oddzielnych COUNT.
   const [
-    categoriesWithCounts,
-    componentCategoryOptionsRaw,
+    categoriesBase,
+    navCountsRaw,
+    wizardCountsRaw,
     totalProductCount,
     defaultContainerM3,
-    wizardLibrary,
+    wizardAvailableBoxes,
   ] = await Promise.all([
     db.category.findMany({
       where: { companyId },
@@ -248,83 +212,45 @@ export default async function ProduktyPage({
         name: true,
         parentId: true,
         level: true,
-        _count: { select: { products: { where: navCountWhere } } },
       },
     }),
-    db.category.findMany({
-      where: { companyId },
-      orderBy: [{ level: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        parentId: true,
-        level: true,
-        _count: {
-          select: {
-            products: {
-              where: { companyId, isComponent: false, archived: false },
-            },
-          },
-        },
-      },
+    db.product.groupBy({
+      by: ["categoryId"],
+      where: navCountWhere,
+      _count: { _all: true },
+    }),
+    db.product.groupBy({
+      by: ["categoryId"],
+      where: { companyId, isComponent: false, archived: false },
+      _count: { _all: true },
     }),
     db.product.count({ where: navCountWhere }),
     getDefaultContainerM3(),
-    // Wizard library — cache 5 min, invalidate przez revalidateTag("products"/"boxes"/"categories")
-    getWizardLibrary(companyId),
+    // Tanie: tylko lista pudełek (używana szeroko w wierszach + DuplicateButton)
+    getBoxesLibrary(companyId),
   ]);
 
-  const wizardAvailableBoxes = wizardLibrary.boxes;
-  const wizardCategoryDuty = wizardLibrary.categoryDuty;
-  const wizardExistingComponents = wizardLibrary.existingComponents;
-  const wizardComponentRules = wizardLibrary.componentRules;
-
-  const wizardCategoryDutyMap: Record<string, number | null> =
-    Object.fromEntries(
-      wizardCategoryDuty.map((c) => [c.id, c.customsDutyPct ?? null]),
-    );
-
-  // Spłaszcz primary image — wizard używa pola `primaryImageUrl`
-  const wizardExistingComponentsFlat = wizardExistingComponents.map((c) => ({
-    id: c.id,
-    name: c.name,
-    productCode: c.productCode,
-    code128: c.code128,
-    categoryId: c.categoryId,
-    isComponent: c.isComponent,
-    primaryImageUrl: c.images[0]?.url ?? null,
+  const navCountByCat = new Map<string, number>(
+    navCountsRaw
+      .filter((r) => r.categoryId != null)
+      .map((r) => [r.categoryId as string, r._count._all]),
+  );
+  const wizardCountByCat = new Map<string, number>(
+    wizardCountsRaw
+      .filter((r) => r.categoryId != null)
+      .map((r) => [r.categoryId as string, r._count._all]),
+  );
+  const categoriesWithCounts = categoriesBase.map((c) => ({
+    ...c,
+    _count: { products: navCountByCat.get(c.id) ?? 0 },
+  }));
+  const componentCategoryOptionsRaw = categoriesBase.map((c) => ({
+    ...c,
+    _count: { products: wizardCountByCat.get(c.id) ?? 0 },
   }));
 
-  // Biblioteka dla wizardu zestawu — produkty i komponenty. Produkty mają
-  // shippingBox* (pełna kalkulacja kartonów + wagi), komponenty mają tylko
-  // weightKg (doliczane do sumy wagowej, bez osobnych kartonów).
-  const bundleLibrary = wizardExistingComponents.map((c) => ({
-    id: c.id,
-    name: c.name,
-    productCode: c.productCode,
-    code128: c.code128,
-    categoryId: c.categoryId,
-    isComponent: c.isComponent,
-    weightKg: c.weightKg,
-    shippingBoxWidthCm: c.shippingBoxWidthCm,
-    shippingBoxHeightCm: c.shippingBoxHeightCm,
-    shippingBoxDepthCm: c.shippingBoxDepthCm,
-    shippingBoxWeightKg: c.shippingBoxWeightKg,
-    unitsPerShippingBox: c.unitsPerShippingBox,
-    defaultUnitPriceUsd: c.defaultUnitPriceUsd,
-    defaultUnitPriceCny: c.defaultUnitPriceCny,
-  }));
-
-  // Kursy NBP (cache 4h) — do przeliczeń USD→PLN i CNY→PLN w wizardzie
-  const [wizardUsdRate, wizardCnyRate] = await Promise.all([
-    fetchNbpRate("USD"),
-    fetchNbpRate("CNY"),
-  ]);
-  const wizardRates = {
-    usd: wizardUsdRate?.mid ?? null,
-    cny: wizardCnyRate?.mid ?? null,
-    rateDate: wizardUsdRate?.effectiveDate ?? wizardCnyRate?.effectiveDate ?? null,
-  };
+  // Heavy wizard data (components + rules + duty) + NBP rates — ładowane lazy
+  // przez <WizardTriggers /> pod <Suspense>. Główna tabela nie czeka.
 
   // Derive flat categories (do form pickera) z `categoriesWithCounts`
   const categories = categoriesWithCounts.map((c) => ({
@@ -857,37 +783,16 @@ export default async function ProduktyPage({
         </div>
         <div className="flex gap-2">
           <RefreshPricesButton />
-          {featureFlags.componentsEnabled && (
-            <NewProductWizardDialog
+          <Suspense fallback={<WizardTriggersFallback />}>
+            <WizardTriggers
+              companyId={companyId}
               categories={categories}
               componentCategoryOptions={componentCategoryOptions}
-              existingComponents={wizardExistingComponentsFlat}
-              componentRules={wizardComponentRules}
-              categoryDutyMap={wizardCategoryDutyMap}
               availableBoxes={wizardAvailableBoxes}
-              rates={wizardRates}
               defaultContainerM3={defaultContainerM3}
-              defaultIsComponent
+              showComponentsButton={featureFlags.componentsEnabled}
             />
-          )}
-          <NewProductWizardDialog
-            categories={categories}
-            componentCategoryOptions={componentCategoryOptions}
-            existingComponents={wizardExistingComponentsFlat}
-            componentRules={wizardComponentRules}
-            categoryDutyMap={wizardCategoryDutyMap}
-            availableBoxes={wizardAvailableBoxes}
-            rates={wizardRates}
-            defaultContainerM3={defaultContainerM3}
-          />
-          {/* Zestawy są zawsze dostępne — to nie funkcja opcjonalna firmy,
-              tylko sposób grupowania istniejących produktów dla sprzedaży. */}
-          <NewBundleWizardDialog
-            categories={categories}
-            bundleLibrary={bundleLibrary}
-            availableBoxes={wizardAvailableBoxes}
-            rates={wizardRates}
-          />
+          </Suspense>
         </div>
       </div>
 
