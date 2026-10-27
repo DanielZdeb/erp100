@@ -83,6 +83,10 @@ type GoodsItem = {
   importMode: "KARTON" | "LUZEM";
   /** Sztuk w kartonie (tylko KARTON). Null = nieuzupełnione. */
   unitsPerBox: number | null;
+  /** Wymiary pojedynczej sztuki w cm (szer × wys × głęb). Null jeśli brak. */
+  widthCm: number | null;
+  heightCm: number | null;
+  depthCm: number | null;
   /** Wymiary kartonu w cm (szer × wys × głęb). Null jeśli brak danych. */
   boxWidthCm: number | null;
   boxHeightCm: number | null;
@@ -447,6 +451,10 @@ export function AwizacjaTab({
               containerCount={containerCount}
             />
             <DownloadPzCsvButton
+              orderNumber={data.orderNumber}
+              items={items}
+            />
+            <DownloadPackmanXlsxButton
               orderNumber={data.orderNumber}
               items={items}
             />
@@ -1478,6 +1486,73 @@ function DownloadAwizacjaXlsxButton(params: {
         Awizacja Excel{" "}
         <span className="text-[9px] uppercase tracking-wide opacity-80">
           · CSV pełna lista
+        </span>
+      </span>
+    </Button>
+  );
+}
+
+function DownloadPackmanXlsxButton({
+  orderNumber,
+  items,
+}: {
+  orderNumber: string;
+  items: GoodsItem[];
+}) {
+  function handleDownload() {
+    if (items.length === 0) {
+      toast.error("Brak pozycji w zamówieniu");
+      return;
+    }
+    (async () => {
+      try {
+        toast.loading("Generuję Packman XLSX...", { id: "packman-gen" });
+        const { generateAwizacjaPackmanXlsx } = await import(
+          "./awizacja-packman-xlsx"
+        );
+        const blob = await generateAwizacjaPackmanXlsx({
+          orderNumber,
+          items: items.map((it) => ({
+            productCode: it.productCode,
+            productName: it.productName,
+            eanCode: it.eanCode,
+            weightKg: it.weightKg,
+            widthCm: it.widthCm,
+            heightCm: it.heightCm,
+            depthCm: it.depthCm,
+          })),
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const datePart = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `Awizacja_Packman_${orderNumber}_${datePart}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(`Pobrano awizację Packman (${items.length} SKU)`, {
+          id: "packman-gen",
+        });
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Błąd generowania Packman XLSX",
+          { id: "packman-gen" },
+        );
+      }
+    })();
+  }
+  return (
+    <Button
+      type="button"
+      onClick={handleDownload}
+      className="gap-2 justify-start bg-indigo-600 hover:bg-indigo-700 text-white"
+    >
+      <FileSpreadsheet className="size-4" />
+      <span className="text-left">
+        Awizacja Packman (XLSX){" "}
+        <span className="text-[9px] uppercase tracking-wide opacity-80">
+          · 1 szt per SKU
         </span>
       </span>
     </Button>
