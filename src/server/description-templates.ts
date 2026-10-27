@@ -316,13 +316,6 @@ export async function generateSectionTextAction(
   try {
     await requireUser();
     const companyId = await getCurrentCompanyId();
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return {
-        ok: false,
-        error:
-          "Brak ANTHROPIC_API_KEY w env — generowanie tekstu wymaga klucza Claude.",
-      };
-    }
 
     const [product, section] = await Promise.all([
       db.product.findFirst({
@@ -361,9 +354,6 @@ export async function generateSectionTextAction(
     }
     const sectionPrompt = effectivePrompt;
 
-    const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
     const productCtx = [
       `Product name: ${product.name}`,
       product.productCode && `SKU: ${product.productCode}`,
@@ -378,48 +368,43 @@ export async function generateSectionTextAction(
     const extraBlock = extraPrompt?.trim()
       ? `\n\n=== Additional context from operator ===\n${extraPrompt.trim()}\n\n`
       : "";
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
-      messages: [
-        {
-          role: "user",
-          content:
-            `You are writing product description copy for an e-commerce store. ` +
-            `Write in Polish. Keep it concise, benefit-focused, no marketing fluff.\n\n` +
-            `=== Section context (from template) ===\n${section.name}\n\n` +
-            `=== Instructions ===\n${sectionPrompt.trim()}${extraBlock}` +
-            `=== Product ===\n${productCtx}\n\n` +
-            `=== Formatting rules ===\n` +
-            `Return HTML (not Markdown) using ONLY these tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>, <br>.\n` +
-            `- Use <h2> for one major heading (if any), <h3> for sub-headings.\n` +
-            `- Use <ul><li> for bullet lists, <ol><li> for numbered.\n` +
-            `- Use <strong> for key benefits and important phrases.\n` +
-            `- Use <em> for emphasis, <u> sparingly for crucial details.\n` +
-            `- Short paragraphs (2-3 sentences max).\n` +
-            `Return ONLY the HTML — no preamble, no \`\`\`html, no quotes around the output.`,
-        },
-      ],
+
+    const { callOpenAIText, DEFAULT_TEXT_MODEL } = await import(
+      "@/lib/openai-text"
+    );
+    const result = await callOpenAIText({
+      maxOutputTokens: 1500,
+      userPrompt:
+        `You are writing product description copy for an e-commerce store. ` +
+        `Write in Polish. Keep it concise, benefit-focused, no marketing fluff.\n\n` +
+        `=== Section context (from template) ===\n${section.name}\n\n` +
+        `=== Instructions ===\n${sectionPrompt.trim()}${extraBlock}` +
+        `=== Product ===\n${productCtx}\n\n` +
+        `=== Formatting rules ===\n` +
+        `Return HTML (not Markdown) using ONLY these tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>, <br>.\n` +
+        `- Use <h2> for one major heading (if any), <h3> for sub-headings.\n` +
+        `- Use <ul><li> for bullet lists, <ol><li> for numbered.\n` +
+        `- Use <strong> for key benefits and important phrases.\n` +
+        `- Use <em> for emphasis, <u> sparingly for crucial details.\n` +
+        `- Short paragraphs (2-3 sentences max).\n` +
+        `Return ONLY the HTML — no preamble, no \`\`\`html, no quotes around the output.`,
     });
-    const rawText = msg.content
-      .filter((c) => c.type === "text")
-      .map((c) => (c as { type: "text"; text: string }).text)
-      .join("\n")
-      .trim();
-    if (!rawText) return { ok: false, error: "Claude zwrócił pusty tekst." };
-    // Fallback gdy Claude mimo wszystko zwroci markdown.
+    if (!result.ok) return { ok: false, error: result.error };
+    const rawText = result.text;
+    if (!rawText) return { ok: false, error: "OpenAI zwrócił pusty tekst." };
     const text = markdownToHtml(rawText);
 
-    const inp = msg.usage.input_tokens ?? 0;
-    const out = msg.usage.output_tokens ?? 0;
-    const usd = (inp * 3) / 1_000_000 + (out * 15) / 1_000_000;
     void logProductAiCost({
       productId,
       companyId,
       action: "TEXT_GEN",
       label: `Generuj tekst sekcji "${section.name}" (${side})`,
-      usd,
-      metadata: { inputTokens: inp, outputTokens: out, model: "claude-sonnet-4-6" },
+      usd: result.costUsd,
+      metadata: {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        model: DEFAULT_TEXT_MODEL,
+      },
     });
     return { ok: true, text };
   } catch (e) {
@@ -636,12 +621,6 @@ export async function aiGenerateSalesDraftForProductAction(
   try {
     await requireUser();
     const companyId = await getCurrentCompanyId();
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return {
-        ok: false,
-        error: "Brak ANTHROPIC_API_KEY w env — generowanie wymaga klucza Claude.",
-      };
-    }
 
     const product = await db.product.findFirst({
       where: { id: productId, companyId },
@@ -678,9 +657,6 @@ export async function aiGenerateSalesDraftForProductAction(
     ]
       .filter(Boolean)
       .join("\n");
-
-    const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const userPrompt = [
       `You are a senior Polish e-commerce copywriter and product page architect.`,
@@ -739,20 +715,23 @@ export async function aiGenerateSalesDraftForProductAction(
       required: ["name", "layout"],
     };
 
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 12000,
+    const { callOpenAIText, DEFAULT_TEXT_MODEL } = await import(
+      "@/lib/openai-text"
+    );
+    const result = await callOpenAIText({
+      maxOutputTokens: 12000,
+      userPrompt,
       tools: [
+        { type: "web_search", search_context_size: "medium" },
         {
-          type: "web_search_20250305",
-          name: "web_search",
-          max_uses: 3,
-        },
-        {
+          type: "function",
           name: "submit_draft",
-          description: "Submit the final tailored description template + ready content + missingInfo.",
-          input_schema: {
+          description:
+            "Submit the final tailored description template + ready content + missingInfo.",
+          strict: true,
+          parameters: {
             type: "object",
+            additionalProperties: false,
             properties: {
               templateName: { type: "string" },
               researchSummary: { type: "string" },
@@ -765,15 +744,22 @@ export async function aiGenerateSalesDraftForProductAction(
               missingInfo: {
                 type: "array",
                 items: { type: "string" },
-                description: "List of questions / data points the operator must provide because they were unknown to AI",
+                description:
+                  "List of questions / data points the operator must provide because they were unknown to AI",
               },
             },
-            required: ["templateName", "sections", "missingInfo", "researchSummary"],
+            required: [
+              "templateName",
+              "sections",
+              "missingInfo",
+              "researchSummary",
+            ],
           },
         },
       ],
-      messages: [{ role: "user", content: userPrompt }],
+      toolChoice: { type: "function", name: "submit_draft" },
     });
+    if (!result.ok) return { ok: false, error: result.error };
 
     type DraftSection = {
       name: string;
@@ -796,18 +782,15 @@ export async function aiGenerateSalesDraftForProductAction(
       missingInfo: string[];
     };
 
-    const draftBlock = msg.content.find(
-      (c): c is Extract<typeof c, { type: "tool_use" }> =>
-        c.type === "tool_use" && c.name === "submit_draft",
-    );
-    if (!draftBlock) {
+    const draftCall = result.toolCalls.find((t) => t.name === "submit_draft");
+    if (!draftCall) {
       return {
         ok: false,
         error:
-          "Claude nie wywolal submit_draft. Sprobuj jeszcze raz lub sprawdz logi.",
+          "OpenAI nie wywolal submit_draft. Sprobuj jeszcze raz lub sprawdz logi.",
       };
     }
-    const draft = draftBlock.input as Draft;
+    const draft = draftCall.input as Draft;
     if (!draft?.sections || draft.sections.length === 0) {
       return { ok: false, error: "AI zwrocilo pusty draft." };
     }
@@ -870,24 +853,17 @@ export async function aiGenerateSalesDraftForProductAction(
     revalidatePath(`/sprzedaz/produkty/${productId}`);
     revalidatePath("/sprzedaz/szablony-opisu");
 
-    // Kalkulacja kosztu — Claude Sonnet 4.6 ceny per Anthropic public pricing:
-    //   input  $3 / MTok       ($0.000003 / token)
-    //   output $15 / MTok      ($0.000015 / token)
-    //   cache write 5m $3.75 / MTok
-    //   cache read     $0.30 / MTok
-    //   web search     $0.01 / zapytanie ($10 / 1000)
-    const u = msg.usage;
-    const inputTokens = u.input_tokens ?? 0;
-    const outputTokens = u.output_tokens ?? 0;
-    const cacheCreateTokens = u.cache_creation_input_tokens ?? 0;
-    const cacheReadTokens = u.cache_read_input_tokens ?? 0;
-    const webSearches = u.server_tool_use?.web_search_requests ?? 0;
-    const usd =
-      (inputTokens * 3) / 1_000_000 +
-      (outputTokens * 15) / 1_000_000 +
-      (cacheCreateTokens * 3.75) / 1_000_000 +
-      (cacheReadTokens * 0.3) / 1_000_000 +
-      webSearches * 0.01;
+    // Kalkulacja kosztu — GPT-6 Astra (OpenAI Responses API):
+    //   input  $10 / MTok
+    //   output $50 / MTok
+    //   web search ~$0.01 / zapytanie (estymata — brak w publicznym pricing)
+    // OpenAI nie zwraca osobnych cache tokens (jak Anthropic) — poleg na usage.
+    const inputTokens = result.usage.inputTokens;
+    const outputTokens = result.usage.outputTokens;
+    const cacheCreateTokens = 0;
+    const cacheReadTokens = 0;
+    const webSearches = result.usage.webSearches;
+    const usd = result.costUsd;
 
     void logProductAiCost({
       productId,
@@ -900,7 +876,7 @@ export async function aiGenerateSalesDraftForProductAction(
         outputTokens,
         webSearches,
         sectionCount: draft.sections.length,
-        model: "claude-sonnet-4-6",
+        model: DEFAULT_TEXT_MODEL,
       },
     });
 
@@ -1168,15 +1144,6 @@ export async function copyDescriptionTemplateFromProductAction(
     let cost: { inputTokens: number; outputTokens: number; usd: number } | undefined;
 
     if (mode === "ai-adjust") {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        return {
-          ok: false,
-          error: "Brak ANTHROPIC_API_KEY w env — wymagane dla 'dostosuj przez AI'.",
-        };
-      }
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
       const srcDesc = [
         `Name: ${source.name}`,
         source.productCode && `SKU: ${source.productCode}`,
@@ -1235,26 +1202,31 @@ export async function copyDescriptionTemplateFromProductAction(
         `Call the 'submit_adjusted' tool with the array of adjusted sections.`,
       ].join("\n");
 
-      const msg = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+      const { callOpenAIText } = await import("@/lib/openai-text");
+      const result = await callOpenAIText({
+        maxOutputTokens: 8000,
+        userPrompt,
         tools: [
           {
+            type: "function",
             name: "submit_adjusted",
             description: "Submit the adjusted content per section.",
-            input_schema: {
+            strict: true,
+            parameters: {
               type: "object",
+              additionalProperties: false,
               properties: {
                 sections: {
                   type: "array",
                   items: {
                     type: "object",
+                    additionalProperties: false,
                     properties: {
                       id: { type: "string" },
                       leftText: { type: ["string", "null"] },
                       rightText: { type: ["string", "null"] },
                     },
-                    required: ["id"],
+                    required: ["id", "leftText", "rightText"],
                   },
                 },
               },
@@ -1262,15 +1234,15 @@ export async function copyDescriptionTemplateFromProductAction(
             },
           },
         ],
-        messages: [{ role: "user", content: userPrompt }],
+        toolChoice: { type: "function", name: "submit_adjusted" },
       });
+      if (!result.ok) return { ok: false, error: result.error };
 
-      const adjustBlock = msg.content.find(
-        (c): c is Extract<typeof c, { type: "tool_use" }> =>
-          c.type === "tool_use" && c.name === "submit_adjusted",
+      const adjustCall = result.toolCalls.find(
+        (t) => t.name === "submit_adjusted",
       );
-      if (adjustBlock) {
-        const out = adjustBlock.input as {
+      if (adjustCall) {
+        const out = adjustCall.input as {
           sections: Array<{
             id: string;
             leftText?: string | null;
@@ -1287,13 +1259,11 @@ export async function copyDescriptionTemplateFromProductAction(
         });
       }
 
-      const u = msg.usage;
-      const inputTokens = u.input_tokens ?? 0;
-      const outputTokens = u.output_tokens ?? 0;
-      const usd =
-        (inputTokens * 3) / 1_000_000 +
-        (outputTokens * 15) / 1_000_000;
-      cost = { inputTokens, outputTokens, usd };
+      cost = {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        usd: result.costUsd,
+      };
     }
 
     await db.product.update({
@@ -1318,7 +1288,7 @@ export async function copyDescriptionTemplateFromProductAction(
           inputTokens: cost.inputTokens,
           outputTokens: cost.outputTokens,
           sourceProductId,
-          model: "claude-sonnet-4-6",
+          model: "gpt-6-astra",
         },
       });
     }
