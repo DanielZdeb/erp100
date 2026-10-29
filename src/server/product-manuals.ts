@@ -59,6 +59,114 @@ export async function createProductManualAction(input: unknown) {
   return { ok: true as const, id: created.id };
 }
 
+/**
+ * Utworzenie instrukcji typu PDF_ATTACHMENT — wgrywa gotowy plik PDF
+ * i tworzy ProductManual z `kind=PDF_ATTACHMENT` + `pdfFileUrl`. Nie
+ * generujemy żadnej treści w ERP — plik jest serwowany 1:1.
+ */
+export async function createProductManualPdfAction(
+  formData: FormData,
+): Promise<{ ok: true; id: string }> {
+  await requireUser();
+  const companyId = await getCurrentCompanyId();
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) throw new Error("Nazwa wymagana");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Wgraj plik PDF.");
+  }
+  const isPdfType = file.type === "application/pdf";
+  const isPdfExt = file.name.toLowerCase().endsWith(".pdf");
+  if (!isPdfType && !isPdfExt) {
+    throw new Error("Dozwolone tylko pliki PDF.");
+  }
+  // 50 MB limit — rozsądne dla instrukcji
+  if (file.size > 50 * 1024 * 1024) {
+    throw new Error("Plik PDF jest zbyt duży (max 50 MB).");
+  }
+
+  // Tworzymy rekord najpierw żeby mieć id do folderu storage
+  const created = await db.productManual.create({
+    data: {
+      companyId,
+      name,
+      kind: "PDF_ATTACHMENT",
+      pageSize: "A4",
+    },
+    select: { id: true },
+  });
+
+  const uploaded = await uploadFile(file, {
+    folder: `manuals/${created.id}/pdf`,
+  });
+
+  await db.productManual.update({
+    where: { id: created.id },
+    data: {
+      pdfFileUrl: uploaded.url,
+      pdfFileName: file.name,
+    },
+  });
+
+  revalidatePath("/produkty/instrukcje");
+  return { ok: true as const, id: created.id };
+}
+
+/**
+ * Wymiana pliku PDF istniejącej instrukcji PDF_ATTACHMENT.
+ */
+export async function replaceManualPdfAction(
+  manualId: string,
+  formData: FormData,
+): Promise<{ ok: true; pdfFileUrl: string; pdfFileName: string }> {
+  await requireUser();
+  const companyId = await getCurrentCompanyId();
+
+  const existing = await db.productManual.findFirst({
+    where: { id: manualId, companyId },
+    select: { id: true, kind: true },
+  });
+  if (!existing) throw new Error("Instrukcja nie istnieje.");
+  if (existing.kind !== "PDF_ATTACHMENT") {
+    throw new Error("Ta instrukcja nie jest typu PDF.");
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Wgraj plik PDF.");
+  }
+  const isPdfType = file.type === "application/pdf";
+  const isPdfExt = file.name.toLowerCase().endsWith(".pdf");
+  if (!isPdfType && !isPdfExt) {
+    throw new Error("Dozwolone tylko pliki PDF.");
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    throw new Error("Plik PDF jest zbyt duży (max 50 MB).");
+  }
+
+  const uploaded = await uploadFile(file, {
+    folder: `manuals/${manualId}/pdf`,
+  });
+
+  await db.productManual.update({
+    where: { id: manualId },
+    data: {
+      pdfFileUrl: uploaded.url,
+      pdfFileName: file.name,
+    },
+  });
+
+  revalidatePath(`/produkty/instrukcje/${manualId}`);
+  revalidatePath("/produkty/instrukcje");
+  return {
+    ok: true as const,
+    pdfFileUrl: uploaded.url,
+    pdfFileName: file.name,
+  };
+}
+
 export async function deleteProductManualAction(id: string) {
   await requireUser();
   const companyId = await getCurrentCompanyId();

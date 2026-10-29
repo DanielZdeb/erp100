@@ -1278,6 +1278,14 @@ export default async function ZamowienieDetailPage({
                 />
                 <ItemsTab
                   orderId={order.id}
+                  orderNumber={order.orderNumber}
+                  orderName={order.name}
+                  companyName={order.company?.name ?? "Nasza firma"}
+                  companyAddressLines={
+                    order.company?.address
+                      ? order.company.address.split(/\n+/).filter(Boolean)
+                      : []
+                  }
                   itemMeta={buildItemMeta({
                     items: order.items,
                     fulfillment,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, FileUp } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
@@ -16,6 +16,7 @@ import { parseHeaderRanges } from "@/lib/manual-document";
 import { ManualEditorPanel } from "./_components/manual-editor-panel";
 import { AssignmentsPanel } from "./_components/assignments-panel";
 import { RenameInput } from "./_components/rename-input";
+import { PdfManualPanel } from "./_components/pdf-manual-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,8 @@ export default async function InstrukcjaEditPage({
       template: true,
       pageSize: true,
       kind: true,
+      pdfFileUrl: true,
+      pdfFileName: true,
       headerLang: true,
       headerTitle: true,
       headerRanges: true,
@@ -107,6 +110,8 @@ export default async function InstrukcjaEditPage({
       ? (JSON.parse(JSON.stringify(manual.manualJson)) as object)
       : null;
 
+  const isPdf = manual.kind === "PDF_ATTACHMENT";
+
   return (
     <div className="p-6 space-y-4">
       <div>
@@ -118,7 +123,11 @@ export default async function InstrukcjaEditPage({
           Wstecz do listy instrukcji
         </Link>
         <h1 className="text-2xl font-heading font-bold tracking-tight mt-1 inline-flex items-center gap-2">
-          <BookOpen className="size-6 text-indigo-600" />
+          {isPdf ? (
+            <FileUp className="size-6 text-rose-600" />
+          ) : (
+            <BookOpen className="size-6 text-indigo-600" />
+          )}
           <RenameInput
             initialName={manual.name}
             manualId={manual.id}
@@ -138,42 +147,49 @@ export default async function InstrukcjaEditPage({
         allCategories={allCategories}
       />
 
-      {/* Editor */}
-      <Card className="overflow-hidden border-l-4 border-l-indigo-400">
-        <CardHeader className="py-3 border-b">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <div className="size-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center">
-              <BookOpen className="size-3.5" />
-            </div>
-            Treść instrukcji
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <ManualEditorPanel
-            manualId={manual.id}
-            initialDoc={cleanManualJson}
-            initialTemplate={manual.template}
-            initialPageSize={manual.pageSize}
-            initialKind={manual.kind}
-            initialHeaderLang={manual.headerLang}
-            initialHeaderTitle={manual.headerTitle}
-            initialHeaderRanges={parseHeaderRanges(manual.headerRanges)}
-            initialFooterCustom={manual.footerCustom}
-            initialStyle={{
-              fontFamily: manual.fontFamily,
-              bodyFontSize: manual.bodyFontSize,
-              h1FontSize: manual.h1FontSize,
-              h2FontSize: manual.h2FontSize,
-              h3FontSize: manual.h3FontSize,
-              logoImageUrl: manual.logoImageUrl,
-              logoHeightPt: manual.logoHeightPt,
-              coverSubtitle: manual.coverSubtitle,
-            }}
-            companyWebsiteUrl={manual.company?.websiteUrl ?? null}
-            productImages={productImages}
-          />
-        </CardContent>
-      </Card>
+      {isPdf ? (
+        <PdfManualPanel
+          manualId={manual.id}
+          pdfFileUrl={manual.pdfFileUrl}
+          pdfFileName={manual.pdfFileName}
+        />
+      ) : (
+        <Card className="overflow-hidden border-l-4 border-l-indigo-400">
+          <CardHeader className="py-3 border-b">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="size-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <BookOpen className="size-3.5" />
+              </div>
+              Treść instrukcji
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <ManualEditorPanel
+              manualId={manual.id}
+              initialDoc={cleanManualJson}
+              initialTemplate={manual.template}
+              initialPageSize={manual.pageSize}
+              initialKind={manual.kind as "STANDARD" | "LEAFLET"}
+              initialHeaderLang={manual.headerLang}
+              initialHeaderTitle={manual.headerTitle}
+              initialHeaderRanges={parseHeaderRanges(manual.headerRanges)}
+              initialFooterCustom={manual.footerCustom}
+              initialStyle={{
+                fontFamily: manual.fontFamily,
+                bodyFontSize: manual.bodyFontSize,
+                h1FontSize: manual.h1FontSize,
+                h2FontSize: manual.h2FontSize,
+                h3FontSize: manual.h3FontSize,
+                logoImageUrl: manual.logoImageUrl,
+                logoHeightPt: manual.logoHeightPt,
+                coverSubtitle: manual.coverSubtitle,
+              }}
+              companyWebsiteUrl={manual.company?.websiteUrl ?? null}
+              productImages={productImages}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

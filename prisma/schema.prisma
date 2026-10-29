@@ -222,12 +222,16 @@ enum ManualPageSize {
 }
 
 /// Typ instrukcji — różny układ stron, ten sam zestaw ustawień stylu.
-///   STANDARD — wielostronicowa: cover + TOC + body[] + Wyrównanie + Ostatnia.
-///   LEAFLET  — 1-stronna: cover + body (po 1 stronie per język, bez TOC, Wyr.,
-///              Ostatniej). „Ulotka" dwustronna / wkładka do paczki.
+///   STANDARD        — wielostronicowa: cover + TOC + body[] + Wyrównanie + Ostatnia.
+///   LEAFLET         — 1-stronna: cover + body (po 1 stronie per język, bez TOC, Wyr.,
+///                     Ostatniej). „Ulotka" dwustronna / wkładka do paczki.
+///   PDF_ATTACHMENT  — gotowy plik PDF wgrywany jako załącznik (nie generujemy w ERP).
+///                     Lista pokazuje badge PDF, strona szczegółów = preview + replace +
+///                     przypisania. Publiczny widok embeduje PDF przez <iframe>.
 enum ManualKind {
   STANDARD
   LEAFLET
+  PDF_ATTACHMENT
 }
 
 enum BundleShippingMode {
@@ -694,6 +698,13 @@ model ProductManual {
   /// Edytowalny tekst pod logiem na okładce (np. nazwa produktu, podtytuł).
   /// Renderowany wycentrowany pod logiem na 1. stronie PDF.
   coverSubtitle String?
+
+  // ── PDF-załącznik (dla kind=PDF_ATTACHMENT) ─────────────────────────
+  /// URL wgranego pliku PDF (storage: /uploads/manuals/<id>/pdf/...). Dla
+  /// STANDARD/LEAFLET pole jest null — treść generujemy z `manualJson`.
+  pdfFileUrl   String?
+  /// Oryginalna nazwa pliku PDF (do wyświetlenia + nazwa download'u).
+  pdfFileName  String?
 
   // ── Wersje językowe ────────────────────────────────────────────────
   /// Lista aktywnych języków instrukcji trzymana w `manualJson.activeLanguages`

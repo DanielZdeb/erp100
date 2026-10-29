@@ -12,7 +12,7 @@
  * CSS: `@page` rule ustawia rozmiar papieru, `.page` ma dokładne wymiary mm,
  * `page-break-after: always` zapewnia że każda strona to osobny arkusz w PDF.
  */
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
@@ -56,10 +56,17 @@ export default async function DrukujInstrukcjaPage({
       logoHeightPt: true,
       coverSubtitle: true,
       kind: true,
+      pdfFileUrl: true,
       company: { select: { name: true } },
     },
   });
   if (!manual) notFound();
+
+  // PDF-załącznik: nie ma co drukować własnym silnikiem — redirect na plik.
+  if (manual.kind === "PDF_ATTACHMENT") {
+    if (!manual.pdfFileUrl) notFound();
+    redirect(manual.pdfFileUrl);
+  }
 
   // Prisma 7 Json fields → plain object przez JSON clone
   const cleanManualJson =

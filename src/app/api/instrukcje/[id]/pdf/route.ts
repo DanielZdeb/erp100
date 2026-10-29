@@ -38,6 +38,7 @@ export async function GET(
       template: true,
       pageSize: true,
       kind: true,
+      pdfFileUrl: true,
       headerLang: true,
       headerTitle: true,
       headerRanges: true,
@@ -80,6 +81,17 @@ export async function GET(
       { error: "Instrukcja nie istnieje." },
       { status: 404 },
     );
+  }
+
+  // PDF-załącznik: nie generujemy — redirect na gotowy plik.
+  if (manual.kind === "PDF_ATTACHMENT") {
+    if (!manual.pdfFileUrl) {
+      return NextResponse.json(
+        { error: "Brak pliku PDF." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.redirect(new URL(manual.pdfFileUrl, _req.url), 307);
   }
 
   const normalized = normalizeManualDocument(manual.manualJson);

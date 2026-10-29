@@ -90,6 +90,7 @@ import {
 } from "@/lib/material-bolts";
 
 import { MaterialBoltsSummary } from "./material-bolts-summary";
+import { ProformaInvoiceSection } from "./proforma-invoice-section";
 import {
   effectiveRateFromTranches,
   type ContainerResult,
@@ -234,6 +235,7 @@ type Item = {
         images: { url: string }[];
       };
     }[];
+    weightKg: number | null;
     boxWidthCm: number | null;
     boxHeightCm: number | null;
     boxDepthCm: number | null;
@@ -322,6 +324,8 @@ type PriceMode = "brutto" | "netto";
 
 export function ItemsTab({
   orderId,
+  orderNumber,
+  orderName,
   items,
   itemMeta,
   calc,
@@ -336,8 +340,12 @@ export function ItemsTab({
   priceHistoryByProduct,
   country = "CHINA",
   pdfDescription = null,
+  companyName,
+  companyAddressLines,
 }: {
   orderId: string;
+  orderNumber: string;
+  orderName: string | null;
   items: Item[];
   itemMeta: Record<string, ItemMeta>;
   calc: ContainerResult;
@@ -354,6 +362,10 @@ export function ItemsTab({
   country?: "CHINA" | "POLAND";
   /** Opis zamówienia pokazywany na stronie 1 PDF (PL only). */
   pdfDescription?: string | null;
+  /** Nazwa naszej firmy — nagłówek "To:" na Proforma Invoice. */
+  companyName: string;
+  /** Adres naszej firmy — nagłówek "To:" na Proforma Invoice. */
+  companyAddressLines: string[];
 }) {
   // Kursy efektywne z opłaconych transz — gdy istnieją, nadpisują wstępne kursy.
   const effectiveTrancheUsd = effectiveRateFromTranches(goodsTranches, "USD");
@@ -444,6 +456,35 @@ export function ItemsTab({
 
   return (
     <div className="space-y-3">
+      {/* Proforma Invoice: pokazujemy tylko dla zam. z Chin, bo format PI
+          typowy dla brokerów/dostawców chińskich. */}
+      {!isPoland && (
+        <ProformaInvoiceSection
+          orderId={orderId}
+          orderNumber={orderNumber}
+          orderName={orderName}
+          companyName={companyName}
+          companyAddressLines={companyAddressLines}
+          supplierName={companyName}
+          supplierAddressLines={companyAddressLines}
+          items={items.map((it) => ({
+            productCode: it.product.productCode,
+            productName: it.product.name,
+            eanCode: it.product.eanCode,
+            specification: it.product.name,
+            quantity: it.quantity,
+            unitPriceUsd: it.unitPriceUsd,
+            primaryImageUrl: it.product.images[0]?.url ?? null,
+            boxWidthCm: it.product.boxWidthCm,
+            boxHeightCm: it.product.boxHeightCm,
+            boxDepthCm: it.product.boxDepthCm,
+            unitsPerBox: it.product.unitsPerBox,
+            weightKg: it.product.weightKg,
+            boxWeightKg: it.product.boxWeightKg,
+          }))}
+        />
+      )}
+
       {/* Opis PDF + przycisk wygenerowania PDF przeniesiony do osobnej
           zakładki „Wytyczne i składanie zamówienia". */}
       <div className="flex items-center justify-end gap-3 flex-wrap">

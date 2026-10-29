@@ -61,10 +61,58 @@ export default async function InstrukcjaPage({
     select: {
       id: true,
       name: true,
+      kind: true,
+      pdfFileUrl: true,
+      pdfFileName: true,
       manualJson: true,
     },
   });
   if (!manual) notFound();
+
+  // PDF-załącznik: embedujemy plik w iframe, bez pagera i przełącznika języka
+  if (manual.kind === "PDF_ATTACHMENT") {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+            <Link
+              href={`/publiczne/instrukcje`}
+              className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+            >
+              <ArrowLeft className="size-4" />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-sm sm:text-base font-semibold truncate">
+                {manual.name}
+              </h1>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/uploads/brand/acro4f-logo.svg"
+              alt="ACRO4F"
+              className="h-6 w-auto hidden sm:block"
+            />
+          </div>
+        </header>
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-4">
+          {manual.pdfFileUrl ? (
+            <iframe
+              src={manual.pdfFileUrl}
+              title={manual.pdfFileName ?? manual.name}
+              className="w-full h-[85vh] border-0 rounded-xl ring-1 ring-slate-200 bg-slate-50"
+            />
+          ) : (
+            <div className="rounded-xl bg-slate-100 p-8 text-center text-slate-500">
+              Brak pliku PDF.
+            </div>
+          )}
+        </main>
+        <footer className="max-w-5xl mx-auto px-4 py-6 border-t border-slate-200 text-center text-[11px] text-slate-400">
+          ACRO4F Sp. z o.o. · Wszelkie prawa zastrzeżone
+        </footer>
+      </div>
+    );
+  }
 
   const doc = (manual.manualJson ?? {}) as ManualDoc;
   const activeLangs = doc.activeLanguages ?? [];

@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, BookOpen, FileText, Layers, Package } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  FileText,
+  FileUp,
+  Layers,
+  Package,
+} from "lucide-react";
 
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
@@ -32,6 +39,9 @@ export default async function InstrukcjePage() {
         name: true,
         template: true,
         pageSize: true,
+        kind: true,
+        pdfFileUrl: true,
+        pdfFileName: true,
         updatedAt: true,
         manualJson: true,
         fontFamily: true,
@@ -120,6 +130,7 @@ export default async function InstrukcjePage() {
             </TableHeader>
             <TableBody>
               {manuals.map((m) => {
+                const isPdf = m.kind === "PDF_ATTACHMENT";
                 const pagesCount =
                   m.manualJson &&
                   typeof m.manualJson === "object" &&
@@ -172,86 +183,129 @@ export default async function InstrukcjePage() {
                         href={`/produkty/instrukcje/${m.id}`}
                         className="text-indigo-700 hover:underline inline-flex items-center gap-1.5"
                       >
-                        <FileText className="size-3.5" />
+                        {isPdf ? (
+                          <FileUp className="size-3.5 text-rose-600" />
+                        ) : (
+                          <FileText className="size-3.5" />
+                        )}
                         {m.name}
                       </Link>
+                      {isPdf && m.pdfFileUrl && (
+                        <a
+                          href={m.pdfFileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-[10px] text-rose-700 hover:underline inline-flex items-center gap-0.5"
+                          title={m.pdfFileName ?? "Otwórz PDF"}
+                        >
+                          otwórz PDF
+                        </a>
+                      )}
                     </TableCell>
                     <TableCell className="text-[11px] tabular-nums">
-                      <span className="font-bold uppercase tracking-wide text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                        {m.pageSize}
-                      </span>
+                      {isPdf ? (
+                        <span className="font-bold uppercase tracking-wide text-rose-700 bg-rose-50 ring-1 ring-rose-200 px-1.5 py-0.5 rounded">
+                          PDF
+                        </span>
+                      ) : (
+                        <span className="font-bold uppercase tracking-wide text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {m.pageSize}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <span
-                        className="text-[11px] font-medium text-slate-700 truncate max-w-[110px] inline-block"
-                        style={{ fontFamily: m.fontFamily ?? undefined }}
-                        title={m.fontFamily ?? "Roboto (default)"}
-                      >
-                        {m.fontFamily ?? "Roboto"}
-                      </span>
+                      {isPdf ? (
+                        <span className="text-[11px] text-slate-400 italic">
+                          —
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[11px] font-medium text-slate-700 truncate max-w-[110px] inline-block"
+                          style={{ fontFamily: m.fontFamily ?? undefined }}
+                          title={m.fontFamily ?? "Roboto (default)"}
+                        >
+                          {m.fontFamily ?? "Roboto"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "text-[11px] tabular-nums text-center",
-                        isOverridden(m.bodyFontSize)
-                          ? "text-slate-900 font-semibold"
-                          : "text-slate-400",
+                        isPdf
+                          ? "text-slate-300"
+                          : isOverridden(m.bodyFontSize)
+                            ? "text-slate-900 font-semibold"
+                            : "text-slate-400",
                       )}
                       title={
-                        isOverridden(m.bodyFontSize)
-                          ? "Custom override"
-                          : `Default dla ${m.pageSize}`
+                        isPdf
+                          ? "N/d dla PDF-załącznika"
+                          : isOverridden(m.bodyFontSize)
+                            ? "Custom override"
+                            : `Default dla ${m.pageSize}`
                       }
                     >
-                      {showPt(m.bodyFontSize, def.body)}pt
+                      {isPdf ? "—" : `${showPt(m.bodyFontSize, def.body)}pt`}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "text-[11px] tabular-nums text-center",
-                        isOverridden(m.h1FontSize)
-                          ? "text-slate-900 font-semibold"
-                          : "text-slate-400",
+                        isPdf
+                          ? "text-slate-300"
+                          : isOverridden(m.h1FontSize)
+                            ? "text-slate-900 font-semibold"
+                            : "text-slate-400",
                       )}
                       title={
-                        isOverridden(m.h1FontSize)
-                          ? "Custom override"
-                          : `Default dla ${m.pageSize}`
+                        isPdf
+                          ? "N/d dla PDF-załącznika"
+                          : isOverridden(m.h1FontSize)
+                            ? "Custom override"
+                            : `Default dla ${m.pageSize}`
                       }
                     >
-                      {showPt(m.h1FontSize, def.h1)}pt
+                      {isPdf ? "—" : `${showPt(m.h1FontSize, def.h1)}pt`}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "text-[11px] tabular-nums text-center",
-                        isOverridden(m.h2FontSize)
-                          ? "text-slate-900 font-semibold"
-                          : "text-slate-400",
+                        isPdf
+                          ? "text-slate-300"
+                          : isOverridden(m.h2FontSize)
+                            ? "text-slate-900 font-semibold"
+                            : "text-slate-400",
                       )}
                       title={
-                        isOverridden(m.h2FontSize)
-                          ? "Custom override"
-                          : `Default dla ${m.pageSize}`
+                        isPdf
+                          ? "N/d dla PDF-załącznika"
+                          : isOverridden(m.h2FontSize)
+                            ? "Custom override"
+                            : `Default dla ${m.pageSize}`
                       }
                     >
-                      {showPt(m.h2FontSize, def.h2)}pt
+                      {isPdf ? "—" : `${showPt(m.h2FontSize, def.h2)}pt`}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "text-[11px] tabular-nums text-center",
-                        isOverridden(m.h3FontSize)
-                          ? "text-slate-900 font-semibold"
-                          : "text-slate-400",
+                        isPdf
+                          ? "text-slate-300"
+                          : isOverridden(m.h3FontSize)
+                            ? "text-slate-900 font-semibold"
+                            : "text-slate-400",
                       )}
                       title={
-                        isOverridden(m.h3FontSize)
-                          ? "Custom override"
-                          : `Default dla ${m.pageSize}`
+                        isPdf
+                          ? "N/d dla PDF-załącznika"
+                          : isOverridden(m.h3FontSize)
+                            ? "Custom override"
+                            : `Default dla ${m.pageSize}`
                       }
                     >
-                      {showPt(m.h3FontSize, def.h3)}pt
+                      {isPdf ? "—" : `${showPt(m.h3FontSize, def.h3)}pt`}
                     </TableCell>
                     <TableCell className="tabular-nums text-slate-600">
-                      {pagesCount || "—"}
+                      {isPdf ? "—" : pagesCount || "—"}
                     </TableCell>
                     <TableCell>
                       <div

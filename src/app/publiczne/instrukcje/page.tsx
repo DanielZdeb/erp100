@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ArrowLeft, ChevronRight } from "lucide-react";
+import { BookOpen, ArrowLeft, ChevronRight, FileUp } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { UI_TEXT, normalizeLang } from "@/lib/publiczne-content";
@@ -32,6 +32,7 @@ export default async function InstrukcjeListPage({
     select: {
       id: true,
       name: true,
+      kind: true,
       manualJson: true,
     },
   });
@@ -41,6 +42,7 @@ export default async function InstrukcjeListPage({
     return {
       id: m.id,
       name: m.name,
+      isPdf: m.kind === "PDF_ATTACHMENT",
       langs: doc.activeLanguages ?? [],
     };
   });
@@ -87,24 +89,42 @@ export default async function InstrukcjeListPage({
                 href={`/publiczne/instrukcje/${m.id}?lang=${lang}`}
                 className="group flex items-start gap-4 rounded-xl bg-white ring-1 ring-slate-200 p-4 hover:ring-slate-900 hover:shadow-md transition-all active:scale-[0.99]"
               >
-                <div className="size-11 shrink-0 grid place-items-center rounded-xl bg-gradient-to-br from-pink-100 to-blue-100 text-slate-900">
-                  <BookOpen className="size-5" />
+                <div
+                  className={
+                    m.isPdf
+                      ? "size-11 shrink-0 grid place-items-center rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 text-rose-800"
+                      : "size-11 shrink-0 grid place-items-center rounded-xl bg-gradient-to-br from-pink-100 to-blue-100 text-slate-900"
+                  }
+                >
+                  {m.isPdf ? (
+                    <FileUp className="size-5" />
+                  ) : (
+                    <BookOpen className="size-5" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-slate-900 group-hover:underline leading-snug">
                     {m.name}
                   </div>
-                  {m.langs.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {m.langs.map((l) => (
-                        <span
-                          key={l}
-                          className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded"
-                        >
-                          {l}
-                        </span>
-                      ))}
+                  {m.isPdf ? (
+                    <div className="mt-1.5">
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 rounded">
+                        PDF
+                      </span>
                     </div>
+                  ) : (
+                    m.langs.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {m.langs.map((l) => (
+                          <span
+                            key={l}
+                            className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded"
+                          >
+                            {l}
+                          </span>
+                        ))}
+                      </div>
+                    )
                   )}
                 </div>
                 <ChevronRight className="shrink-0 mt-1 text-slate-400 group-hover:text-slate-900 transition-colors" />
