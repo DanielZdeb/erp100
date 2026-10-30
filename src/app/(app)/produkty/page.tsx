@@ -2881,22 +2881,30 @@ function computeProductEconomics(
 ) {
   // Wszystkie wartości PLN traktujemy jako NETTO — przeliczenie do brutto
   // robi warstwa renderu (× factor). Patrz JSX poniżej.
-  // Cena zakupu
-  const cny = lastItem?.unitPriceCny ?? product.defaultUnitPriceCny;
-  const usd = lastItem?.unitPriceUsd ?? product.defaultUnitPriceUsd;
+  // Cena zakupu — priorytet: cena jawnie wpisana na ostatniej pozycji
+  // (unitPriceCny/Usd/Pln), potem dopiero defaulty produktu. Wcześniej
+  // defaulty mieszały się z kursem zamówienia (np. defaultCny × order.cnyRate)
+  // nawet gdy pozycja była wyceniona w USD — i panel pokazywał inną cenę
+  // niż kontener. Teraz: wybieramy walutę od pozycji, defaulty tylko gdy
+  // pozycja nie ma ŻADNEJ wpisanej ceny.
   const cnyRate =
     lastItem?.cnyToPlnRate ?? lastItem?.order.cnyToPlnRate ?? null;
   const usdRate =
     lastItem?.usdToPlnRate ?? lastItem?.order.usdToPlnRate ?? null;
   let purchasePricePln: number | null = null;
-  if (cny != null && cnyRate) purchasePricePln = cny * cnyRate;
-  else if (usd != null && usdRate) purchasePricePln = usd * usdRate;
-  // PL (produkcja krajowa): cena bezpośrednio w PLN — nie ma kursu walut.
-  // Najpierw z konkretnej pozycji (ostatnia transakcja), potem fallback
-  // na default produktu (gdy produkt nie był jeszcze zamawiany).
-  if (purchasePricePln == null) {
-    if (lastItem?.unitPricePln != null && lastItem.unitPricePln > 0) {
-      purchasePricePln = lastItem.unitPricePln;
+  if (lastItem?.unitPriceCny != null && cnyRate) {
+    purchasePricePln = lastItem.unitPriceCny * cnyRate;
+  } else if (lastItem?.unitPriceUsd != null && usdRate) {
+    purchasePricePln = lastItem.unitPriceUsd * usdRate;
+  } else if (lastItem?.unitPricePln != null && lastItem.unitPricePln > 0) {
+    // PL (produkcja krajowa): cena bezpośrednio w PLN — nie ma kursu walut.
+    purchasePricePln = lastItem.unitPricePln;
+  } else {
+    // Pozycja nie ma żadnej wpisanej ceny → fallback na defaulty produktu.
+    if (product.defaultUnitPriceCny != null && cnyRate) {
+      purchasePricePln = product.defaultUnitPriceCny * cnyRate;
+    } else if (product.defaultUnitPriceUsd != null && usdRate) {
+      purchasePricePln = product.defaultUnitPriceUsd * usdRate;
     } else if (
       product.defaultUnitPricePln != null &&
       product.defaultUnitPricePln > 0
