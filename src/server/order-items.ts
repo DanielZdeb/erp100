@@ -405,6 +405,10 @@ export async function updateOrderItemAction(itemId: string, input: unknown) {
   });
 
   revalidatePath(`/zamowienia/${item.orderId}`);
+  // Panel /produkty czyta „ostatnią cenę zakupu" z najnowszego kontenera —
+  // musi dostać świeże dane po edycji ceny/ilości/kursu, inaczej karta
+  // produktu pokazuje stare wartości.
+  revalidatePath("/produkty");
   await maybeSnapshotOrderPrices(item.orderId);
   return { ok: true as const };
 }

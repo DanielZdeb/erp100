@@ -325,6 +325,10 @@ export async function parseProformaInvoiceXlsxAction(
   }
 
   revalidatePath(`/zamowienia/${orderId}`);
+  // Sync aktualizuje ceny na pozycjach + wymiary/wagę na produktach — panel
+  // /produkty czyta „ostatnią cenę" z najnowszego kontenera, więc musi
+  // przeczytać świeże dane po uploadzie, inaczej wygląda jak stara cena.
+  revalidatePath("/produkty");
 
   return {
     totalRowsInFile: parsed.length,

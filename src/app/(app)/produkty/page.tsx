@@ -563,22 +563,22 @@ export default async function ProduktyPage({
       historyByProduct.set(it.productId, arr);
     }
   }
-  // lastItem = najnowsza pozycja z WYPEŁNIONĄ ceną zakupu (USD lub CNY) i
-  // dostępnym kursem przeliczeniowym. Pomijamy szkice/sample bez kwot —
-  // inaczej kalkulator ekonomiki produktu lądował na null nawet gdy realna
-  // historyczna cena istnieje 1-2 wpisy wstecz.
+  // lastItem = najnowsza pozycja z WYPEŁNIONĄ ceną zakupu (USD / CNY / PLN).
+  // Pomijamy szkice/sample bez żadnej kwoty, żeby kalkulator ekonomiki nie
+  // lądował na null gdy realna cena istnieje 1-2 wpisy wstecz. Kurs waluty
+  // NIE jest wymagany — gdy go brak w najnowszym kontenerze, PLN-calc
+  // downstream korzysta z defaultów produktu, a kolumna „Cena USD" i tak
+  // ma pokazywać ostatnią realną cenę zakupu (nie starą tylko dlatego, że
+  // nowszy kontener nie ma jeszcze wpisanego kursu).
   const lastItemByProduct = new Map<string, (typeof allItems)[number]>();
   for (const [pid, items] of historyByProduct) {
     const candidate =
-      items.find((it) => {
-        const hasUsd =
-          it.unitPriceUsd != null &&
-          (it.usdToPlnRate ?? it.order.usdToPlnRate ?? 0) > 0;
-        const hasCny =
-          it.unitPriceCny != null &&
-          (it.cnyToPlnRate ?? it.order.cnyToPlnRate ?? 0) > 0;
-        return hasUsd || hasCny;
-      }) ?? items[0];
+      items.find(
+        (it) =>
+          it.unitPriceUsd != null ||
+          it.unitPriceCny != null ||
+          it.unitPricePln != null,
+      ) ?? items[0];
     if (candidate) lastItemByProduct.set(pid, candidate);
   }
 
