@@ -91,6 +91,7 @@ model Company {
   orderTemplateSections OrderTemplateSection[]
   descriptionTemplates  DescriptionTemplate[]
   companyTasks          CompanyTask[]
+  productEconomySnapshots ProductEconomySnapshot[]
 
   // ── Integracje zewnetrzne ─────────────────────────────────────────
   /// Maersk Track & Trace Consumer-Key (z developer.maersk.com).
@@ -548,6 +549,13 @@ model Product {
   /// generującego tekst/szablon AI w /sprzedaz/produkty/[id].
   salesNotes             String?
 
+  /// Snapshot wyliczonej ekonomiki produktu (ceny zakupu w PLN, prowizja,
+  /// cło, logistyka, wysyłka, marże Allegro/Sklep). Panel /produkty czyta
+  /// z tego cache zamiast liczyć na żywo — szybkie otwarcie listy nawet
+  /// przy 300+ produktach. Inwalidowany flagą `isStale` przez hook-i na
+  /// mutacjach (edycja pozycji zamówienia, zmiana cenniku kuriera itd.).
+  economySnapshot ProductEconomySnapshot?
+
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -557,6 +565,44 @@ model Product {
   @@unique([companyId, iaiId])
   @@index([companyId])
   @@index([descriptionTemplateId])
+}
+
+/// Snapshot wyliczonej ekonomiki produktu — ceny zakupu, prowizja, cło,
+/// logistyka, wysyłka, marże Allegro/Sklep. Wszystkie wyliczone liczby
+/// trzymamy w `data` jako JSON blob (24 pola z `computeProductEconomics`).
+///
+/// `isStale=true` oznacza że od ostatniego compute coś się zmieniło (edycja
+/// pozycji zamówienia, zmiana cenniku kuriera, zmiana ustawień fulfillmentu
+/// itd.) i trzeba przeliczyć na nowo przed pokazaniem usera.
+///
+/// Fallback (cache miss / brak snapshotu) = compute w locie i upsert — więc
+/// pierwszy widok nowego produktu na prod po deploy'u lekko czeka, kolejne
+/// są instant. Panel robi to w parallel po productId.
+model ProductEconomySnapshot {
+  productId  String  @id
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Multi-tenant: skala inwalidacji globalnej (bump wszystkich snapshotów
+  /// firmy po zmianie cennika kuriera / fulfillmentu).
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Flaga „trzeba przeliczyć". Panel widzi true → od-fetch'a inputy +
+  /// upsert'uje świeży snapshot. Hook-i mutacji ustawiają to na true
+  /// na dotkniętych produktach (lub wszystkich przy globalnym bumpie).
+  isStale    Boolean  @default(true)
+
+  computedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// Wyliczone liczby (JSON): lastQty, totalCbm, purchasePricePln,
+  /// prowizjaPerUnit, cloPerUnit, logisticsPerUnit, productionSumPerUnit,
+  /// totalCostPerUnit, lastTotalPln, shippingPerUnit, boxPricePerUnit,
+  /// fulfillmentPerUnit, fulfillmentBreakdown, allegroPrice/Pct/Other/
+  /// CustShip/Profit/Margin, sklepPrice/Pct/Other/CustShip/AdCost/Profit/
+  /// Margin + metadane: lastItemId, lastOrderNumber.
+  data       Json
+
+  @@index([companyId, isStale])
 }
 
 // ─────────────────────────────────────────────────────────────────────
