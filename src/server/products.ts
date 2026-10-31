@@ -399,6 +399,12 @@ export async function updateProductAction(id: string, input: unknown) {
   revalidatePath("/produkty");
   revalidateTag("products", "max");
   revalidatePath(`/produkty/${id}`);
+  // Zmiana defaultów (cena, waga, pudełko, kategoria, kanały sprzedaży) =
+  // snapshot ekonomiki do przeliczenia.
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(id);
   return { ok: true as const };
 }
 
@@ -484,6 +490,10 @@ export async function updateProductBasicAction(id: string, input: unknown) {
   revalidatePath("/produkty");
   revalidateTag("products", "max");
   revalidatePath(`/produkty/${id}`);
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(id);
   return { ok: true as const };
 }
 
@@ -644,6 +654,10 @@ export async function updateProductSaleDefaultsAction(
   revalidatePath("/produkty");
   revalidateTag("products", "max");
   revalidatePath(`/produkty/${id}`);
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(id);
   return { ok: true as const };
 }
 

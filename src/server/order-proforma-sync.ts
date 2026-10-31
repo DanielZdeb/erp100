@@ -329,6 +329,23 @@ export async function parseProformaInvoiceXlsxAction(
   // /produkty czyta „ostatnią cenę" z najnowszego kontenera, więc musi
   // przeczytać świeże dane po uploadzie, inaczej wygląda jak stara cena.
   revalidatePath("/produkty");
+  // Invalidate snapshoty wszystkich dotkniętych produktów (zmiana ceny +
+  // wymiarów kartonu + wagi → zmiana wysyłki kurierem i marży).
+  const touchedProductIds = Array.from(
+    new Set(order.items.map((it) => it.productId)),
+  ).filter(
+    (pid) =>
+      changes.some((c) => {
+        const matchItem = order.items.find((it) => it.productId === pid);
+        return matchItem?.product.productCode === c.productCode;
+      }),
+  );
+  if (touchedProductIds.length > 0) {
+    const { invalidateProductEconomicsSnapshotsByProductIds } = await import(
+      "@/server/product-economics-snapshot"
+    );
+    await invalidateProductEconomicsSnapshotsByProductIds(touchedProductIds);
+  }
 
   return {
     totalRowsInFile: parsed.length,

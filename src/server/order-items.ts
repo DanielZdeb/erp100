@@ -326,6 +326,12 @@ export async function addOrderItemAction(orderId: string, input: unknown) {
   });
 
   revalidatePath(`/zamowienia/${orderId}`);
+  // Panel /produkty zobaczy nowy ostatni kontener — invalidate snapshot
+  // ekonomiki tego produktu.
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(data.productId);
   await maybeSnapshotOrderPrices(orderId);
   return { ok: true as const, id: item.id };
 }
@@ -339,6 +345,7 @@ export async function updateOrderItemAction(itemId: string, input: unknown) {
     select: {
       id: true,
       orderId: true,
+      productId: true,
       order: { select: { status: true } },
     },
   });
@@ -409,6 +416,12 @@ export async function updateOrderItemAction(itemId: string, input: unknown) {
   // musi dostać świeże dane po edycji ceny/ilości/kursu, inaczej karta
   // produktu pokazuje stare wartości.
   revalidatePath("/produkty");
+  // Snapshot ekonomiki produktu musi być oznaczony jako stale żeby panel
+  // odświeżył wyliczenia (cena/qty/kurs → zmiana prowizji/cła/logistyki).
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(item.productId);
   await maybeSnapshotOrderPrices(item.orderId);
   return { ok: true as const };
 }
@@ -417,11 +430,16 @@ export async function deleteOrderItemAction(itemId: string) {
   await requireUser();
   const item = await db.importOrderItem.findUnique({
     where: { id: itemId },
-    select: { id: true, orderId: true },
+    select: { id: true, orderId: true, productId: true },
   });
   if (!item) return { ok: true as const };
   await db.importOrderItem.delete({ where: { id: itemId } });
   revalidatePath(`/zamowienia/${item.orderId}`);
+  // Snapshot ekonomiki produktu stracił „ostatnią pozycję" — invalidate.
+  const { invalidateProductEconomicsSnapshot } = await import(
+    "@/server/product-economics-snapshot"
+  );
+  await invalidateProductEconomicsSnapshot(item.productId);
   await maybeSnapshotOrderPrices(item.orderId);
   return { ok: true as const };
 }

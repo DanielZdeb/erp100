@@ -24,12 +24,14 @@ import {
 import { db } from "@/lib/db";
 import { getCurrentCompanyId } from "@/lib/tenant";
 import { cn } from "@/lib/utils";
+import { after } from "next/server";
 import {
   computeProductEconomics,
   type LastItemRecord,
   type ProductForEconomics,
   type CourierRateForEconomics,
   type FulfillmentForEconomics,
+  type ProductEconomicsResult,
 } from "@/lib/product-economics";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -516,51 +518,70 @@ export default async function ProduktyPage({
     "ODEBRANE",
     "W_MAGAZYNIE",
   ] as const;
-  const [allItems, courierRates, fulfillment, saleDefaults, featureFlags] =
-    await Promise.all([
-      productIds.length > 0
-        ? db.importOrderItem.findMany({
-            where: {
-              productId: { in: productIds },
-              order: { companyId, status: { in: [...NEGOTIATED_STATUSES] } },
-            },
-            orderBy: { createdAt: "desc" },
-            // Limit: maks. ~10 pozycji per produkt (popover historii i tak
-            // capuje na 10). Dla 130 produktów = 1300 wierszy zamiast wszystkich
-            // dotychczasowych zamówień. Zysk: 5-10× szybszy query i mniej danych
-            // do dalszego processowania w kalkulacji.
-            take: productIds.length * 10,
-            select: {
-              id: true,
-              productId: true,
-              quantity: true,
-              unitPriceCny: true,
-              unitPriceUsd: true,
-              unitPricePln: true,
-              cnyToPlnRate: true,
-              usdToPlnRate: true,
-              createdAt: true,
-              order: {
-                select: {
-                  id: true,
-                  orderNumber: true,
-                  status: true,
-                  cnyToPlnRate: true,
-                  usdToPlnRate: true,
-                },
+  const [
+    allItems,
+    courierRates,
+    fulfillment,
+    saleDefaults,
+    featureFlags,
+    economySnapshots,
+  ] = await Promise.all([
+    productIds.length > 0
+      ? db.importOrderItem.findMany({
+          where: {
+            productId: { in: productIds },
+            order: { companyId, status: { in: [...NEGOTIATED_STATUSES] } },
+          },
+          orderBy: { createdAt: "desc" },
+          // Limit: maks. ~10 pozycji per produkt (popover historii i tak
+          // capuje na 10). Dla 130 produktów = 1300 wierszy zamiast wszystkich
+          // dotychczasowych zamówień. Zysk: 5-10× szybszy query i mniej danych
+          // do dalszego processowania w kalkulacji.
+          take: productIds.length * 10,
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            unitPriceCny: true,
+            unitPriceUsd: true,
+            unitPricePln: true,
+            cnyToPlnRate: true,
+            usdToPlnRate: true,
+            createdAt: true,
+            order: {
+              select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                cnyToPlnRate: true,
+                usdToPlnRate: true,
               },
             },
-          })
-        : Promise.resolve([]),
-      db.courierRate.findMany({
-        where: { courier: { active: true } },
-        include: { courier: { select: { id: true, name: true } } },
-        orderBy: { pricePln: "asc" },
-      }),
-      getFulfillmentSettings(),
-      getSaleChannelDefaults(),
-      getCompanyFeatureFlags(),
-    ]);
+          },
+        })
+      : Promise.resolve([]),
+    db.courierRate.findMany({
+      where: { courier: { active: true } },
+      include: { courier: { select: { id: true, name: true } } },
+      orderBy: { pricePln: "asc" },
+    }),
+    getFulfillmentSettings(),
+    getSaleChannelDefaults(),
+    getCompanyFeatureFlags(),
+    // Snapshot cache ekonomiki — jeśli produkt ma świeży snapshot
+    // (`isStale=false`) i NIE jest ZESTAW, wiersz pobieramy stąd zamiast
+    // liczyć w locie. ZESTAW wymaga sumowania komponentów (bundlePurchase)
+    // co jest dynamiczne i zawsze liczymy inline.
+    productIds.length > 0
+      ? db.productEconomySnapshot.findMany({
+          where: { productId: { in: productIds }, isStale: false },
+          select: { productId: true, data: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const econSnapshotByProductId = new Map<string, unknown>(
+    economySnapshots.map((s) => [s.productId, s.data]),
+  );
   // Top-10 historii per produkt + lastItem (pierwszy z top-10).
   const historyByProduct = new Map<string, (typeof allItems)[number][]>();
   for (const it of allItems) {
@@ -776,6 +797,49 @@ export default async function ProduktyPage({
       quantity: q,
     });
   }
+
+  // Snapshot cache ekonomiki — wiersze policzone w locie dla produktów bez
+  // świeżego snapshotu (lub takich u których snapshot nie pasuje: ZESTAW,
+  // bundle override, engine override). Zapisywane fire-and-forget przez
+  // `after()` po streamingu odpowiedzi, więc nie opóźnia renderu.
+  const freshComputesForSnapshot: Array<{
+    productId: string;
+    data: ProductEconomicsResult;
+    companyId: string | null;
+  }> = [];
+  after(async () => {
+    if (freshComputesForSnapshot.length === 0) return;
+    try {
+      await Promise.all(
+        freshComputesForSnapshot.map((fc) => {
+          // Prisma Json field przyjmuje dowolny JSON-serializowalny obiekt;
+          // ProductEconomicsResult jest złożony (number | null + nested
+          // fulfillmentBreakdown) — castujemy przez `any` by nie powtarzać
+          // całej struktury w deklaracji Prisma Input.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data = fc.data as any;
+          return db.productEconomySnapshot.upsert({
+            where: { productId: fc.productId },
+            update: {
+              isStale: false,
+              computedAt: new Date(),
+              data,
+            },
+            create: {
+              productId: fc.productId,
+              companyId: fc.companyId,
+              isStale: false,
+              data,
+            },
+          });
+        }),
+      );
+    } catch (err) {
+      // Nie krytyczne — tylko logujemy, panel i tak policzył poprawnie
+      // inline. Następna wizyta zrobi retry.
+      console.warn("[produkty] economy snapshot warm failed", err);
+    }
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -1499,17 +1563,50 @@ export default async function ProduktyPage({
                     cloPerUnit:
                       bundleCloPln ?? lastEcon?.cloPerUnitPln ?? 0,
                   };
-                  const econ = computeProductEconomics(
-                    { ...p, skuCount },
-                    lastItem,
-                    courierRates,
-                    fulfillment,
-                    saleDefaults,
-                    bundleLogisticsPln ?? logisticsPerUnit,
-                    shippingFromEngine,
-                    bundlePurchasePln,
-                    importExtras,
-                  );
+                  // Snapshot cache: użyj zapisanego wyniku jeśli jest świeży
+                  // i produkt NIE ma dynamicznych override'ów (ZESTAW,
+                  // bundle override, engine override) — bo snapshot nie zna
+                  // tych wartości, były liczone w locie na podstawie
+                  // komponentów / aktualnego engine config.
+                  const canUseSnap =
+                    p.compositionMode !== "ZESTAW" &&
+                    bundlePurchasePln == null &&
+                    bundleLogisticsPln == null &&
+                    shippingFromEngine == null &&
+                    econSnapshotByProductId.has(p.id);
+                  const snapData = canUseSnap
+                    ? (econSnapshotByProductId.get(
+                        p.id,
+                      ) as ProductEconomicsResult)
+                    : null;
+                  const econ: ProductEconomicsResult =
+                    snapData ??
+                    computeProductEconomics(
+                      { ...p, skuCount },
+                      lastItem,
+                      courierRates,
+                      fulfillment,
+                      saleDefaults,
+                      bundleLogisticsPln ?? logisticsPerUnit,
+                      shippingFromEngine,
+                      bundlePurchasePln,
+                      importExtras,
+                    );
+                  // Jeśli policzyliśmy inline i snapshot BY się nadawał
+                  // (brak override'ów) — zapisz do kolejki warm pod `after()`.
+                  if (
+                    snapData == null &&
+                    p.compositionMode !== "ZESTAW" &&
+                    bundlePurchasePln == null &&
+                    bundleLogisticsPln == null &&
+                    shippingFromEngine == null
+                  ) {
+                    freshComputesForSnapshot.push({
+                      productId: p.id,
+                      data: econ,
+                      companyId: companyId ?? null,
+                    });
+                  }
                   const history = historyByProduct.get(p.id) ?? [];
                   // Factor: netto domyślnie, brutto = × (1 + VAT)
                   const factor =

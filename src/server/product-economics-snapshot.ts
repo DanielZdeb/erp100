@@ -133,13 +133,14 @@ async function loadInputsForOneProduct(productId: string) {
       usdToPlnRate: true,
       order: {
         select: {
+          id: true,
           cnyToPlnRate: true,
           usdToPlnRate: true,
         },
       },
     },
   });
-  const lastItem =
+  const lastItemFull =
     items.find(
       (it) =>
         it.unitPriceCny != null ||
@@ -148,6 +149,50 @@ async function loadInputsForOneProduct(productId: string) {
     ) ??
     items[0] ??
     null;
+  // Dla computeProductEconomics obcinamy order do pól przyjmowanych przez
+  // typ `LastItemRecord` (bez order.id — nie jest w tej strukturze).
+  const lastItem = lastItemFull
+    ? {
+        quantity: lastItemFull.quantity,
+        unitPriceCny: lastItemFull.unitPriceCny,
+        unitPriceUsd: lastItemFull.unitPriceUsd,
+        unitPricePln: lastItemFull.unitPricePln,
+        cnyToPlnRate: lastItemFull.cnyToPlnRate,
+        usdToPlnRate: lastItemFull.usdToPlnRate,
+        order: {
+          cnyToPlnRate: lastItemFull.order.cnyToPlnRate,
+          usdToPlnRate: lastItemFull.order.usdToPlnRate,
+        },
+      }
+    : null;
+
+  // importExtras + logisticsPerUnit — z ProductPriceHistory snapshotu
+  // ostatniego zamówienia (prowizja pośrednika, cło, logistyka shared).
+  // Bez tego snapshot miałby prowizja=0, cło=0, logistykę=null — a panel
+  // już używa tych wartości z `econByItemId`, więc rozjechałby się.
+  let importExtras = { prowizjaPerUnit: 0, cloPerUnit: 0 };
+  let logisticsPerUnit: number | null = null;
+  if (lastItemFull) {
+    const pph = await db.productPriceHistory.findFirst({
+      where: {
+        productId: product.id,
+        importOrderId: lastItemFull.order.id,
+      },
+      orderBy: { recordedAt: "desc" },
+      select: {
+        prowizjaPerUnitPln: true,
+        cloPerUnitPln: true,
+        logisticsPerUnitPln: true,
+      },
+    });
+    if (pph) {
+      importExtras = {
+        prowizjaPerUnit: pph.prowizjaPerUnitPln ?? 0,
+        cloPerUnit: pph.cloPerUnitPln ?? 0,
+      };
+      logisticsPerUnit = pph.logisticsPerUnitPln ?? null;
+    }
+  }
 
   // courierRates: wszystkie aktywne (identycznie jak w panelu /produkty).
   const courierRates = await db.courierRate.findMany({
@@ -166,6 +211,8 @@ async function loadInputsForOneProduct(productId: string) {
   ]);
 
   return {
+    importExtras,
+    logisticsPerUnit,
     product: {
       weightKg: product.weightKg,
       cbmPerUnit: product.cbmPerUnit,
@@ -217,6 +264,10 @@ export async function recomputeOneProductEconomics(
     inputs.courierRates,
     inputs.fulfillment,
     inputs.saleDefaults,
+    inputs.logisticsPerUnit,
+    null, // shippingOverridePln — snapshot nie zna aktualnego engine override
+    null, // bundlePurchasePlnOverride — snapshot nie liczy bundli (ZESTAW)
+    inputs.importExtras,
   );
 
   await db.productEconomySnapshot.upsert({
