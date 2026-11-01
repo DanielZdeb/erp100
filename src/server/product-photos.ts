@@ -867,6 +867,20 @@ const CATALOG_BACKGROUND_HINT =
   `props, textures, gradients, or floor lines. Professional studio product ` +
   `photography lighting.`;
 
+// Wykrywa czy prompt uzytkownika mowi cokolwiek o tle / scenie / lokalizacji.
+// Jesli tak — nie doklejamy CATALOG_BACKGROUND_HINT, zeby user wygral.
+// Bez tej detekcji "zmien tlo na drewniane" i tak dostawalo bialy katalog bo
+// hint byl ostatnia instrukcja z twardym "NO background props/textures/gradients".
+function userMentionsBackground(prompt: string): boolean {
+  const p = prompt.toLowerCase();
+  // PL: tło, scena, otoczenie, plener, łąka, las, plaża, studio, wnętrze, pokój,
+  //     drewno, trawa, piasek, woda, niebo, chmury, mur, cegły, góry, miasto, ulica.
+  // EN: background, scene, setting, environment, outdoor, indoor, location,
+  //     forest, beach, meadow, desert, urban, street, room, interior, exterior,
+  //     landscape, nature, studio, lifestyle.
+  return /(\btło|tla\b|tle\b|scen[aąęy]|otoczeni|środowisk|plener|łąk|lesie|lasu|lesie|lesny|lesna|lesne|w lesie|plaż|wnętrz|pokój|pokoj|w pokoju|drewn|trawie|trawa|piask|wod[aąęy]|niebo|niebie|chmur|cegieł|cegły|cegly|cegielnej|cegieln|mur[aąuy]|góra|góry|gorach|miast[auoię]|ulic[aięy]|background|scene\b|setting\b|environment|outdoor|indoor|location|forest|beach|meadow|desert|urban|street|room\b|interior|exterior|landscape|nature|lifestyle|studio\b)/.test(p);
+}
+
 async function runEditInBackground(params: {
   pendingImageId: string;
   productId: string;
@@ -880,12 +894,13 @@ async function runEditInBackground(params: {
     params.extraRefUrls.length > 0
       ? `\n\nAdditional reference images (after the first) are STYLE / DETAIL / COMPARISON references — use them as guides for color, material, texture, or specific details requested in the edit. Do NOT copy their composition.`
       : "";
+  const bgHint = userMentionsBackground(params.prompt) ? "" : `\n\n${CATALOG_BACKGROUND_HINT}`;
   const editPrompt =
     `You are editing an existing product photo. ` +
     `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
     `Apply this change: ${params.prompt}${extraHint}\n\n` +
-    `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}\n\n` +
-    CATALOG_BACKGROUND_HINT;
+    `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}` +
+    bgHint;
 
   const result = await generateProductPhoto({
     prompt: editPrompt,
@@ -1070,8 +1085,10 @@ async function runCustomGenerationInBackground(params: {
       shot.refUrls.length > 0
         ? `\n\nIMPORTANT: The FIRST attached reference image is the composition template — match its camera angle, framing, perspective, lighting, pose EXACTLY. Other images are for color/material/style context only.`
         : "";
+    const combinedUserPrompt = `${params.groupPrompt} ${shot.prompt}`;
+    const bgHint = userMentionsBackground(combinedUserPrompt) ? "" : `\n\n${CATALOG_BACKGROUND_HINT}`;
     const finalPrompt =
-      `${params.groupPrompt}\n\n${productLine}\n\nShot ${i + 1}: ${shot.prompt}${compositionHint}\n\n${CATALOG_BACKGROUND_HINT}`;
+      `${params.groupPrompt}\n\n${productLine}\n\nShot ${i + 1}: ${shot.prompt}${compositionHint}${bgHint}`;
 
     const refs = [...shot.refUrls, ...params.groupRefUrls];
 
