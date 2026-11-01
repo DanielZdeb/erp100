@@ -894,10 +894,17 @@ async function runEditInBackground(params: {
     params.extraRefUrls.length > 0
       ? `\n\nAdditional reference images (after the first) are STYLE / DETAIL / COMPARISON references — use them as guides for color, material, texture, or specific details requested in the edit. Do NOT copy their composition.`
       : "";
-  const bgHint = userMentionsBackground(params.prompt) ? "" : `\n\n${CATALOG_BACKGROUND_HINT}`;
+  // EDIT mode: zachowujemy TLO/scene/oswietlenie z oryginalnego zdjecia.
+  // Hint "catalog white studio" doklejamy TYLKO gdy user explicitly prosi o
+  // bialy/katalogowy packshot. W pozostalych przypadkach — nawet gdy user mowi
+  // o tle (np. "zmien tlo na drewniane") — zostawiamy to pelnie w rekach modelu
+  // zeby nie nadpisac prosby usera.
+  const wantsCatalogWhite = /\b(packshot|catalog|katalog|white\s*studio|bialym?\s*tle|biale\s*tlo|bial(y|e|ego|ym)\s*tł[oe])/i.test(params.prompt);
+  const bgHint = wantsCatalogWhite ? `\n\n${CATALOG_BACKGROUND_HINT}` : "";
   const editPrompt =
     `You are editing an existing product photo. ` +
     `Keep the EXACT composition, camera angle, framing, and product position from the FIRST attached reference image. ` +
+    `CRITICAL: Preserve the ORIGINAL background, scene, environment, lighting, people and all other elements of the first reference image EXACTLY. Change ONLY what the user requests below — do NOT replace the background with a studio or white backdrop unless explicitly asked. ` +
     `Apply this change: ${params.prompt}${extraHint}\n\n` +
     `Product: ${params.productName}${params.productColor ? `, color: ${params.productColor}` : ""}` +
     bgHint;
