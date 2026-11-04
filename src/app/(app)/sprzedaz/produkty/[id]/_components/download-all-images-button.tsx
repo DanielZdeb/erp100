@@ -10,8 +10,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
 /**
@@ -130,19 +128,32 @@ export function DownloadAllImagesButton({
         >
           <ChevronDown className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Format pobierania</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handleDownload("original")}>
+        <DropdownMenuContent align="end" className="w-56 p-1">
+          <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
+            Format pobierania
+          </div>
+          <DropdownMenuItem
+            onClick={() => handleDownload("original")}
+            className="cursor-pointer"
+          >
             {FORMAT_LABELS.original}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleDownload("jpg")}>
+          <DropdownMenuItem
+            onClick={() => handleDownload("jpg")}
+            className="cursor-pointer"
+          >
             {FORMAT_LABELS.jpg}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleDownload("webp")}>
+          <DropdownMenuItem
+            onClick={() => handleDownload("webp")}
+            className="cursor-pointer"
+          >
             {FORMAT_LABELS.webp}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleDownload("both")}>
+          <DropdownMenuItem
+            onClick={() => handleDownload("both")}
+            className="cursor-pointer"
+          >
             {FORMAT_LABELS.both}
           </DropdownMenuItem>
         </DropdownMenuContent>
