@@ -25,6 +25,17 @@ const MANUAL_COVERS: Record<string, string> = {
     "/uploads/manual-covers/szarfa-akrobatyczna.webp",
 };
 
+// Hierarchia wyświetlania kafelków — im wcześniej na liście, tym wyżej.
+// Instrukcje spoza listy trafiają na koniec, alfabetycznie.
+const MANUAL_ORDER: string[] = [
+  "Hamaki dla dzieci, huśtawki sensoryczne",
+  "Szarfa akrobatyczna AERIAL SILK",
+  "Hamak do jogi",
+  "Rury pole dance",
+  "Koła cyrkowe aerial hoop",
+  "Mocowanie sufitowe 1 ucho",
+];
+
 export const metadata = {
   title: "Instrukcje produktów — ACRO4F",
   description: "Interaktywne instrukcje montażu i obsługi produktów ACRO4F",
@@ -53,16 +64,25 @@ export default async function InstrukcjeListPage({
     },
   });
 
-  const items = manuals.map((m) => {
-    const doc = (m.manualJson ?? {}) as { activeLanguages?: string[] };
-    return {
-      id: m.id,
-      name: m.name,
-      isPdf: m.kind === "PDF_ATTACHMENT",
-      langs: doc.activeLanguages ?? [],
-      cover: MANUAL_COVERS[m.name] ?? null,
-    };
-  });
+  const items = manuals
+    .map((m) => {
+      const doc = (m.manualJson ?? {}) as { activeLanguages?: string[] };
+      return {
+        id: m.id,
+        name: m.name,
+        isPdf: m.kind === "PDF_ATTACHMENT",
+        langs: doc.activeLanguages ?? [],
+        cover: MANUAL_COVERS[m.name] ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const ai = MANUAL_ORDER.indexOf(a.name);
+      const bi = MANUAL_ORDER.indexOf(b.name);
+      if (ai === -1 && bi === -1) return a.name.localeCompare(b.name, "pl");
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
 
   return (
     <div className="min-h-screen">
