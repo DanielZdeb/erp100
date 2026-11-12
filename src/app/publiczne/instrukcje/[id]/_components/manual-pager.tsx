@@ -59,24 +59,24 @@ export function ManualPager({ sections }: { sections: Section[] }) {
   return (
     <div>
       {/* Progress bar u góry (thin) */}
-      <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-6">
+      <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-4">
         <div
           className="h-full bg-slate-900 transition-all duration-300"
           style={{ width: `${((i + 1) / total) * 100}%` }}
         />
       </div>
 
-      {/* Kropki + licznik */}
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+      {/* Licznik + tytul sekcji */}
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">
           {i + 1} / {total}
-          {section.title && (
-            <span className="ml-2 text-slate-400 font-normal normal-case tracking-normal">
-              · {section.title}
-            </span>
-          )}
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-[50%]">
+        {section.title && (
+          <div className="text-xs text-slate-500 truncate">
+            {section.title}
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 overflow-x-auto shrink-0">
           {sections.map((s, idx) => (
             <button
               key={idx}
@@ -106,38 +106,46 @@ export function ManualPager({ sections }: { sections: Section[] }) {
         />
       </div>
 
-      {/* Nawigacja u dołu */}
-      <div className="mt-10 flex items-center justify-between gap-3 border-t border-slate-200 pt-6">
-        <button
-          type="button"
-          onClick={() => go(i - 1)}
-          disabled={!canPrev}
-          className={
-            canPrev
-              ? "inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors"
-              : "inline-flex items-center gap-2 rounded-lg bg-slate-100 text-slate-400 px-4 py-2.5 text-sm font-semibold cursor-not-allowed"
-          }
-        >
-          <ChevronLeft className="size-4" />
-          Poprzednia
-        </button>
-        <div className="text-xs text-slate-400 hidden sm:block">
-          ← → klawiatura · swipe na mobile
+      {/* Sticky bottom nav — zawsze przyklejona do dołu ekranu */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => go(i - 1)}
+            disabled={!canPrev}
+            className={
+              canPrev
+                ? "inline-flex items-center gap-1.5 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+                : "inline-flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-400 px-4 py-2.5 text-sm font-semibold cursor-not-allowed"
+            }
+          >
+            <ChevronLeft className="size-4" />
+            <span className="hidden sm:inline">Poprzednia</span>
+          </button>
+          <div className="text-xs font-semibold text-slate-700 tabular-nums">
+            {i + 1} / {total}
+          </div>
+          <button
+            type="button"
+            onClick={() => go(i + 1)}
+            disabled={!canNext}
+            className={
+              canNext
+                ? "inline-flex items-center gap-1.5 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+                : "inline-flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-400 px-4 py-2.5 text-sm font-semibold cursor-not-allowed"
+            }
+          >
+            <span className="hidden sm:inline">Następna</span>
+            <ChevronRight className="size-4" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => go(i + 1)}
-          disabled={!canNext}
-          className={
-            canNext
-              ? "inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors"
-              : "inline-flex items-center gap-2 rounded-lg bg-slate-100 text-slate-400 px-4 py-2.5 text-sm font-semibold cursor-not-allowed"
-          }
-        >
-          Następna
-          <ChevronRight className="size-4" />
-        </button>
       </div>
+
+      {/* Spacer zeby ostatnia tresc nie byla zaslaniana przez sticky nav */}
+      <div className="h-24" aria-hidden="true" />
     </div>
   );
 }

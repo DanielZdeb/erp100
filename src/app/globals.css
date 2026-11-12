@@ -494,13 +494,33 @@ input[type="number"] {
    stylujemy bezpośrednio elementy w .manual-content.
    ======================================================================== */
 .manual-content {
-  font-size: 15px;
-  line-height: 1.6;
+  font-family:
+    var(--font-plus-jakarta-sans),
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
   color: #1f2937;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@media (min-width: 640px) {
+  .manual-content {
+    font-size: 17px;
+  }
 }
 .manual-content p {
-  margin: 0.6em 0;
-  text-align: justify;
+  margin: 0.7em 0;
+  text-align: left;
+}
+.manual-content strong,
+.manual-content b {
+  font-weight: 700;
+  color: #0f172a;
 }
 .manual-content h1 {
   font-size: 1.9em;
@@ -532,8 +552,8 @@ input[type="number"] {
 }
 .manual-content ul,
 .manual-content ol {
-  margin: 0.5em 0 0.5em 1.5em;
-  padding-left: 1em;
+  margin: 0.8em 0 0.8em 0;
+  padding-left: 1.5em;
 }
 .manual-content ul {
   list-style: disc;
@@ -542,10 +562,16 @@ input[type="number"] {
   list-style: decimal;
 }
 .manual-content li {
-  margin: 0.2em 0;
+  margin: 0.35em 0;
+  padding-left: 0.25em;
+}
+.manual-content li::marker {
+  color: #64748b;
+  font-weight: 600;
 }
 .manual-content li > p {
   margin: 0;
+  display: inline;
 }
 .manual-content blockquote {
   border-left: 3px solid #cbd5e1;
@@ -591,9 +617,10 @@ input[type="number"] {
 .manual-content img {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
-  margin: 0.8em auto;
+  border-radius: 12px;
+  margin: 1.2em auto;
   display: block;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 .manual-content table {
   border-collapse: collapse;
@@ -620,19 +647,23 @@ input[type="number"] {
   margin: 2.5em 0;
 }
 
-/* Callout — żółty pasek uwagi (TipTap custom node). */
+/* Callout — pasek uwagi/info (TipTap custom node). */
 .manual-content .manual-callout {
-  background: #fef3c7;
-  border-left: 3px solid #f59e0b;
-  padding: 12px 16px;
-  margin: 0.8em 0;
-  border-radius: 4px;
+  background: #fff7ed;
+  border-left: 4px solid #f59e0b;
+  padding: 14px 18px;
+  margin: 1.2em 0;
+  border-radius: 8px;
+  color: #78350f;
 }
 .manual-content .manual-callout > p:first-child {
   margin-top: 0;
 }
 .manual-content .manual-callout > p:last-child {
   margin-bottom: 0;
+}
+.manual-content .manual-callout strong {
+  color: #92400e;
 }
 
 /* Section layout — układ tekst+obraz (TipTap custom node). */
